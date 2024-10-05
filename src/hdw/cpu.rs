@@ -23,17 +23,17 @@ struct Registers {
     l: u8
 }
 
-// Our Gameboy's Memory
-struct Memory {
-    memory: [u8; 0xFFFF]
-}
-
 // Special Flags Register to act as u8 but be called as struct
 struct FlagsRegister {
     zero: bool,
     subtract: bool,
     half_carry: bool,
     carry: bool
+}
+
+// Our Gameboy's Memory
+struct Memory {
+    memory: [u8; 0xFFFF]
 }
 
 // Target For All Instructions
@@ -51,6 +51,7 @@ enum Instruction {
     RLC(ArithmeticTarget), SRA(ArithmeticTarget),
     SLA(ArithmeticTarget), SWAP(ArithmeticTarget),
     RRA, RLA, RRCA, RRLA, CPL, 
+    JP(JumpTest), LD(LoadType),
 }
 
 // Target All Except F register
@@ -66,9 +67,87 @@ enum FlagsTarget {
     Carry,
 }
 
+// Jump Test
+enum JumpTest {
+    NotZero,
+    Zero,
+    NotCarry,
+    Carry,
+    Always
+}
+
+// Enum For Possible Load Targets
+enum LoadByteTarget {
+    A, B, C, D, E, H, L, HLI
+}
+
+// Enum For Possible Load Sources
+enum LoadByteSource {
+    A, B, C, D, E, H, L, D8, HLI
+}
+
+// Enum Describes Load Rule
+enum LoadType {
+    Byte(LoadByteTarget, LoadByteSource),
+}
+
+// filter byte to instruction dependant on prefixes
+impl Instruction {
+    fn from_byte(byte: u8, prefixed: bool) -> Option<Instruction> {
+       if(prefixed) {
+        // returns result of this 
+        Instruction::from_prefixed_byte(byte)
+       } else {
+        // returns result of this
+        Instruction::from_byte_not_prefixed(byte)
+       }
+    }
+
+    // Match Instruction to Prefixed Instruction Set
+    fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
+        match byte {
+            0x00 => Some(Instruction::RLC(PrefixTarget::B)),
+            // ^ ex syntax
+        }
+    }
+
+    // Match Instruction to Non Prefixed Instruction Set
+    fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
+        match byte{
+            0x02 => Some(Instruction::INC(IncDecTarget::BC)),
+            // ^ ex syntax
+        }
+    }
+}
+
+
+
 impl CPU {
+    // Function to 'step' through instructions
+    fn step(&mut self) {
+        // read next instruction from memory
+        let mut instruction_opcode = self.memory.read_byte(self.pc);
+
+        // Check if byte is the prefix indicator
+        let prefixed = instruction_byte == 0xCB;
+        if prefixed {
+            // if prefixedd instead we read next byte 
+            instruction_byte = self.bus.read_byte(self.pc + 1);
+        }
+
+        // Use enum to translate opcode and store next pc addr
+        let next_pc = if let Some(instruction) = Instruction::from_byte(instruction_opcode, prefixed) {
+            self.execute(instruction);
+        } else {
+            panic!("Unable to Read Opcode 0x{}", instruction_opcode, " was prefixed? {}", prefixed);
+        };
+
+        self.pc = next_pc;
+    }
+
+
     // Function to execute an opcode by matching Instruction type and target then calling its method
-    fn execute(&mut self, instruction: Instruction) {
+    fn execute(&mut self, instruction: Instruction) -> u16 {
         match instruction {
             Instruction::ADD(target) => {
                 let target_register = match target {
@@ -86,6 +165,9 @@ impl CPU {
 
                 // UPD Register
                 self.registers.a = new_value;
+
+                // return next pc
+                self.pc.wrapping_add(1) 
             }
             Instruction::ADDHL(target) => {
                 // Get mutable reference to the target register
@@ -201,9 +283,38 @@ impl CPU {
             Instruction::SWAP(target) => {
 
             }
+            Instruction::JP(test) => {
+                let jump_condition = match test {
+                    JumpTest::NotZero =>    !self.registers.f.zero,
+                    JumpTest::NotCarry =>   !self.registers.f.carry,
+                    JumpTest::Zero =>       !self.registers.f.zero,
+                    JumpTest::Carry =>      !self.registers.f.carry,
+                    JumpTest::Always =>     true
+                };
+                self.jump(jump_condition)
+            }
+            Instruction::LD(load_type) => {
+                match load_type {
+                    LoadType::Byte(target, source) => {
+                        let source = match source {
+                            // TODO match sources
+                        };
+                        match target {
+                            // TODO match target and up
+                        };
+                        
+                        // Increment PC depending on source
+                        match source {
+                            LoadByteSource::D8  => self.pc.wrapping_add(2),
+                            _                   => self.pc.wrapping_add(1),
+                        }
+                    }
+                    // TODO Implement other Load Types
+                }
+            }
+            // TODO MORE INSTRUCTIONS
         }
     }
-}
 
     // ADD -> Adds specific registers contents to the a registers contents
     fn add(&mut self, value: u8) -> u8 {
@@ -257,6 +368,23 @@ impl CPU {
         // Implicitly Return
         new_value
     }
+
+    // Jump to addr in memory or increment pc
+    fn jump(&self, jump: bool) -> u16 {
+        if(jump) {
+            let least_significant = self.memory.read_byte(self.pc + 1) as u16;
+            let most_significant = self.memory.read_bye(self.pc + 2) as u16;
+
+            // combine and return 2 byte addr in lil endian
+            (most_significant << 8) | least_significant
+        } else {
+            // return next pc
+            self.pc.wrapping_add(3)
+        }
+    }
+
+
+}
 
 
 impl Registers {

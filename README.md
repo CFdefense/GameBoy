@@ -37,7 +37,7 @@ To guide the development process, I will utilize the following resources:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/gameboy-emulator.git
+git clone https://github.com/CFdefense/GameBoy.git
 cd gameboy-emulator
 ```
 

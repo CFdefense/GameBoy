@@ -1,3 +1,7 @@
+pub mod memory;
+
+use memory::Memory;
+
 // FLAG POSITIONS FOR FLAGS REGISTER
 const ZERO_FLAG_BYTE_POSITION: u8 = 7;
 const SUBTRACT_FLAG_BYTE_POSITION: u8 = 6;
@@ -31,11 +35,6 @@ struct FlagsRegister {
     subtract: bool,
     half_carry: bool,
     carry: bool
-}
-
-// Our Gameboy's Memory
-struct Memory {
-    memory: [u8; 0xFFFF]
 }
 
 // Target For All Instructions
@@ -149,7 +148,7 @@ impl CPU {
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
             // if prefixedd instead we read next byte 
-            instruction_byte = self.bus.read_byte(self.pc + 1);
+            instruction_byte = self.memory.read_byte(self.pc + 1);
         }
 
         // Use enum to translate opcode and store next pc addr
@@ -327,7 +326,7 @@ impl CPU {
             Instruction::LD(load_type) => {
                 match load_type {
                     LoadType::Byte(target, source) => {
-                        let source = match source {
+                        let source_value = match source {
                             LoadByteSource::A => self.registers.a,
                             LoadByteSource::B => self.registers.b,
                             LoadByteSource::C => self.registers.c,
@@ -336,7 +335,7 @@ impl CPU {
                             LoadByteSource::H => self.registers.h,
                             LoadByteSource::L => self.registers.l,
                             LoadByteSource::D8 => self.read_next_byte(), // direct 8 bytes -> read next bytes
-                            LoadByteSource::HLI => self.bus.read_byte(self.registers.get_hl()), // read byte of address stored in hl
+                            LoadByteSource::HLI => self.memory.read_byte(self.registers.get_hl()), // read byte of address stored in hl
                             _ =>   panic!("LD: Bad Source"),
                         };
                         match target {
@@ -347,7 +346,7 @@ impl CPU {
                             LoadByteTarget::E => self.registers.e = source_value,
                             LoadByteTarget::H => self.registers.h = source_value,
                             LoadByteTarget::L => self.registers.l = source_value,
-                            LoadByteTarget::HLI => self.bus.write_byte(self.registers.get_hl(), source_value),
+                            LoadByteTarget::HLI => self.memory.write_byte(self.registers.get_hl(), source_value),
                         _ =>   panic!("LD: Bad Target"),
                         };
                         
@@ -578,13 +577,6 @@ impl Registers {
     fn set_hl(&mut self, value: u16) {
         self.h = ((value && 0xFF00) >> 8) as u8;
         self.l = (value && 0xFF) as u8;
-    }
-}
-
-impl Memory {
-    // Function to return a byte at an address
-    fn read_byte(&self, address: u16) -> u8 {
-        self.memory[address as usize]
     }
 }
 

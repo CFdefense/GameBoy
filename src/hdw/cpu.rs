@@ -8,7 +8,9 @@ const CARRY_FLAG_BYTE_POSITION: u8 = 4;
 struct CPU {
     registers: Registers,
     pc: u16,
-    memory: Memory
+    sp: u16,
+    memory: Memory,
+    is_halted: bool
 }
 
 // Registers For Holding and Manipulating Data
@@ -50,13 +52,19 @@ enum Instruction {
     RL(ArithmeticTarget), RRC(ArithmeticTarget),
     RLC(ArithmeticTarget), SRA(ArithmeticTarget),
     SLA(ArithmeticTarget), SWAP(ArithmeticTarget),
-    RRA, RLA, RRCA, RRLA, CPL, 
-    JP(JumpTest), LD(LoadType),
+    RRA, RLA, RRCA, RRLA, CPL, NOP, HALT,
+    JP(JumpTest), LD(LoadType), PUSH(StackTarget),
+    POP(StackTarget), CALL(JumpTest), RET(JumpTest),
 }
 
 // Target All Except F register
 enum ArithmeticTarget {
     A, B, C, D, E, H, L,
+}
+
+// 16 Bit Targets For Stack
+enum StackTarget {
+    AF, BC, DE, HL,
 }
 
 // Target F Register
@@ -86,9 +94,16 @@ enum LoadByteSource {
     A, B, C, D, E, H, L, D8, HLI
 }
 
+// TODO IMPLEMENT
 // Enum Describes Load Rule
 enum LoadType {
     Byte(LoadByteTarget, LoadByteSource),
+    Word, // Like Byte but 16 bit values
+    AFromIndirect, //load the A register with the contents from a value from a memory location whose address is stored in some location
+    IndirectFromA, // load a memory location whose address is stored in some location with the contents of the A register
+    AFromByteAddress, // Just like AFromIndirect except the memory address is some address in the very last byte of memory.
+    ByteAddressFromA, // Just like IndirectFromA except the memory address is some address in the very last byte of memory
+
 }
 
 // filter byte to instruction dependant on prefixes
@@ -103,6 +118,7 @@ impl Instruction {
        }
     }
 
+    // TODO Implement
     // Match Instruction to Prefixed Instruction Set
     fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
         match byte {
@@ -111,6 +127,7 @@ impl Instruction {
         }
     }
 
+    // TODO IMPLEMENT
     // Match Instruction to Non Prefixed Instruction Set
     fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
         match byte{
@@ -148,6 +165,12 @@ impl CPU {
 
     // Function to execute an opcode by matching Instruction type and target then calling its method
     fn execute(&mut self, instruction: Instruction) -> u16 {
+
+        // return while halted
+        if(self.is_halted) {
+            return
+        }
+
         match instruction {
             Instruction::ADD(target) => {
                 let target_register = match target {
@@ -250,6 +273,14 @@ impl CPU {
             Instruction::CPL => {
 
             }
+            Instruction::NOP => {
+                // Stands for no-operation and it effectively does nothing except advance the program counter by 1.
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::HALT => {
+                // Instruction For Halting CPU Cycle
+                self.is_halted = true;
+            }
             Instruction::BIT(targt) => {
 
             }
@@ -297,10 +328,27 @@ impl CPU {
                 match load_type {
                     LoadType::Byte(target, source) => {
                         let source = match source {
-                            // TODO match sources
+                            LoadByteSource::A => self.registers.a,
+                            LoadByteSource::B => self.registers.b,
+                            LoadByteSource::C => self.registers.c,
+                            LoadByteSource::D => self.registers.d,
+                            LoadByteSource::E => self.registers.e,
+                            LoadByteSource::H => self.registers.h,
+                            LoadByteSource::L => self.registers.l,
+                            LoadByteSource::D8 => self.read_next_byte(), // direct 8 bytes -> read next bytes
+                            LoadByteSource::HLI => self.bus.read_byte(self.registers.get_hl()), // read byte of address stored in hl
+                            _ =>   panic!("LD: Bad Source"),
                         };
                         match target {
-                            // TODO match target and up
+                            LoadByteTarget::A => self.registers.a = source_value,
+                            LoadByteTarget::B => self.registers.b = source_value,
+                            LoadByteTarget::C => self.registers.c = source_value,
+                            LoadByteTarget::D => self.registers.d = source_value,
+                            LoadByteTarget::E => self.registers.e = source_value,
+                            LoadByteTarget::H => self.registers.h = source_value,
+                            LoadByteTarget::L => self.registers.l = source_value,
+                            LoadByteTarget::HLI => self.bus.write_byte(self.registers.get_hl(), source_value),
+                        _ =>   panic!("LD: Bad Target"),
                         };
                         
                         // Increment PC depending on source
@@ -309,10 +357,69 @@ impl CPU {
                             _                   => self.pc.wrapping_add(1),
                         }
                     }
-                    // TODO Implement other Load Types
+                    LoadType::Word => {
+
+                    }
+                    LoadType::AFromIndirect => {
+
+                    }
+                    LoadType::IndirectFromA => {
+
+                    }
+                    LoadType::AFromByteAddress => {
+
+                    }
+                    LoadType::ByteAddressFromA => {
+
+                    }
+                    _ =>   panic!("LD: BAD LOAD TYPE"),
                 }
             }
-            // TODO MORE INSTRUCTIONS
+            Instruction::PUSH(target) => {
+                let value = match target {
+                    StackTarget::AF => self.registers.get_af,
+                    StackTarget::BC => self.registers.get.bc,
+                    StackTarget::DE => self.registers.get.de,
+                    StackTarget::HL => self.registers.get.hl,
+                    _ => panic!("PUSH: Bad Target"),
+                };
+                // push value to stack
+                self.push(value);
+                
+                // increment pc
+                self.pc.wrapping_add(1);
+            }
+            Instruction::POP(target) => {
+                let result = self.pop();
+                match target {
+                    StackTarget::AF => self.registers.set_af(result),
+                    StackTarget::BC => self.registers.set.bc(result),
+                    StackTarget::DE => self.registers.set.de(result),
+                    StackTarget::HL => self.registers.set.hl(result),
+                    _ => panic!("POP: Bad Target"),
+                }
+            }
+            Instruction::CALL(test) => {
+                let jump_condition = match test {
+                    JumpTest::NotZero =>    !self.registers.f.zero,
+                    JumpTest::NotCarry =>   !self.registers.f.carry,
+                    JumpTest::Zero =>       !self.registers.f.zero,
+                    JumpTest::Carry =>      !self.registers.f.carry,
+                    JumpTest::Always =>     true
+                };
+                self.call(jump_condition);
+            }
+            Instruction::RET(test) => {
+                let jump_condition = match test {
+                    JumpTest::NotZero =>    !self.registers.f.zero,
+                    JumpTest::NotCarry =>   !self.registers.f.carry,
+                    JumpTest::Zero =>       !self.registers.f.zero,
+                    JumpTest::Carry =>      !self.registers.f.carry,
+                    JumpTest::Always =>     true
+                };
+                self.run_return(jump_condition);
+            }
+            _ =>   panic!("Implement more Instructions"),
         }
     }
 
@@ -373,7 +480,7 @@ impl CPU {
     fn jump(&self, jump: bool) -> u16 {
         if(jump) {
             let least_significant = self.memory.read_byte(self.pc + 1) as u16;
-            let most_significant = self.memory.read_bye(self.pc + 2) as u16;
+            let most_significant = self.memory.read_byte(self.pc + 2) as u16;
 
             // combine and return 2 byte addr in lil endian
             (most_significant << 8) | least_significant
@@ -383,7 +490,60 @@ impl CPU {
         }
     }
 
+    // Push to stack and increment pointers
+    fn push(&mut self, value: u16) {
+        // increment stack pointer
+        self.sp = self.sp.wrapping_add(1);
 
+        // mask shift and write first byte to memory at SP
+        self.memory.write_byte(self.sp, ((value && 0xFF00) >> 8) as u8);
+
+        // increment stack pointer
+        self.sp = self.sp.wrapping_add(1);
+
+        // mask and write second byte to memory at SP
+        self.memory.write_byte(self.sp, (value && 0xFF) as u8);
+    }
+
+    // Pop from stack and increment pointers
+    fn pop(&mut self) -> u16 {
+        // read least significant byte from memory at SP
+        let least_significant_byte = self.memory.read_byte(self.sp) as u16;
+        
+        // increment stack pointer
+        self.sp = self.sp.wrapping_add(1);
+
+        // read most significan byte from memory at SP
+        let most_significant_byte = self.memory.read_byte(self.sp) as u16;
+ 
+        // increment stack pointer
+        self.sp = self.sp.wrapping_add(1);
+
+        // shift+OR to combine bytes and implicitly return
+        (most_significant_byte << 8) | least_significant_byte
+    }
+
+    // Call function for call stack
+    fn call(&mut self, should_jump: bool) -> u16 {
+        let next_pc = self.pc.wrapping_add(3);
+        if(should_jump) {
+            self.push(next_pc);
+            self.read_next_byte
+        } else {
+            next_pc
+        }
+    }
+
+    // Return function for returning through call stack
+    fn run_return(&mut self, jump_condition: bool) -> u16 {
+        if(should_jump) {
+            self.pop()
+        } else {
+            self.wrapping_add(1);
+        }
+    }
+
+    // CPU ENDS HERE
 }
 
 

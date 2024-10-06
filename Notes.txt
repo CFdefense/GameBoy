@@ -23,3 +23,11 @@ MEMORY
 
 -0x0000 -> 0x00FF hard codeded memory for boot/load
 -memory starting at index 0x100 until index 0x3FFF include the contents of the cartridge.
+
+
+GRAPHICS
+
+0b11 | white
+0b10 | dark-gray
+0b01 | light-gray
+0b00 | black

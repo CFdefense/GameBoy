@@ -14,7 +14,9 @@ pub struct CPU {
     pc: u16,
     sp: u16,
     memory: Memory,
-    is_halted: bool
+    is_halted: bool,
+    curr_opcode: u16,
+    curr_instruction: Option<Instruction>
 }
 
 // Registers For Holding and Manipulating Data
@@ -107,16 +109,6 @@ enum LoadType {
 
 // filter byte to instruction dependant on prefixes
 impl Instruction {
-    fn from_byte(byte: u8, prefixed: bool) -> Option<Instruction> {
-       if(prefixed) {
-        // returns result of this 
-        Instruction::from_prefixed_byte(byte)
-       } else {
-        // returns result of this
-        Instruction::from_byte_not_prefixed(byte)
-       }
-    }
-
     // TODO Implement
     // Match Instruction to Prefixed Instruction Set
     fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
@@ -141,45 +133,88 @@ impl Instruction {
 impl CPU {
 
     // Contructor
-    pub fn new() -> Self {
+    pub fn new(memory: Memory) -> Self {
         CPU {
-            // initialize Vars
-            registers: Registers,
-            pc: u16,
-            sp: u16,
-            memory: Memory,
-            is_halted: bool
+            registers: Registers {
+                a: 0,
+                b: 0,
+                c: 0,
+                d: 0,
+                e: 0,
+                f: FlagsRegister {
+                    zero: false,
+                    subtract: false,
+                    half_carry: false,
+                    carry: false,
+                },
+                h: 0,
+                l: 0,
+            },
+            pc: 0,
+            sp: 0,
+            memory,
+            is_halted: false,
+            curr_opcode: 0,
+            curr_instruction: None,
         }
     }
+
     // Function to 'step' through instructions
     fn step(&mut self) {
-        // read next instruction from memory
-        let mut instruction_opcode = self.memory.read_byte(self.pc);
 
+        // Get Next Opcode
+        self.fetch();
+        
         // Check if byte is the prefix indicator
-        let prefixed = instruction_opcode == 0xCB;
-        if prefixed {
-            // if prefixedd instead we read next byte 
-            instruction_opcode = self.memory.read_byte(self.pc + 1);
+        self.decode();
+
+        // Execute the current instruction if it exists and reset it to none
+        if let Some(instruction) = self.curr_instruction.take() {
+            let next_pc = self.execute(instruction);
         }
 
-        // Use enum to translate opcode and store next pc addr
-        let next_pc = if let Some(instruction) = Instruction::from_byte(instruction_opcode, prefixed) {
-            self.execute(instruction);
-        } else {
-            panic!("Unable to Read Opcode 0x{:02X}, was prefixed? {}", instruction_opcode, prefixed);
-        };
-
+        // Increment pc to returned pc
         self.pc = next_pc;
     }
 
+    // Function to fetch next opcode
+    fn fetch(&mut self) {
+        self.curr_opcode = self.memory.read_byte(self.pc);
+    }
+
+    // Function to decode current opcode
+    fn decode(&self) {
+        let prefixed = self.curr_opcode == 0xCB;
+
+        // Determine Instruction Byte
+        let instruction_opcode = if prefixed {
+            self.memory.read_byte(self.pc + 1)
+        } else {
+            self.curr_opcode
+        };
+
+        // Use enum to translate opcode and store next pc addr
+        if(prefixed) {
+            self.curr_instruction = Instruction::from_prefixed_byte(instruction_opcode);
+        } else {
+            self.curr_instruction = Instruction::from_byte_not_prefixe(instruction_opcode);
+        }
+        
+        // Error handling
+        if self.curr_instruction.is_none() {
+            panic!("Unable to Read Opcode 0x{:02X}, was prefixed? {}", instruction_opcode, prefixed);
+        }
+
+        // Update PC (if needed) based on instruction
+        self.pc = self.pc.wrapping_add(if prefixed { 2 } else { 1 });
+    }
 
     // Function to execute an opcode by matching Instruction type and target then calling its method
     fn execute(&mut self, instruction: Instruction) -> u16 {
 
         // return while halted
         if(self.is_halted) {
-            return
+            self.pc
         }
 
         match instruction {

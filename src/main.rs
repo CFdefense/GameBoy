@@ -30,6 +30,4 @@ fn main() {
     Println!("Enter ROM Path");
     stdin().read_line(&mut file_path).expect("Didn't Get Input");
 
-    if()
-
 }

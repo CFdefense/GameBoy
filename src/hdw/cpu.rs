@@ -81,9 +81,9 @@ enum Instruction {
     SLA(HLArithmeticTarget),
     SRL(HLArithmeticTarget),
     SWAP(HLArithmeticTarget),
-    BIT(HLArithmeticTarget),
-    RES(HLArithmeticTarget),
-    SET(HLArithmeticTarget),
+    BIT(ByteTarget),
+    RES(ByteTarget),
+    SET(ByteTarget),
 }
 
 // Target All Except F register
@@ -96,6 +96,19 @@ enum ArithmeticTarget {
     H,
     L,
 }
+
+// Enum For BIT/RES/SET Instruction Types
+enum ByteTarget {
+    Zero(HLArithmeticTarget),
+    One(HLArithmeticTarget),
+    Two(HLArithmeticTarget),
+    Three(HLArithmeticTarget),
+    Four(HLArithmeticTarget),
+    Five(HLArithmeticTarget),
+    Six(HLArithmeticTarget),
+    Seven(HLArithmeticTarget),
+}
+
 enum HLArithmeticTarget {
     A,
     B,
@@ -157,20 +170,6 @@ enum LoadByteSource {
     HLI,
 }
 
-fn arithmetic_target_helper(byte: u8) -> HLArithmeticTarget {
-    match byte % 8 {
-        0 => HLArithmeticTarget::B,
-        1 => HLArithmeticTarget::C,
-        2 => HLArithmeticTarget::D,
-        3 => HLArithmeticTarget::E,
-        4 => HLArithmeticTarget::H,
-        5 => HLArithmeticTarget::L,
-        6 => HLArithmeticTarget::HL,
-        7 => HLArithmeticTarget::A,
-        _ => panic!("Math doesnt math"),
-    }
-}
-
 // TODO IMPLEMENT
 // Enum Describes Load Rule
 enum LoadType {
@@ -188,74 +187,28 @@ impl Instruction {
     // Match Instruction to Prefixed Instruction Set
     fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
         match byte {
-            //RLC
-            0x00..=0x07 => Some(Instruction::RLC(arithmetic_target_helper(byte))),
-            //RRC
-            0x08 => Some(Instruction::RRC(HLArithmeticTarget::B)),
-            0x09 => Some(Instruction::RRC(HLArithmeticTarget::C)),
-            0x0A => Some(Instruction::RRC(HLArithmeticTarget::D)),
-            0x0B => Some(Instruction::RRC(HLArithmeticTarget::E)),
-            0x0C => Some(Instruction::RRC(HLArithmeticTarget::H)),
-            0x0D => Some(Instruction::RRC(HLArithmeticTarget::L)),
-            0x0E => Some(Instruction::RRC(HLArithmeticTarget::HL)),
-            0x0F => Some(Instruction::RRC(HLArithmeticTarget::A)),
-            //RL
-            0x10 => Some(Instruction::RL(HLArithmeticTarget::B)),
-            0x11 => Some(Instruction::RL(HLArithmeticTarget::C)),
-            0x12 => Some(Instruction::RL(HLArithmeticTarget::D)),
-            0x13 => Some(Instruction::RL(HLArithmeticTarget::E)),
-            0x14 => Some(Instruction::RL(HLArithmeticTarget::H)),
-            0x15 => Some(Instruction::RL(HLArithmeticTarget::L)),
-            0x16 => Some(Instruction::RL(HLArithmeticTarget::HL)),
-            0x17 => Some(Instruction::RL(HLArithmeticTarget::A)),
-            //RR
-            0x18 => Some(Instruction::RR(HLArithmeticTarget::B)),
-            0x19 => Some(Instruction::RL(HLArithmeticTarget::C)),
-            0x1A => Some(Instruction::RL(HLArithmeticTarget::D)),
-            0x1B => Some(Instruction::RL(HLArithmeticTarget::E)),
-            0x1C => Some(Instruction::RL(HLArithmeticTarget::H)),
-            0x1D => Some(Instruction::RL(HLArithmeticTarget::L)),
-            0x1E => Some(Instruction::RL(HLArithmeticTarget::HL)),
-            0x1F => Some(Instruction::RL(HLArithmeticTarget::A)),
-            //SLA
-            0x20 => Some(Instruction::SLA(HLArithmeticTarget::B)),
-            0x21 => Some(Instruction::SLA(HLArithmeticTarget::C)),
-            0x22 => Some(Instruction::SLA(HLArithmeticTarget::D)),
-            0x23 => Some(Instruction::SLA(HLArithmeticTarget::E)),
-            0x24 => Some(Instruction::SLA(HLArithmeticTarget::H)),
-            0x25 => Some(Instruction::SLA(HLArithmeticTarget::L)),
-            0x26 => Some(Instruction::SLA(HLArithmeticTarget::HL)),
-            0x27 => Some(Instruction::SLA(HLArithmeticTarget::A)),
-            //SRA
-            0x28 => Some(Instruction::SRA(HLArithmeticTarget::B)),
-            0x29 => Some(Instruction::SRA(HLArithmeticTarget::C)),
-            0x2A => Some(Instruction::SRA(HLArithmeticTarget::D)),
-            0x2B => Some(Instruction::SRA(HLArithmeticTarget::E)),
-            0x2C => Some(Instruction::SRA(HLArithmeticTarget::H)),
-            0x2D => Some(Instruction::SRA(HLArithmeticTarget::L)),
-            0x2E => Some(Instruction::SRA(HLArithmeticTarget::HL)),
-            0x2F => Some(Instruction::SRA(HLArithmeticTarget::A)),
-            //SWAP
-            0x30 => Some(Instruction::SWAP(HLArithmeticTarget::B)),
-            0x31 => Some(Instruction::SWAP(HLArithmeticTarget::C)),
-            0x32 => Some(Instruction::SWAP(HLArithmeticTarget::D)),
-            0x33 => Some(Instruction::SWAP(HLArithmeticTarget::E)),
-            0x34 => Some(Instruction::SWAP(HLArithmeticTarget::H)),
-            0x35 => Some(Instruction::SWAP(HLArithmeticTarget::L)),
-            0x36 => Some(Instruction::SWAP(HLArithmeticTarget::HL)),
-            0x37 => Some(Instruction::SWAP(HLArithmeticTarget::A)),
-            0x30..=0x37 => {}
-            //SRL
-            0x38 => Some(Instruction::SRL(HLArithmeticTarget::B)),
-            0x39 => Some(Instruction::SRL(HLArithmeticTarget::C)),
-            0x3A => Some(Instruction::SRL(HLArithmeticTarget::D)),
-            0x3B => Some(Instruction::SRL(HLArithmeticTarget::E)),
-            0x3C => Some(Instruction::SRL(HLArithmeticTarget::H)),
-            0x3D => Some(Instruction::SRL(HLArithmeticTarget::L)),
-            0x3E => Some(Instruction::SRL(HLArithmeticTarget::HL)),
-            0x3F => Some(Instruction::SRL(HLArithmeticTarget::A)),
-            //BIT
-            0x40..=0x45 => Some(Instruction::SRL(HLArithmeticTarget::A)),
+            // RLC
+            0x00..=0x07 => Some(Instruction::RLC(Self::arithmetic_target_helper(byte))),
+            // RRC
+            0x08..=0x0F => Some(Instruction::RRC(Self::arithmetic_target_helper(byte))),
+            // RL
+            0x10..=0x17 => Some(Instruction::RL(Self::arithmetic_target_helper(byte))),
+            // RR
+            0x18..=0x1F => Some(Instruction::RR(Self::arithmetic_target_helper(byte))),
+            // SLA
+            0x20..=0x27 => Some(Instruction::SLA(Self::arithmetic_target_helper(byte))),
+            // SRA
+            0x28..=0x2F => Some(Instruction::SRA(Self::arithmetic_target_helper(byte))),
+            // SWAP
+            0x30..=0x37 => Some(Instruction::SWAP(Self::arithmetic_target_helper(byte))),
+            // SRL
+            0x38..=0x3F => Some(Instruction::SRL(Self::arithmetic_target_helper(byte))),
+            // BIT
+            0x40..=0x7F => Some(Instruction::BIT(Self::byte_target_helper(byte))),
+            //RES
+            0x080..=0xBF => Some(Instruction::RES(Self::byte_target_helper(byte))),
+            //SET
+            0x0C0..=0xFF => Some(Instruction::SET(Self::byte_target_helper(byte))),
         }
     }
 
@@ -265,6 +218,60 @@ impl Instruction {
         match byte {
             0x02 => Some(Instruction::INC()),
             // ^ ex syntax
+        }
+    }
+
+    fn arithmetic_target_helper(byte: u8) -> HLArithmeticTarget {
+        match byte % 8 {
+            0 => HLArithmeticTarget::B,
+            1 => HLArithmeticTarget::C,
+            2 => HLArithmeticTarget::D,
+            3 => HLArithmeticTarget::E,
+            4 => HLArithmeticTarget::H,
+            5 => HLArithmeticTarget::L,
+            6 => HLArithmeticTarget::HL,
+            7 => HLArithmeticTarget::A,
+            _ => panic!("Math doesnt math"),
+        }
+    }
+
+    // Determine Instruction # and Associated Register
+    fn byte_target_helper(byte: u8) -> ByteTarget {
+        let some_instruction = Self::arithmetic_target_helper(byte);
+        match byte {
+            // Zero
+            0x40..=0x47 => ByteTarget::Zero(some_instruction),
+            0x80..=0x87 => ByteTarget::Zero(some_instruction),
+            0xC0..=0xC7 => ByteTarget::Zero(some_instruction),
+            // One
+            0x48..=0x4F => ByteTarget::One(some_instruction),
+            0x88..=0x8F => ByteTarget::One(some_instruction),
+            0xC8..=0xCF => ByteTarget::One(some_instruction),
+            // Two
+            0x50..=0x57 => ByteTarget::Two(some_instruction),
+            0x90..=0x97 => ByteTarget::Two(some_instruction),
+            0xD0..=0xD7 => ByteTarget::Two(some_instruction),
+            // Three
+            0x58..=0x5F => ByteTarget::Three(some_instruction),
+            0x98..=0x9F => ByteTarget::Three(some_instruction),
+            0xD8..=0xDF => ByteTarget::Three(some_instruction),
+            // Four
+            0x60..=0x67 => ByteTarget::Four(some_instruction),
+            0xA0..=0xA7 => ByteTarget::Four(some_instruction),
+            0xE0..=0xE7 => ByteTarget::Four(some_instruction),
+            // Five
+            0x68..=0x6F => ByteTarget::Five(some_instruction),
+            0xA8..=0xAF => ByteTarget::Five(some_instruction),
+            0xE8..=0xEF => ByteTarget::Five(some_instruction),
+            // Six
+            0x70..=0x77 => ByteTarget::Six(some_instruction),
+            0xB0..=0xB7 => ByteTarget::Six(some_instruction),
+            0xF0..=0xF7 => ByteTarget::Six(some_instruction),
+            // Seven
+            0x78..=0x7F => ByteTarget::Seven(some_instruction),
+            0xB8..=0xBF => ByteTarget::Seven(some_instruction),
+            0xF8..=0xFF => ByteTarget::Seven(some_instruction),
+            _ => panic!("Bit doesnt bit"),
         }
     }
 }

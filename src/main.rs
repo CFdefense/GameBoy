@@ -1,3 +1,8 @@
+#[path = "hdw/cpu.rs"] mod cpu;
+
+use cpu::CPU;
+
+
 /* Implement Initialization of Gameboy Here
 
 

@@ -10,6 +10,14 @@ pub struct Memory {
 
 impl Memory {
 
+    // Consructor
+    pub fn new() -> Self {
+        Memory {
+            // initialize vars
+        
+        }
+    }
+    
     // Function to return a byte at an address
     pub fn read_byte(&self, address: u16) -> u8 {
         self.memory[address as usize]

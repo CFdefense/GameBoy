@@ -13,3 +13,7 @@ Print Info
 Checksum
 
 */
+
+struct cartridge_header {
+    
+}

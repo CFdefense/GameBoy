@@ -9,7 +9,7 @@ const HALF_CARRY_FLAG_BYTE_POSITION: u8 = 5;
 const CARRY_FLAG_BYTE_POSITION: u8 = 4;
 
 // Our CPU to Call and Control
-struct CPU {
+pub struct CPU {
     registers: Registers,
     pc: u16,
     sp: u16,
@@ -139,23 +139,30 @@ impl Instruction {
 
 
 impl CPU {
+
+    // Contructor
+    pub fn new() -> Self {
+        CPU {
+            // initialize Vars
+        }
+    }
     // Function to 'step' through instructions
     fn step(&mut self) {
         // read next instruction from memory
         let mut instruction_opcode = self.memory.read_byte(self.pc);
 
         // Check if byte is the prefix indicator
-        let prefixed = instruction_byte == 0xCB;
+        let prefixed = instruction_opcode == 0xCB;
         if prefixed {
             // if prefixedd instead we read next byte 
-            instruction_byte = self.memory.read_byte(self.pc + 1);
+            instruction_opcode = self.memory.read_byte(self.pc + 1);
         }
 
         // Use enum to translate opcode and store next pc addr
         let next_pc = if let Some(instruction) = Instruction::from_byte(instruction_opcode, prefixed) {
             self.execute(instruction);
         } else {
-            panic!("Unable to Read Opcode 0x{}", instruction_opcode, " was prefixed? {}", prefixed);
+            panic!("Unable to Read Opcode 0x{:02X}, was prefixed? {}", instruction_opcode, prefixed);
         };
 
         self.pc = next_pc;
@@ -469,7 +476,7 @@ impl CPU {
         self.registers.f.carry = did_overflow; // Set carry flag if overflow occurred
         self.registers.f.zero = false; // Zero flag is not relevant for HL addition
         self.registers.f.subtract = false; // This is not a subtraction operation
-        self.registers.f.half_carry = ((hl_value & 0x0F) + (value & 0x0F)) > 0x0F;
+        self.registers.f.half_carry = ((new_value & 0x0F) + (value & 0x0F)) > 0x0F;
 
         // Implicitly Return
         new_value
@@ -495,13 +502,13 @@ impl CPU {
         self.sp = self.sp.wrapping_add(1);
 
         // mask shift and write first byte to memory at SP
-        self.memory.write_byte(self.sp, ((value && 0xFF00) >> 8) as u8);
+        self.memory.write_byte(self.sp, ((value & 0xFF00) >> 8) as u8);
 
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
 
         // mask and write second byte to memory at SP
-        self.memory.write_byte(self.sp, (value && 0xFF) as u8);
+        self.memory.write_byte(self.sp, (value & 0xFF) as u8);
     }
 
     // Pop from stack and increment pointers
@@ -527,7 +534,7 @@ impl CPU {
         let next_pc = self.pc.wrapping_add(3);
         if(should_jump) {
             self.push(next_pc);
-            self.read_next_byte
+            self.memory.read_next_byte
         } else {
             next_pc
         }
@@ -535,10 +542,10 @@ impl CPU {
 
     // Return function for returning through call stack
     fn run_return(&mut self, jump_condition: bool) -> u16 {
-        if(should_jump) {
+        if(jump_condition) {
             self.pop()
         } else {
-            self.wrapping_add(1);
+            self.pc.wrapping_add(1);
         }
     }
 
@@ -549,7 +556,7 @@ impl CPU {
 impl Registers {
     // Get Virtual 16-Bit Register -> Rust Returns Last Expression
     fn get_af(&self) -> u16 {
-        (self.a as u16) << 8 | self.f as u16
+        (self.a as u16) << 8 | self.flagsRegister as u16
     }
     fn get_bc(&self) -> u16 {
         (self.b as u16) << 8 | self.c as u16
@@ -563,20 +570,20 @@ impl Registers {
     
     // Set Virtual 16-Bit Register mask bytes and shift
     fn set_af(&mut self, value: u16) {
-        self.a = ((value && 0xFF00) >> 8) as u8;
+        self.a = ((value & 0xFF00) >> 8) as u8;
         self.f = FlagsRegister::from((value & 0x00FF) as u8);
     }
     fn set_bc(&mut self, value: u16) {
-        self.b = ((value && 0xFF00) >> 8) as u8;
-        self.c = (value && 0xFF) as u8;
+        self.b = ((value & 0xFF00) >> 8) as u8;
+        self.c = (value & 0xFF) as u8;
     }
     fn set_de(&mut self, value: u16) {
-        self.d = ((value && 0xFF00) >> 8) as u8;
-        self.e = (value && 0xFF) as u8;
+        self.d = ((value & 0xFF00) >> 8) as u8;
+        self.e = (value & 0xFF) as u8;
     }
     fn set_hl(&mut self, value: u16) {
-        self.h = ((value && 0xFF00) >> 8) as u8;
-        self.l = (value && 0xFF) as u8;
+        self.h = ((value & 0xFF00) >> 8) as u8;
+        self.l = (value & 0xFF) as u8;
     }
 }
 

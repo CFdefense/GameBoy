@@ -144,6 +144,11 @@ impl CPU {
     pub fn new() -> Self {
         CPU {
             // initialize Vars
+            registers: Registers,
+            pc: u16,
+            sp: u16,
+            memory: Memory,
+            is_halted: bool
         }
     }
     // Function to 'step' through instructions

@@ -1,5 +1,6 @@
 #[path = "hdw/cpu.rs"] mod cpu;
 
+use std::io::{stdin, stdout, Read, Write};
 use cpu::CPU;
 
 
@@ -23,5 +24,12 @@ CPU CYCLE
 
 
 fn main() {
-    println!("Hello, world!");
+    
+    // Recieve Cart
+    let mut file_path = String::new();
+    Println!("Enter ROM Path");
+    stdin().read_line(&mut file_path).expect("Didn't Get Input");
+
+    if()
+
 }

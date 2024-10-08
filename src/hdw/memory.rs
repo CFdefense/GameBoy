@@ -17,6 +17,8 @@ impl Memory {
             memory: [u8; 0xFFFF]
         }
     }
+
+    // Function to load cartidge into memory
     
     // Function to return a byte at an address
     pub fn read_byte(&self, address: u16) -> u8 {

@@ -14,7 +14,7 @@ impl Memory {
     pub fn new() -> Self {
         Memory {
             // initialize vars
-        
+            memory: [u8; 0xFFFF]
         }
     }
     

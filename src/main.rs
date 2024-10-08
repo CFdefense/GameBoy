@@ -27,7 +27,7 @@ fn main() {
     
     // Recieve Cart
     let mut file_path = String::new();
-    Println!("Enter ROM Path");
+    println!("Enter ROM Path");
     stdin().read_line(&mut file_path).expect("Didn't Get Input");
 
 }

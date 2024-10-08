@@ -30,7 +30,7 @@ impl Memory {
     pub fn new() -> Self {
         Memory {
             // initialize vars
-            memory: [u8; 0xFFFF]
+            memory: [0; 0xFFFF],
         }
     }
 
@@ -41,13 +41,13 @@ impl Memory {
         // Need to filter source of byte and read from there
 
         // Not using Mmemory Like this \/
-        self.memory[address as usize]
+        todo!()
     }
-    
+
     // Function to write byte to correct place
     pub fn write_byte(&mut self, address: u16, value: u8) {
         // Need to filter destination of byte and write to there
-        
+
 
         // Not Using Memory like this \/
         if address < 0xFFFF {
@@ -55,5 +55,10 @@ impl Memory {
         } else {
             println!("Attempted to write to an invalid address: {:#X}", address);
         }
+    }
+
+    // Function to read next byte 
+    pub fn read_next_byte(&self) -> u8 {
+        todo!()
     }
 }

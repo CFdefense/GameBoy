@@ -15,8 +15,8 @@ pub struct CPU {
     sp: u16,
     memory: Memory,
     is_halted: bool,
-    curr_opcode: u16,
-    curr_instruction: Option<Instruction>
+    curr_opcode: u8,
+    curr_instruction: Option<Instruction>,
 }
 
 // Registers For Holding and Manipulating Data
@@ -28,7 +28,7 @@ struct Registers {
     e: u8,
     f: FlagsRegister,
     h: u8,
-    l: u8
+    l: u8,
 }
 
 // Special Flags Register to act as u8 but be called as struct
@@ -36,36 +36,83 @@ struct FlagsRegister {
     zero: bool,
     subtract: bool,
     half_carry: bool,
-    carry: bool
+    carry: bool,
 }
 
 // Target For All Instructions
 enum Instruction {
-    ADD(ArithmeticTarget), ADDHL(ArithmeticTarget),
-    ADC(ArithmeticTarget), SUB(ArithmeticTarget),
-    SBC(ArithmeticTarget), AND(ArithmeticTarget),
-    OR(ArithmeticTarget), XOR(ArithmeticTarget),
-    CP(ArithmeticTarget), INC(ArithmeticTarget),
-    DEC(ArithmeticTarget), CCF(FlagsTarget),
-    SCF(FlagsTarget), BIT(ArithmeticTarget),
-    RESET(ArithmeticTarget), SET(ArithmeticTarget),
-    SRL(ArithmeticTarget), RR(ArithmeticTarget),
-    RL(ArithmeticTarget), RRC(ArithmeticTarget),
-    RLC(ArithmeticTarget), SRA(ArithmeticTarget),
-    SLA(ArithmeticTarget), SWAP(ArithmeticTarget),
-    RRA, RLA, RRCA, RRLA, CPL, NOP, HALT,
-    JP(JumpTest), LD(LoadType), PUSH(StackTarget),
-    POP(StackTarget), CALL(JumpTest), RET(JumpTest),
+    NOP,
+    LD(LoadType),
+    INC(ArithmeticTarget),
+    DEC(ArithmeticTarget),
+    RLCA,
+    ADDHL(ArithmeticTarget),
+    ADD(ArithmeticTarget),
+    RRCA,
+    STOP,
+    RLA,
+    JR,
+    RRA,
+    DAA,
+    CPL,
+    SCF(FlagsTarget),
+    CCF(FlagsTarget),
+    HALT,
+    ADC(ArithmeticTarget),
+    SUB(ArithmeticTarget),
+    SBC(ArithmeticTarget),
+    AND(ArithmeticTarget),
+    XOR(ArithmeticTarget),
+    OR(ArithmeticTarget),
+    CP(ArithmeticTarget),
+    RET(JumpTest),
+    POP(StackTarget),
+    JP(JumpTest),
+    CALL(JumpTest),
+    PUSH(StackTarget),
+    RST,
+
+    // PREFIXED INSTRUCTIONS
+    RLC(HLArithmeticTarget),
+    RRC(HLArithmeticTarget),
+    RR(HLArithmeticTarget),
+    RL(HLArithmeticTarget),
+    SRA(HLArithmeticTarget),
+    SLA(HLArithmeticTarget),
+    SRL(HLArithmeticTarget),
+    SWAP(HLArithmeticTarget),
+    BIT(HLArithmeticTarget),
+    RES(HLArithmeticTarget),
+    SET(HLArithmeticTarget),
 }
 
 // Target All Except F register
 enum ArithmeticTarget {
-    A, B, C, D, E, H, L,
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+}
+enum HLArithmeticTarget {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HL,
 }
 
 // 16 Bit Targets For Stack
 enum StackTarget {
-    AF, BC, DE, HL,
+    AF,
+    BC,
+    DE,
+    HL,
 }
 
 // Target F Register
@@ -82,29 +129,57 @@ enum JumpTest {
     Zero,
     NotCarry,
     Carry,
-    Always
+    Always,
 }
 
 // Enum For Possible Load Targets
 enum LoadByteTarget {
-    A, B, C, D, E, H, L, HLI
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HLI,
 }
 
 // Enum For Possible Load Sources
 enum LoadByteSource {
-    A, B, C, D, E, H, L, D8, HLI
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    D8,
+    HLI,
+}
+
+fn arithmetic_target_helper(byte: u8) -> HLArithmeticTarget {
+    match byte % 8 {
+        0 => HLArithmeticTarget::B,
+        1 => HLArithmeticTarget::C,
+        2 => HLArithmeticTarget::D,
+        3 => HLArithmeticTarget::E,
+        4 => HLArithmeticTarget::H,
+        5 => HLArithmeticTarget::L,
+        6 => HLArithmeticTarget::HL,
+        7 => HLArithmeticTarget::A,
+        _ => panic!("Math doesnt math"),
+    }
 }
 
 // TODO IMPLEMENT
 // Enum Describes Load Rule
 enum LoadType {
     Byte(LoadByteTarget, LoadByteSource),
-    Word, // Like Byte but 16 bit values
+    Word,             // Like Byte but 16 bit values
     AFromIndirect, //load the A register with the contents from a value from a memory location whose address is stored in some location
     IndirectFromA, // load a memory location whose address is stored in some location with the contents of the A register
     AFromByteAddress, // Just like AFromIndirect except the memory address is some address in the very last byte of memory.
     ByteAddressFromA, // Just like IndirectFromA except the memory address is some address in the very last byte of memory
-
 }
 
 // filter byte to instruction dependant on prefixes
@@ -113,25 +188,88 @@ impl Instruction {
     // Match Instruction to Prefixed Instruction Set
     fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
         match byte {
-            0x00 => Some(Instruction::RLC(PrefixTarget::B)),
-            // ^ ex syntax
+            //RLC
+            0x00..=0x07 => Some(Instruction::RLC(arithmetic_target_helper(byte))),
+            //RRC
+            0x08 => Some(Instruction::RRC(HLArithmeticTarget::B)),
+            0x09 => Some(Instruction::RRC(HLArithmeticTarget::C)),
+            0x0A => Some(Instruction::RRC(HLArithmeticTarget::D)),
+            0x0B => Some(Instruction::RRC(HLArithmeticTarget::E)),
+            0x0C => Some(Instruction::RRC(HLArithmeticTarget::H)),
+            0x0D => Some(Instruction::RRC(HLArithmeticTarget::L)),
+            0x0E => Some(Instruction::RRC(HLArithmeticTarget::HL)),
+            0x0F => Some(Instruction::RRC(HLArithmeticTarget::A)),
+            //RL
+            0x10 => Some(Instruction::RL(HLArithmeticTarget::B)),
+            0x11 => Some(Instruction::RL(HLArithmeticTarget::C)),
+            0x12 => Some(Instruction::RL(HLArithmeticTarget::D)),
+            0x13 => Some(Instruction::RL(HLArithmeticTarget::E)),
+            0x14 => Some(Instruction::RL(HLArithmeticTarget::H)),
+            0x15 => Some(Instruction::RL(HLArithmeticTarget::L)),
+            0x16 => Some(Instruction::RL(HLArithmeticTarget::HL)),
+            0x17 => Some(Instruction::RL(HLArithmeticTarget::A)),
+            //RR
+            0x18 => Some(Instruction::RR(HLArithmeticTarget::B)),
+            0x19 => Some(Instruction::RL(HLArithmeticTarget::C)),
+            0x1A => Some(Instruction::RL(HLArithmeticTarget::D)),
+            0x1B => Some(Instruction::RL(HLArithmeticTarget::E)),
+            0x1C => Some(Instruction::RL(HLArithmeticTarget::H)),
+            0x1D => Some(Instruction::RL(HLArithmeticTarget::L)),
+            0x1E => Some(Instruction::RL(HLArithmeticTarget::HL)),
+            0x1F => Some(Instruction::RL(HLArithmeticTarget::A)),
+            //SLA
+            0x20 => Some(Instruction::SLA(HLArithmeticTarget::B)),
+            0x21 => Some(Instruction::SLA(HLArithmeticTarget::C)),
+            0x22 => Some(Instruction::SLA(HLArithmeticTarget::D)),
+            0x23 => Some(Instruction::SLA(HLArithmeticTarget::E)),
+            0x24 => Some(Instruction::SLA(HLArithmeticTarget::H)),
+            0x25 => Some(Instruction::SLA(HLArithmeticTarget::L)),
+            0x26 => Some(Instruction::SLA(HLArithmeticTarget::HL)),
+            0x27 => Some(Instruction::SLA(HLArithmeticTarget::A)),
+            //SRA
+            0x28 => Some(Instruction::SRA(HLArithmeticTarget::B)),
+            0x29 => Some(Instruction::SRA(HLArithmeticTarget::C)),
+            0x2A => Some(Instruction::SRA(HLArithmeticTarget::D)),
+            0x2B => Some(Instruction::SRA(HLArithmeticTarget::E)),
+            0x2C => Some(Instruction::SRA(HLArithmeticTarget::H)),
+            0x2D => Some(Instruction::SRA(HLArithmeticTarget::L)),
+            0x2E => Some(Instruction::SRA(HLArithmeticTarget::HL)),
+            0x2F => Some(Instruction::SRA(HLArithmeticTarget::A)),
+            //SWAP
+            0x30 => Some(Instruction::SWAP(HLArithmeticTarget::B)),
+            0x31 => Some(Instruction::SWAP(HLArithmeticTarget::C)),
+            0x32 => Some(Instruction::SWAP(HLArithmeticTarget::D)),
+            0x33 => Some(Instruction::SWAP(HLArithmeticTarget::E)),
+            0x34 => Some(Instruction::SWAP(HLArithmeticTarget::H)),
+            0x35 => Some(Instruction::SWAP(HLArithmeticTarget::L)),
+            0x36 => Some(Instruction::SWAP(HLArithmeticTarget::HL)),
+            0x37 => Some(Instruction::SWAP(HLArithmeticTarget::A)),
+            0x30..=0x37 => {}
+            //SRL
+            0x38 => Some(Instruction::SRL(HLArithmeticTarget::B)),
+            0x39 => Some(Instruction::SRL(HLArithmeticTarget::C)),
+            0x3A => Some(Instruction::SRL(HLArithmeticTarget::D)),
+            0x3B => Some(Instruction::SRL(HLArithmeticTarget::E)),
+            0x3C => Some(Instruction::SRL(HLArithmeticTarget::H)),
+            0x3D => Some(Instruction::SRL(HLArithmeticTarget::L)),
+            0x3E => Some(Instruction::SRL(HLArithmeticTarget::HL)),
+            0x3F => Some(Instruction::SRL(HLArithmeticTarget::A)),
+            //BIT
+            0x40..=0x45 => Some(Instruction::SRL(HLArithmeticTarget::A)),
         }
     }
 
     // TODO IMPLEMENT
     // Match Instruction to Non Prefixed Instruction Set
     fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
-        match byte{
-            0x02 => Some(Instruction::INC(IncDecTarget::BC)),
+        match byte {
+            0x02 => Some(Instruction::INC()),
             // ^ ex syntax
         }
     }
 }
 
-
-
 impl CPU {
-
     // Contructor
     pub fn new(memory: Memory) -> Self {
         CPU {
@@ -161,16 +299,16 @@ impl CPU {
 
     // Function to 'step' through instructions
     fn step(&mut self) {
-
         // Get Next Opcode
         self.fetch();
-        
+
         // Check if byte is the prefix indicator
         self.decode();
 
+        let mut next_pc = 0;
         // Execute the current instruction if it exists and reset it to none
         if let Some(instruction) = self.curr_instruction.take() {
-            let next_pc = self.execute(instruction);
+            next_pc = self.execute(instruction);
         }
 
         // Increment pc to returned pc
@@ -183,7 +321,7 @@ impl CPU {
     }
 
     // Function to decode current opcode
-    fn decode(&self) {
+    fn decode(&mut self) {
         let prefixed = self.curr_opcode == 0xCB;
 
         // Determine Instruction Byte
@@ -194,15 +332,18 @@ impl CPU {
         };
 
         // Use enum to translate opcode and store next pc addr
-        if(prefixed) {
+        if (prefixed) {
             self.curr_instruction = Instruction::from_prefixed_byte(instruction_opcode);
         } else {
-            self.curr_instruction = Instruction::from_byte_not_prefixe(instruction_opcode);
+            self.curr_instruction = Instruction::from_byte_not_prefixed(instruction_opcode);
         }
-        
+
         // Error handling
         if self.curr_instruction.is_none() {
-            panic!("Unable to Read Opcode 0x{:02X}, was prefixed? {}", instruction_opcode, prefixed);
+            panic!(
+                "Unable to Read Opcode 0x{:02X}, was prefixed? {}",
+                instruction_opcode, prefixed
+            );
         }
 
         // Update PC (if needed) based on instruction
@@ -211,162 +352,167 @@ impl CPU {
 
     // Function to execute an opcode by matching Instruction type and target then calling its method
     fn execute(&mut self, instruction: Instruction) -> u16 {
-
         // return while halted
-        if(self.is_halted) {
-            self.pc
+        if (self.is_halted) {
+            return self.pc;
         }
 
         match instruction {
             Instruction::ADD(target) => {
                 let target_register = match target {
-                    ArithmeticTarget::A => &mut self.registers.a,
-                    ArithmeticTarget::B => &mut self.registers.b,
-                    ArithmeticTarget::C => &mut self.registers.c,
-                    ArithmeticTarget::D => &mut self.registers.d,
-                    ArithmeticTarget::E => &mut self.registers.e,
-                    ArithmeticTarget::H => &mut self.registers.h,
-                    ArithmeticTarget::L => &mut self.registers.l,
+                    ArithmeticTarget::A => self.registers.a,
+                    ArithmeticTarget::B => self.registers.b,
+                    ArithmeticTarget::C => self.registers.c,
+                    ArithmeticTarget::D => self.registers.d,
+                    ArithmeticTarget::E => self.registers.e,
+                    ArithmeticTarget::H => self.registers.h,
+                    ArithmeticTarget::L => self.registers.l,
                 };
-                
+
                 // Perform ADD and UPD flags
-                let new_value = self.add(*target_register);
+                let new_value = self.add(target_register);
 
                 // UPD Register
                 self.registers.a = new_value;
 
                 // return next pc
-                self.pc.wrapping_add(1) 
+                self.pc.wrapping_add(1)
             }
             Instruction::ADDHL(target) => {
                 // Get mutable reference to the target register
                 let target_register = match target {
-                    ArithmeticTarget::A => &mut self.registers.a,
-                    ArithmeticTarget::B => &mut self.registers.b,
-                    ArithmeticTarget::C => &mut self.registers.c,
-                    ArithmeticTarget::D => &mut self.registers.d,
-                    ArithmeticTarget::E => &mut self.registers.e,
-                    ArithmeticTarget::H => &mut self.registers.h,
-                    ArithmeticTarget::L => &mut self.registers.l,
+                    ArithmeticTarget::A => self.registers.a,
+                    ArithmeticTarget::B => self.registers.b,
+                    ArithmeticTarget::C => self.registers.c,
+                    ArithmeticTarget::D => self.registers.d,
+                    ArithmeticTarget::E => self.registers.e,
+                    ArithmeticTarget::H => self.registers.h,
+                    ArithmeticTarget::L => self.registers.l,
                 };
 
                 // Perform ADDHL and UPD flags
-                let new_value = self.add_hl(*target_register as u16);
+                let new_value = self.add_hl(target_register as u16);
 
                 // UPD Register
-                self.set_hl = new_value;
+                self.registers.set_hl(new_value);
+
+                todo!()
             }
             Instruction::ADC(target) => {
                 // Get mutable reference to the target register
                 let target_register = match target {
-                    ArithmeticTarget::A => &mut self.registers.a,
-                    ArithmeticTarget::B => &mut self.registers.b,
-                    ArithmeticTarget::C => &mut self.registers.c,
-                    ArithmeticTarget::D => &mut self.registers.d,
-                    ArithmeticTarget::E => &mut self.registers.e,
-                    ArithmeticTarget::H => &mut self.registers.h,
-                    ArithmeticTarget::L => &mut self.registers.l,
+                    ArithmeticTarget::A => self.registers.a,
+                    ArithmeticTarget::B => self.registers.b,
+                    ArithmeticTarget::C => self.registers.c,
+                    ArithmeticTarget::D => self.registers.d,
+                    ArithmeticTarget::E => self.registers.e,
+                    ArithmeticTarget::H => self.registers.h,
+                    ArithmeticTarget::L => self.registers.l,
                 };
 
                 // Perfom ADC and UPD Flags
-                let new_value = self.adc(*target_register);
+                let new_value = self.adc(target_register);
 
                 // UPD Register
                 self.registers.a = new_value;
+
+                todo!()
             }
             Instruction::SUB(target) => {
-
+                todo!();
             }
             Instruction::SBC(target) => {
-
+                todo!();
             }
             Instruction::AND(target) => {
-                
+                todo!();
             }
             Instruction::OR(target) => {
-
+                todo!();
             }
             Instruction::XOR(target) => {
-
+                todo!();
             }
             Instruction::CP(target) => {
-
+                todo!();
             }
             Instruction::INC(target) => {
-
+                todo!();
             }
             Instruction::DEC(target) => {
-
+                todo!();
             }
             Instruction::CCF(target) => {
-
+                todo!();
             }
             Instruction::SCF(target) => {
-
+                todo!();
             }
             Instruction::RRA => {
-
+                todo!();
             }
             Instruction::RLA => {
-
+                todo!();
             }
             Instruction::RRCA => {
-
+                todo!();
             }
             Instruction::RRLA => {
-
+                todo!();
             }
             Instruction::CPL => {
-
+                todo!();
             }
             Instruction::NOP => {
                 // Stands for no-operation and it effectively does nothing except advance the program counter by 1.
                 self.pc = self.pc.wrapping_add(1);
+                todo!()
             }
             Instruction::HALT => {
                 // Instruction For Halting CPU Cycle
                 self.is_halted = true;
+                todo!()
             }
             Instruction::BIT(targt) => {
-
+                todo!();
             }
             Instruction::RESET(target) => {
-
+                todo!();
             }
             Instruction::SET(target) => {
-
+                todo!();
             }
             Instruction::SRL(target) => {
-
+                todo!();
             }
             Instruction::RR(target) => {
-
+                todo!();
             }
             Instruction::RL(target) => {
-
+                todo!();
             }
             Instruction::RRC(target) => {
-
+                todo!();
             }
             Instruction::RLC(target) => {
-
+                todo!();
             }
             Instruction::SRA(target) => {
-
+                todo!();
             }
             Instruction::SLA(target) => {
-
+                todo!();
             }
             Instruction::SWAP(target) => {
-
+                todo!();
             }
             Instruction::JP(test) => {
                 let jump_condition = match test {
-                    JumpTest::NotZero =>    !self.registers.f.zero,
-                    JumpTest::NotCarry =>   !self.registers.f.carry,
-                    JumpTest::Zero =>       !self.registers.f.zero,
-                    JumpTest::Carry =>      !self.registers.f.carry,
-                    JumpTest::Always =>     true
+                    JumpTest::NotZero => !self.registers.f.zero,
+                    JumpTest::NotCarry => !self.registers.f.carry,
+                    JumpTest::Zero => !self.registers.f.zero,
+                    JumpTest::Carry => !self.registers.f.carry,
+                    JumpTest::Always => true,
                 };
                 self.jump(jump_condition)
             }
@@ -381,9 +527,9 @@ impl CPU {
                             LoadByteSource::E => self.registers.e,
                             LoadByteSource::H => self.registers.h,
                             LoadByteSource::L => self.registers.l,
-                            LoadByteSource::D8 => self.read_next_byte(), // direct 8 bytes -> read next bytes
+                            LoadByteSource::D8 => self.memory.read_next_byte(), // direct 8 bytes -> read next bytes
                             LoadByteSource::HLI => self.memory.read_byte(self.registers.get_hl()), // read byte of address stored in hl
-                            _ =>   panic!("LD: Bad Source"),
+                            _ => panic!("LD: Bad Source"),
                         };
                         match target {
                             LoadByteTarget::A => self.registers.a = source_value,
@@ -393,79 +539,84 @@ impl CPU {
                             LoadByteTarget::E => self.registers.e = source_value,
                             LoadByteTarget::H => self.registers.h = source_value,
                             LoadByteTarget::L => self.registers.l = source_value,
-                            LoadByteTarget::HLI => self.memory.write_byte(self.registers.get_hl(), source_value),
-                        _ =>   panic!("LD: Bad Target"),
+                            LoadByteTarget::HLI => self
+                                .memory
+                                .write_byte(self.registers.get_hl(), source_value),
+                            _ => panic!("LD: Bad Target"),
                         };
-                        
+
                         // Increment PC depending on source
                         match source {
-                            LoadByteSource::D8  => self.pc.wrapping_add(2),
-                            _                   => self.pc.wrapping_add(1),
+                            LoadByteSource::D8 => self.pc.wrapping_add(2),
+                            _ => self.pc.wrapping_add(1),
                         }
                     }
                     LoadType::Word => {
-
+                        todo!();
                     }
                     LoadType::AFromIndirect => {
-
+                        todo!();
                     }
                     LoadType::IndirectFromA => {
-
+                        todo!();
                     }
                     LoadType::AFromByteAddress => {
-
+                        todo!();
                     }
                     LoadType::ByteAddressFromA => {
-
+                        todo!();
                     }
-                    _ =>   panic!("LD: BAD LOAD TYPE"),
+                    _ => panic!("LD: BAD LOAD TYPE"),
                 }
             }
             Instruction::PUSH(target) => {
                 let value = match target {
-                    StackTarget::AF => self.registers.get_af,
-                    StackTarget::BC => self.registers.get.bc,
-                    StackTarget::DE => self.registers.get.de,
-                    StackTarget::HL => self.registers.get.hl,
+                    StackTarget::AF => self.registers.get_af(),
+                    StackTarget::BC => self.registers.get_bc(),
+                    StackTarget::DE => self.registers.get_de(),
+                    StackTarget::HL => self.registers.get_hl(),
                     _ => panic!("PUSH: Bad Target"),
                 };
                 // push value to stack
                 self.push(value);
-                
+
                 // increment pc
-                self.pc.wrapping_add(1);
+                self.pc.wrapping_add(1)
             }
             Instruction::POP(target) => {
                 let result = self.pop();
                 match target {
                     StackTarget::AF => self.registers.set_af(result),
-                    StackTarget::BC => self.registers.set.bc(result),
-                    StackTarget::DE => self.registers.set.de(result),
-                    StackTarget::HL => self.registers.set.hl(result),
+                    StackTarget::BC => self.registers.set_bc(result),
+                    StackTarget::DE => self.registers.set_de(result),
+                    StackTarget::HL => self.registers.set_hl(result),
                     _ => panic!("POP: Bad Target"),
                 }
+                todo!()
             }
             Instruction::CALL(test) => {
                 let jump_condition = match test {
-                    JumpTest::NotZero =>    !self.registers.f.zero,
-                    JumpTest::NotCarry =>   !self.registers.f.carry,
-                    JumpTest::Zero =>       !self.registers.f.zero,
-                    JumpTest::Carry =>      !self.registers.f.carry,
-                    JumpTest::Always =>     true
+                    JumpTest::NotZero => !self.registers.f.zero,
+                    JumpTest::NotCarry => !self.registers.f.carry,
+                    JumpTest::Zero => !self.registers.f.zero,
+                    JumpTest::Carry => !self.registers.f.carry,
+                    JumpTest::Always => true,
                 };
                 self.call(jump_condition);
+                todo!()
             }
             Instruction::RET(test) => {
                 let jump_condition = match test {
-                    JumpTest::NotZero =>    !self.registers.f.zero,
-                    JumpTest::NotCarry =>   !self.registers.f.carry,
-                    JumpTest::Zero =>       !self.registers.f.zero,
-                    JumpTest::Carry =>      !self.registers.f.carry,
-                    JumpTest::Always =>     true
+                    JumpTest::NotZero => !self.registers.f.zero,
+                    JumpTest::NotCarry => !self.registers.f.carry,
+                    JumpTest::Zero => !self.registers.f.zero,
+                    JumpTest::Carry => !self.registers.f.carry,
+                    JumpTest::Always => true,
                 };
                 self.run_return(jump_condition);
+                todo!()
             }
-            _ =>   panic!("Implement more Instructions"),
+            _ => panic!("Implement more Instructions"),
         }
     }
 
@@ -524,7 +675,7 @@ impl CPU {
 
     // Jump to addr in memory or increment pc
     fn jump(&self, jump: bool) -> u16 {
-        if(jump) {
+        if (jump) {
             let least_significant = self.memory.read_byte(self.pc + 1) as u16;
             let most_significant = self.memory.read_byte(self.pc + 2) as u16;
 
@@ -542,7 +693,8 @@ impl CPU {
         self.sp = self.sp.wrapping_add(1);
 
         // mask shift and write first byte to memory at SP
-        self.memory.write_byte(self.sp, ((value & 0xFF00) >> 8) as u8);
+        self.memory
+            .write_byte(self.sp, ((value & 0xFF00) >> 8) as u8);
 
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
@@ -555,13 +707,13 @@ impl CPU {
     fn pop(&mut self) -> u16 {
         // read least significant byte from memory at SP
         let least_significant_byte = self.memory.read_byte(self.sp) as u16;
-        
+
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
 
         // read most significan byte from memory at SP
         let most_significant_byte = self.memory.read_byte(self.sp) as u16;
- 
+
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
 
@@ -572,9 +724,10 @@ impl CPU {
     // Call function for call stack
     fn call(&mut self, should_jump: bool) -> u16 {
         let next_pc = self.pc.wrapping_add(3);
-        if(should_jump) {
+        if (should_jump) {
             self.push(next_pc);
-            self.memory.read_next_byte
+            self.memory.read_next_byte();
+            todo!()
         } else {
             next_pc
         }
@@ -582,21 +735,20 @@ impl CPU {
 
     // Return function for returning through call stack
     fn run_return(&mut self, jump_condition: bool) -> u16 {
-        if(jump_condition) {
+        if (jump_condition) {
             self.pop()
         } else {
-            self.pc.wrapping_add(1);
+            self.pc.wrapping_add(1)
         }
     }
 
     // CPU ENDS HERE
 }
 
-
 impl Registers {
     // Get Virtual 16-Bit Register -> Rust Returns Last Expression
     fn get_af(&self) -> u16 {
-        (self.a as u16) << 8 | self.flagsRegister as u16
+        (self.a as u16) << 8 | u8::from(&self.f) as u16
     }
     fn get_bc(&self) -> u16 {
         (self.b as u16) << 8 | self.c as u16
@@ -607,7 +759,7 @@ impl Registers {
     fn get_hl(&self) -> u16 {
         (self.h as u16) << 8 | self.l as u16
     }
-    
+
     // Set Virtual 16-Bit Register mask bytes and shift
     fn set_af(&mut self, value: u16) {
         self.a = ((value & 0xFF00) >> 8) as u8;
@@ -628,20 +780,20 @@ impl Registers {
 }
 
 // Method to Convert Flag Register Struct to u8
-impl std::convert::From<FlagsRegister> for u8 {
-    fn from(flag: FlagsRegister) -> u8 {
+impl std::convert::From<&FlagsRegister> for u8 {
+    fn from(flag: &FlagsRegister) -> u8 {
         // Set Flag Bits In u8 Depending on Status in FlagsRegister
-        (if flag.zero {1} else {0}) << ZERO_FLAG_BYTE_POSITION |
-        (if flag.subtract {1} else {0}) << SUBTRACT_FLAG_BYTE_POSITION |
-        (if flag.half_carry {1} else {0}) << HALF_CARRY_FLAG_BYTE_POSITION |
-        (if flag.carry {1} else {0}) << CARRY_FLAG_BYTE_POSITION
+        (if flag.zero { 1 } else { 0 }) << ZERO_FLAG_BYTE_POSITION
+            | (if flag.subtract { 1 } else { 0 }) << SUBTRACT_FLAG_BYTE_POSITION
+            | (if flag.half_carry { 1 } else { 0 }) << HALF_CARRY_FLAG_BYTE_POSITION
+            | (if flag.carry { 1 } else { 0 }) << CARRY_FLAG_BYTE_POSITION
     }
 }
 
 // Method to Convert u8 to Flag Register Struct
 impl std::convert::From<u8> for FlagsRegister {
     fn from(byte: u8) -> Self {
-        // Get Register Bitwise Values 
+        // Get Register Bitwise Values
         let zero = ((byte >> ZERO_FLAG_BYTE_POSITION) & 0xb1) != 0;
         let subtract = ((byte >> SUBTRACT_FLAG_BYTE_POSITION) & 0xb1) != 0;
         let half_carry = ((byte >> HALF_CARRY_FLAG_BYTE_POSITION) & 0xb1) != 0;
@@ -652,8 +804,7 @@ impl std::convert::From<u8> for FlagsRegister {
             zero,
             subtract,
             half_carry,
-            carry
+            carry,
         }
     }
 }
-

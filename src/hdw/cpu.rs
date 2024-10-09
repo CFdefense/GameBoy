@@ -1,5 +1,7 @@
 pub mod memory;
 
+use std::ops::Add;
+
 use memory::Memory;
 
 // FLAG POSITIONS FOR FLAGS REGISTER
@@ -47,7 +49,7 @@ enum Instruction {
     DEC(ArithmeticTarget),
     RLCA,
     ADDHL(ArithmeticTarget),
-    ADD(ArithmeticTarget),
+    ADD(AddType),
     RRCA,
     STOP,
     RLA,
@@ -194,6 +196,18 @@ enum LoadN16 {
     HLDEC,
 }
 
+enum AddN16Target {
+    BC,
+    DE,
+    HL,
+    SP,
+}
+
+enum AddType {
+    Registers(ArithmeticTarget, ArithmeticTarget),
+    LoadHL(AddN16Target),
+}
+
 // TODO IMPLEMENT
 // Enum Describes Load Rule
 enum LoadType {
@@ -290,9 +304,15 @@ impl Instruction {
             0x1A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::DE))),
             0x2A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLINC))),
             0x3A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC))),
-            // LD Register to Register
-
-            // HALT
+            // LD Register to Register + HALT
+            0x40..=0x7F => Self::load_register_helper(byte),
+            //ADD Register to Register
+            // Need helper 0x80..=0x8F => Some(Instruction::ADD((AddType::Registers((), ()))))
+            // ADD N16 Register to N16 Register
+            0x09 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::BC))),
+            0x19 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::DE))),
+            0x29 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::HL))),
+            0x39 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::SP))),
             _ => todo!("Implement more byte not prefixed"),
         }
     }

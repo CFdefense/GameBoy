@@ -73,14 +73,14 @@ enum Instruction {
     RST,
 
     // PREFIXED INSTRUCTIONS
-    RLC(HLArithmeticTarget),
-    RRC(HLArithmeticTarget),
-    RR(HLArithmeticTarget),
-    RL(HLArithmeticTarget),
-    SRA(HLArithmeticTarget),
-    SLA(HLArithmeticTarget),
-    SRL(HLArithmeticTarget),
-    SWAP(HLArithmeticTarget),
+    RLC(HLTarget),
+    RRC(HLTarget),
+    RR(HLTarget),
+    RL(HLTarget),
+    SRA(HLTarget),
+    SLA(HLTarget),
+    SRL(HLTarget),
+    SWAP(HLTarget),
     BIT(ByteTarget),
     RES(ByteTarget),
     SET(ByteTarget),
@@ -99,17 +99,17 @@ enum ArithmeticTarget {
 
 // Enum For BIT/RES/SET Instruction Types
 enum ByteTarget {
-    Zero(HLArithmeticTarget),
-    One(HLArithmeticTarget),
-    Two(HLArithmeticTarget),
-    Three(HLArithmeticTarget),
-    Four(HLArithmeticTarget),
-    Five(HLArithmeticTarget),
-    Six(HLArithmeticTarget),
-    Seven(HLArithmeticTarget),
+    Zero(HLTarget),
+    One(HLTarget),
+    Two(HLTarget),
+    Three(HLTarget),
+    Four(HLTarget),
+    Five(HLTarget),
+    Six(HLTarget),
+    Seven(HLTarget),
 }
 
-enum HLArithmeticTarget {
+enum HLTarget {
     A,
     B,
     C,
@@ -145,7 +145,7 @@ enum JumpTest {
     Always,
 }
 
-// Enum For Possible Load Targets
+// Enum For Possible Byte Load Targets
 enum LoadByteTarget {
     A,
     B,
@@ -157,7 +157,7 @@ enum LoadByteTarget {
     HLI,
 }
 
-// Enum For Possible Load Sources
+// Enum For Possible Byte Load Sources
 enum LoadByteSource {
     A,
     B,
@@ -170,15 +170,39 @@ enum LoadByteSource {
     HLI,
 }
 
+// Enum For Possible Word Load Targets
+enum LoadWordTarget {
+    BC,
+    DE,
+    HL,
+    SP,
+    N16,
+}
+
+// Enum For Possible Word Load Sources
+enum LoadWordSource {
+    SP,
+    N16,
+    HL,
+    SPE8,
+}
+
+enum LoadN16 {
+    BC,
+    DE,
+    HLINC,
+    HLDEC,
+}
+
 // TODO IMPLEMENT
 // Enum Describes Load Rule
 enum LoadType {
-    Byte(LoadByteTarget, LoadByteSource),
-    Word,             // Like Byte but 16 bit values
-    AFromIndirect, //load the A register with the contents from a value from a memory location whose address is stored in some location
-    IndirectFromA, // load a memory location whose address is stored in some location with the contents of the A register
-    AFromByteAddress, // Just like AFromIndirect except the memory address is some address in the very last byte of memory.
-    ByteAddressFromA, // Just like IndirectFromA except the memory address is some address in the very last byte of memory
+    LoadByteTargetyte(LoadByteTarget, LoadByteSource),
+    Word(LoadWordTarget, LoadWordSource), // Like Byte but 16 bit values
+    AStoreInN16(LoadN16),                 // Store A register in N16 register
+    N16StoreInA(LoadN16),                 // Store N16 register into A register
+    D8StoreInReg(HLTarget),
+    RegInReg(HLTarget, HLTarget),
 }
 
 // filter byte to instruction dependant on prefixes
@@ -216,21 +240,73 @@ impl Instruction {
     // Match Instruction to Non Prefixed Instruction Set
     fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
         match byte {
-            0x02 => Some(Instruction::INC()),
-            // ^ ex syntax
+            //NOP
+            0x00 => Some(Instruction::NOP),
+            // LD Word w Word
+            0x01 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::BC,
+                LoadWordSource::N16,
+            ))),
+            0x11 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::DE,
+                LoadWordSource::N16,
+            ))),
+            0x21 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::HL,
+                LoadWordSource::N16,
+            ))),
+            0x31 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::SP,
+                LoadWordSource::N16,
+            ))),
+            0x08 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::N16,
+                LoadWordSource::SP,
+            ))),
+            0xF8 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::HL,
+                LoadWordSource::SPE8,
+            ))),
+            0xF9 => Some(Instruction::LD(LoadType::Word(
+                LoadWordTarget::SP,
+                LoadWordSource::HL,
+            ))),
+            // LD N16 From A
+            0x02 => Some(Instruction::LD(LoadType::AStoreInN16(LoadN16::BC))),
+            0x12 => Some(Instruction::LD(LoadType::AStoreInN16(LoadN16::DE))),
+            0x22 => Some(Instruction::LD(LoadType::AStoreInN16(LoadN16::HLINC))),
+            0x32 => Some(Instruction::LD(LoadType::AStoreInN16(LoadN16::HLDEC))),
+            // LD Reg From D8
+            0x06 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::B))),
+            0x16 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::D))),
+            0x26 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::H))),
+            0x36 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::HL))),
+            0x0E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::C))),
+            0x1E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::E))),
+            0x2E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::L))),
+            0x3E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::A))),
+            // LD A From N16
+            0x0A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::BC))),
+            0x1A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::DE))),
+            0x2A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLINC))),
+            0x3A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC))),
+            // LD Register to Register
+
+            // HALT
+            _ => todo!("Implement more byte not prefixed"),
         }
     }
 
-    fn arithmetic_target_helper(byte: u8) -> HLArithmeticTarget {
+    fn arithmetic_target_helper(byte: u8) -> HLTarget {
         match byte % 8 {
-            0 => HLArithmeticTarget::B,
-            1 => HLArithmeticTarget::C,
-            2 => HLArithmeticTarget::D,
-            3 => HLArithmeticTarget::E,
-            4 => HLArithmeticTarget::H,
-            5 => HLArithmeticTarget::L,
-            6 => HLArithmeticTarget::HL,
-            7 => HLArithmeticTarget::A,
+            0 => HLTarget::B,
+            1 => HLTarget::C,
+            2 => HLTarget::D,
+            3 => HLTarget::E,
+            4 => HLTarget::H,
+            5 => HLTarget::L,
+            6 => HLTarget::HL,
+            7 => HLTarget::A,
             _ => panic!("Math doesnt math"),
         }
     }
@@ -272,6 +348,45 @@ impl Instruction {
             0xB8..=0xBF => ByteTarget::Seven(some_instruction),
             0xF8..=0xFF => ByteTarget::Seven(some_instruction),
             _ => panic!("Bit doesnt bit"),
+        }
+    }
+
+    fn load_register_helper(byte: u8) -> Option<Instruction> {
+        match byte {
+            0x76 => Some(Instruction::HALT),
+            0x40..=0x47 => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::B,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x48..=0x4F => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::C,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x50..=0x57 => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::D,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x58..=0x5F => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::E,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x60..=0x67 => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::H,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x68..=0x6F => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::L,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x70..=0x77 => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::HL,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            0x78..=0x7F => Some(Instruction::LD(LoadType::RegInReg(
+                HLTarget::A,
+                Self::arithmetic_target_helper(byte),
+            ))),
+            _ => panic!("Register doesnt register"),
         }
     }
 }

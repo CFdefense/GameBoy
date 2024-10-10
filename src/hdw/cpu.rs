@@ -1,6 +1,7 @@
 pub mod memory;
 
-use std::{f32::INFINITY, ops::Add};
+use core::panic;
+use std::f32::consts::PI;
 
 use memory::Memory;
 
@@ -42,7 +43,7 @@ struct FlagsRegister {
 }
 
 // Target For All Instructions
-enum Instruction {
+pub enum Instruction {
     NOP,
     LD(LoadType),
     INC(AllRegisters),
@@ -92,7 +93,7 @@ enum Instruction {
 }
 
 // Target All Except F register
-enum ArithmeticTarget {
+pub enum ArithmeticTarget {
     A,
     B,
     C,
@@ -103,7 +104,7 @@ enum ArithmeticTarget {
 }
 
 // Target All 8 bit and 16 bit register except f
-enum AllRegisters {
+pub enum AllRegisters {
     A,
     B,
     C,
@@ -119,7 +120,7 @@ enum AllRegisters {
 }
 
 // Enum For BIT/RES/SET Instruction Types
-enum ByteTarget {
+pub enum ByteTarget {
     Zero(HLTarget),
     One(HLTarget),
     Two(HLTarget),
@@ -130,7 +131,7 @@ enum ByteTarget {
     Seven(HLTarget),
 }
 
-enum HLTarget {
+pub enum HLTarget {
     A,
     B,
     C,
@@ -142,7 +143,7 @@ enum HLTarget {
 }
 
 // 16 Bit Targets For Stack
-enum StackTarget {
+pub enum StackTarget {
     AF,
     BC,
     DE,
@@ -150,7 +151,7 @@ enum StackTarget {
 }
 
 // Target F Register
-enum FlagsTarget {
+pub enum FlagsTarget {
     Zero,
     Subtract,
     HalfCarry,
@@ -158,7 +159,7 @@ enum FlagsTarget {
 }
 
 // Jump Test
-enum JumpTest {
+pub enum JumpTest {
     NotZero,
     Zero,
     NotCarry,
@@ -168,7 +169,7 @@ enum JumpTest {
 }
 
 // Enum For Possible Byte Load Targets
-enum LoadByteTarget {
+pub enum LoadByteTarget {
     A,
     B,
     C,
@@ -180,7 +181,7 @@ enum LoadByteTarget {
 }
 
 // Enum For Possible Byte Load Sources
-enum LoadByteSource {
+pub enum LoadByteSource {
     A,
     B,
     C,
@@ -193,7 +194,7 @@ enum LoadByteSource {
 }
 
 // Enum For Possible Word Load Targets
-enum LoadWordTarget {
+pub enum LoadWordTarget {
     BC,
     DE,
     HL,
@@ -202,28 +203,28 @@ enum LoadWordTarget {
 }
 
 // Enum For Possible Word Load Sources
-enum LoadWordSource {
+pub enum LoadWordSource {
     SP,
     N16,
     HL,
     SPE8,
 }
 
-enum LoadN16 {
+pub enum LoadN16 {
     BC,
     DE,
     HLINC,
     HLDEC,
 }
 
-enum AddN16Target {
+pub enum AddN16Target {
     BC,
     DE,
     HL,
     SP,
 }
 
-enum OPType {
+pub enum OPType {
     LoadA(HLTarget),
     LoadHL(AddN16Target),
     LoadSP,
@@ -231,7 +232,7 @@ enum OPType {
 }
 
 // RST Targets
-enum RestTarget {
+pub enum RestTarget {
     Zero,
     One,
     Two,
@@ -244,13 +245,12 @@ enum RestTarget {
 
 // TODO IMPLEMENT
 // Enum Describes Load Rule
-enum LoadType {
-    LoadByteTargetyte(LoadByteTarget, LoadByteSource),
+pub enum LoadType {
+    RegInReg(HLTarget, HLTarget),         // Store one register into another
     Word(LoadWordTarget, LoadWordSource), // Like Byte but 16 bit values
     AStoreInN16(LoadN16),                 // Store A register in N16 register
     N16StoreInA(LoadN16),                 // Store N16 register into A register
     D8StoreInReg(HLTarget),               // Store D8 into a register
-    RegInReg(HLTarget, HLTarget),         // Store one register into another
 }
 
 // filter byte to instruction dependant on prefixes
@@ -577,7 +577,7 @@ impl Instruction {
 
 impl CPU {
     // Contructor
-    pub fn new(memory: Memory) -> Self {
+    pub fn new() -> Self {
         CPU {
             registers: Registers {
                 a: 0,
@@ -596,7 +596,7 @@ impl CPU {
             },
             pc: 0,
             sp: 0,
-            memory,
+            memory: Memory::new(),
             is_halted: false,
             curr_opcode: 0,
             curr_instruction: None,
@@ -604,7 +604,7 @@ impl CPU {
     }
 
     // Function to 'step' through instructions
-    fn step(&mut self) {
+    pub fn step(&mut self) {
         // Get Next Opcode
         self.fetch();
 
@@ -638,7 +638,7 @@ impl CPU {
         };
 
         // Use enum to translate opcode and store next pc addr
-        if (prefixed) {
+        if prefixed {
             self.curr_instruction = Instruction::from_prefixed_byte(instruction_opcode);
         } else {
             self.curr_instruction = Instruction::from_byte_not_prefixed(instruction_opcode);
@@ -659,39 +659,264 @@ impl CPU {
     // Function to execute an opcode by matching Instruction type and target then calling its method
     fn execute(&mut self, instruction: Instruction) -> u16 {
         // return while halted
-        if (self.is_halted) {
+        if self.is_halted {
             return self.pc;
         }
 
         match instruction {
-            Instruction::ADD(target) => {
-                todo!()
-            }
+            Instruction::ADD(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
 
             Instruction::ADDHL(target) => {
+                let reg_target = match target {
+                    ArithmeticTarget::A => self.registers.a,
+                    ArithmeticTarget::B => self.registers.b,
+                    ArithmeticTarget::C => self.registers.c,
+                    ArithmeticTarget::D => self.registers.d,
+                    ArithmeticTarget::E => self.registers.e,
+                    ArithmeticTarget::H => self.registers.h,
+                    ArithmeticTarget::L => self.registers.l,
+                };
                 todo!()
             }
-            Instruction::ADC(target) => {
-                todo!()
-            }
-            Instruction::SUB(target) => {
-                todo!();
-            }
-            Instruction::SBC(target) => {
-                todo!();
-            }
-            Instruction::AND(target) => {
-                todo!();
-            }
-            Instruction::OR(target) => {
-                todo!();
-            }
-            Instruction::XOR(target) => {
-                todo!();
-            }
-            Instruction::CP(target) => {
-                todo!();
-            }
+            Instruction::ADC(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
+            Instruction::SUB(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
+            Instruction::SBC(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
+            Instruction::AND(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
+            Instruction::OR(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
+            Instruction::XOR(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
+            Instruction::CP(target) => match target {
+                OPType::LoadA(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    todo!()
+                }
+                OPType::LoadHL(target) => {
+                    let reg_target = match target {
+                        AddN16Target::BC => self.registers.get_bc(),
+                        AddN16Target::DE => self.registers.get_de(),
+                        AddN16Target::HL => self.registers.get_hl(),
+                        AddN16Target::SP => self.sp,
+                    };
+                    todo!()
+                }
+                OPType::LoadSP => {
+                    todo!()
+                }
+                OPType::LoadD8 => {
+                    todo!()
+                }
+            },
             Instruction::INC(target) => {
                 todo!();
             }
@@ -769,12 +994,82 @@ impl CPU {
                     JumpTest::Zero => !self.registers.f.zero,
                     JumpTest::Carry => !self.registers.f.carry,
                     JumpTest::Always => true,
+                    JumpTest::HL => todo!(),
                 };
                 self.jump(jump_condition)
             }
-            Instruction::LD(load_type) => {
-                todo!()
-            }
+            Instruction::LD(target) => match target {
+                LoadType::RegInReg(target, source) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    let reg_source = match source {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    self.registers.get_hl()
+                }
+                LoadType::Word(target, source) => {
+                    let word_target = match target {
+                        LoadWordTarget::BC => self.registers.get_bc(),
+                        LoadWordTarget::DE => self.registers.get_de(),
+                        LoadWordTarget::HL => self.registers.get_hl(),
+                        LoadWordTarget::SP => self.sp,
+                        LoadWordTarget::N16 => todo!(),
+                    };
+                    let word_source = match source {
+                        LoadWordSource::SP => self.sp,
+                        LoadWordSource::N16 => todo!(),
+                        LoadWordSource::HL => self.registers.get_hl(),
+                        LoadWordSource::SPE8 => todo!(),
+                    };
+                    self.registers.get_hl()
+                }
+                LoadType::AStoreInN16(target) => {
+                    let n16_target = match target {
+                        LoadN16::BC => self.registers.get_bc(),
+                        LoadN16::DE => self.registers.get_de(),
+                        LoadN16::HLINC => todo!(),
+                        LoadN16::HLDEC => todo!(),
+                    };
+                    self.registers.get_hl()
+                }
+                LoadType::N16StoreInA(target) => {
+                    let n16_target = match target {
+                        LoadN16::BC => self.registers.get_bc(),
+                        LoadN16::DE => self.registers.get_de(),
+                        LoadN16::HLINC => todo!(),
+                        LoadN16::HLDEC => todo!(),
+                    };
+                    self.registers.get_hl()
+                }
+                LoadType::D8StoreInReg(target) => {
+                    let reg_target = match target {
+                        HLTarget::A => self.registers.a,
+                        HLTarget::B => self.registers.b,
+                        HLTarget::C => self.registers.c,
+                        HLTarget::D => self.registers.d,
+                        HLTarget::E => self.registers.e,
+                        HLTarget::H => self.registers.h,
+                        HLTarget::L => self.registers.l,
+                        HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+                    };
+                    self.registers.get_hl()
+                }
+            },
             Instruction::PUSH(target) => {
                 let value = match target {
                     StackTarget::AF => self.registers.get_af(),
@@ -807,6 +1102,7 @@ impl CPU {
                     JumpTest::Zero => !self.registers.f.zero,
                     JumpTest::Carry => !self.registers.f.carry,
                     JumpTest::Always => true,
+                    JumpTest::HL => panic!("HL BAD"),
                 };
                 self.call(jump_condition);
                 todo!()
@@ -818,6 +1114,7 @@ impl CPU {
                     JumpTest::Zero => !self.registers.f.zero,
                     JumpTest::Carry => !self.registers.f.carry,
                     JumpTest::Always => true,
+                    JumpTest::HL => panic!("HL BAD"),
                 };
                 self.run_return(jump_condition);
                 todo!()
@@ -881,7 +1178,7 @@ impl CPU {
 
     // Jump to addr in memory or increment pc
     fn jump(&self, jump: bool) -> u16 {
-        if (jump) {
+        if jump {
             let least_significant = self.memory.read_byte(self.pc + 1) as u16;
             let most_significant = self.memory.read_byte(self.pc + 2) as u16;
 

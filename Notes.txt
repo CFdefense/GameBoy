@@ -31,3 +31,7 @@ GRAPHICS
 0b10 | dark-gray
 0b01 | light-gray
 0b00 | black
+
+TODO
+
+OPTIMIZE INSTRUCTIONS USING OPTYPE

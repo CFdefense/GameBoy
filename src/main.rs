@@ -1,8 +1,8 @@
-#[path = "hdw/cpu.rs"] mod cpu;
+#[path = "hdw/cpu.rs"]
+mod cpu;
 
-use std::io::{stdin, stdout, Read, Write};
 use cpu::CPU;
-
+use std::io::stdin;
 
 /* Implement Initialization of Gameboy Here
 
@@ -22,12 +22,19 @@ CPU CYCLE
 
 */
 
-
 fn main() {
-    
     // Recieve Cart
     let mut file_path = String::new();
     println!("Enter ROM Path");
     stdin().read_line(&mut file_path).expect("Didn't Get Input");
 
+    // Load Cart
+
+    // Init Components
+    let mut emu_cpu = CPU::new();
+
+    // CPU Cycling
+    loop {
+        emu_cpu.step();
+    }
 }

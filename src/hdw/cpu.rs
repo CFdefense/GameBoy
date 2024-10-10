@@ -1,6 +1,6 @@
 pub mod memory;
 
-use std::ops::Add;
+use std::{f32::INFINITY, ops::Add};
 
 use memory::Memory;
 
@@ -45,28 +45,28 @@ struct FlagsRegister {
 enum Instruction {
     NOP,
     LD(LoadType),
-    INC(ArithmeticTarget),
-    DEC(ArithmeticTarget),
+    INC(AllRegisters),
+    DEC(AllRegisters),
     RLCA,
     ADDHL(ArithmeticTarget),
-    ADD(AddType),
+    ADD(OPType),
     RRCA,
     STOP,
     RLA,
-    JR,
+    JR(JumpTest),
     RRA,
     DAA,
     CPL,
-    SCF(FlagsTarget),
-    CCF(FlagsTarget),
+    SCF,
+    CCF,
     HALT,
-    ADC(ArithmeticTarget),
-    SUB(ArithmeticTarget),
-    SBC(ArithmeticTarget),
-    AND(ArithmeticTarget),
-    XOR(ArithmeticTarget),
-    OR(ArithmeticTarget),
-    CP(ArithmeticTarget),
+    ADC(OPType),
+    SUB(OPType),
+    SBC(OPType),
+    AND(OPType),
+    XOR(OPType),
+    OR(OPType),
+    CP(OPType),
     RET(JumpTest),
     POP(StackTarget),
     JP(JumpTest),
@@ -97,6 +97,22 @@ enum ArithmeticTarget {
     E,
     H,
     L,
+}
+
+// Target All 8 bit and 16 bit register except f
+enum AllRegisters {
+    A,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HLMEM,
+    BC,
+    DE,
+    HL,
+    SP,
 }
 
 // Enum For BIT/RES/SET Instruction Types
@@ -203,9 +219,15 @@ enum AddN16Target {
     SP,
 }
 
-enum AddType {
-    Registers(ArithmeticTarget, ArithmeticTarget),
+enum D8Target {
+    D8,
+}
+
+enum OPType {
+    LoadA(HLTarget),
     LoadHL(AddN16Target),
+    LoadSP,
+    LoadD8,
 }
 
 // TODO IMPLEMENT
@@ -215,8 +237,8 @@ enum LoadType {
     Word(LoadWordTarget, LoadWordSource), // Like Byte but 16 bit values
     AStoreInN16(LoadN16),                 // Store A register in N16 register
     N16StoreInA(LoadN16),                 // Store N16 register into A register
-    D8StoreInReg(HLTarget),
-    RegInReg(HLTarget, HLTarget),
+    D8StoreInReg(HLTarget),               // Store D8 into a register
+    RegInReg(HLTarget, HLTarget),         // Store one register into another
 }
 
 // filter byte to instruction dependant on prefixes
@@ -226,21 +248,21 @@ impl Instruction {
     fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
         match byte {
             // RLC
-            0x00..=0x07 => Some(Instruction::RLC(Self::arithmetic_target_helper(byte))),
+            0x00..=0x07 => Some(Instruction::RLC(Self::hl_target_helper(byte))),
             // RRC
-            0x08..=0x0F => Some(Instruction::RRC(Self::arithmetic_target_helper(byte))),
+            0x08..=0x0F => Some(Instruction::RRC(Self::hl_target_helper(byte))),
             // RL
-            0x10..=0x17 => Some(Instruction::RL(Self::arithmetic_target_helper(byte))),
+            0x10..=0x17 => Some(Instruction::RL(Self::hl_target_helper(byte))),
             // RR
-            0x18..=0x1F => Some(Instruction::RR(Self::arithmetic_target_helper(byte))),
+            0x18..=0x1F => Some(Instruction::RR(Self::hl_target_helper(byte))),
             // SLA
-            0x20..=0x27 => Some(Instruction::SLA(Self::arithmetic_target_helper(byte))),
+            0x20..=0x27 => Some(Instruction::SLA(Self::hl_target_helper(byte))),
             // SRA
-            0x28..=0x2F => Some(Instruction::SRA(Self::arithmetic_target_helper(byte))),
+            0x28..=0x2F => Some(Instruction::SRA(Self::hl_target_helper(byte))),
             // SWAP
-            0x30..=0x37 => Some(Instruction::SWAP(Self::arithmetic_target_helper(byte))),
+            0x30..=0x37 => Some(Instruction::SWAP(Self::hl_target_helper(byte))),
             // SRL
-            0x38..=0x3F => Some(Instruction::SRL(Self::arithmetic_target_helper(byte))),
+            0x38..=0x3F => Some(Instruction::SRL(Self::hl_target_helper(byte))),
             // BIT
             0x40..=0x7F => Some(Instruction::BIT(Self::byte_target_helper(byte))),
             //RES
@@ -256,6 +278,56 @@ impl Instruction {
         match byte {
             //NOP
             0x00 => Some(Instruction::NOP),
+            //SOP
+            0x10 => Some(Instruction::STOP),
+            //RLCA
+            0x07 => Some(Instruction::RLCA),
+            //RRCA
+            0x0F => Some(Instruction::RRCA),
+            //RLA
+            0x17 => Some(Instruction::RLA),
+            //RRA
+            0x1F => Some(Instruction::RRA),
+            //DAA
+            0x37 => Some(Instruction::DAA),
+            //SCF
+            0x47 => Some(Instruction::SCF),
+            //CPL
+            0x2F => Some(Instruction::CPL),
+            //CCF
+            0x3F => Some(Instruction::CCF),
+            //JR
+            0x18 => Some(Instruction::JR(JumpTest::Always)),
+            0x20 => Some(Instruction::JR(JumpTest::NotZero)),
+            0x28 => Some(Instruction::JR(JumpTest::Zero)),
+            0x30 => Some(Instruction::JR(JumpTest::NotCarry)),
+            0x38 => Some(Instruction::JR(JumpTest::Carry)),
+            // INC
+            0x03 => Some(Instruction::INC(AllRegisters::BC)),
+            0x13 => Some(Instruction::INC(AllRegisters::DE)),
+            0x23 => Some(Instruction::INC(AllRegisters::HL)),
+            0x43 => Some(Instruction::INC(AllRegisters::SP)),
+            0x04 => Some(Instruction::INC(AllRegisters::B)),
+            0x14 => Some(Instruction::INC(AllRegisters::D)),
+            0x24 => Some(Instruction::INC(AllRegisters::H)),
+            0x34 => Some(Instruction::INC(AllRegisters::HLMEM)),
+            0x0C => Some(Instruction::INC(AllRegisters::C)),
+            0x1C => Some(Instruction::INC(AllRegisters::E)),
+            0x2C => Some(Instruction::INC(AllRegisters::L)),
+            0x3C => Some(Instruction::INC(AllRegisters::A)),
+            // DEC
+            0x0B => Some(Instruction::DEC(AllRegisters::BC)),
+            0x1B => Some(Instruction::DEC(AllRegisters::DE)),
+            0x2B => Some(Instruction::DEC(AllRegisters::HL)),
+            0x4B => Some(Instruction::DEC(AllRegisters::SP)),
+            0x05 => Some(Instruction::DEC(AllRegisters::B)),
+            0x15 => Some(Instruction::DEC(AllRegisters::D)),
+            0x25 => Some(Instruction::DEC(AllRegisters::H)),
+            0x35 => Some(Instruction::DEC(AllRegisters::HLMEM)),
+            0x0D => Some(Instruction::DEC(AllRegisters::C)),
+            0x1D => Some(Instruction::DEC(AllRegisters::E)),
+            0x2D => Some(Instruction::DEC(AllRegisters::L)),
+            0x3D => Some(Instruction::DEC(AllRegisters::A)),
             // LD Word w Word
             0x01 => Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::BC,
@@ -306,34 +378,53 @@ impl Instruction {
             0x3A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC))),
             // LD Register to Register + HALT
             0x40..=0x7F => Self::load_register_helper(byte),
-            //ADD Register to Register
-            // Need helper 0x80..=0x8F => Some(Instruction::ADD((AddType::Registers((), ()))))
+            // ADD Register to A
+            0x80..=0x87 => Some(Instruction::ADD(OPType::LoadA(Self::hl_target_helper(
+                byte,
+            )))),
+            // ADD D8
+            0xC6 => Some(Instruction::ADD(OPType::LoadD8)),
+            // ADD s8 SP
+            0xE8 => Some(Instruction::ADD(OPType::LoadSP)),
             // ADD N16 Register to N16 Register
-            0x09 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::BC))),
-            0x19 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::DE))),
-            0x29 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::HL))),
-            0x39 => Some(Instruction::ADD(AddType::LoadHL(AddN16Target::SP))),
+            0x09 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::BC))),
+            0x19 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::DE))),
+            0x29 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::HL))),
+            0x39 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::SP))),
+            // ADC Register to A
+            0x88..=0x8F => Some(Instruction::ADC(OPType::LoadA(Self::hl_target_helper(
+                byte,
+            )))),
+            // ADC D8
+            0xCE => Some(Instruction::ADC(OPType::LoadD8)),
+            // SUB
+            // SBC
+            // AND
+            // XOR
+            // OR
+            // CP
             _ => todo!("Implement more byte not prefixed"),
         }
     }
 
-    fn arithmetic_target_helper(byte: u8) -> HLTarget {
+    fn hl_target_helper(byte: u8) -> HLTarget {
         match byte % 8 {
-            0 => HLTarget::B,
-            1 => HLTarget::C,
-            2 => HLTarget::D,
-            3 => HLTarget::E,
-            4 => HLTarget::H,
-            5 => HLTarget::L,
-            6 => HLTarget::HL,
-            7 => HLTarget::A,
-            _ => panic!("Math doesnt math"),
+            0 => Some(HLTarget::B),
+            1 => Some(HLTarget::C),
+            2 => Some(HLTarget::D),
+            3 => Some(HLTarget::E),
+            4 => Some(HLTarget::H),
+            5 => Some(HLTarget::L),
+            6 => Some(HLTarget::HL),
+            7 => Some(HLTarget::A),
+            _ => None,
         }
+        .expect("Math doesn't math") // Unwrap and panic if None
     }
 
     // Determine Instruction # and Associated Register
     fn byte_target_helper(byte: u8) -> ByteTarget {
-        let some_instruction = Self::arithmetic_target_helper(byte);
+        let some_instruction = Self::hl_target_helper(byte);
         match byte {
             // Zero
             0x40..=0x47 => ByteTarget::Zero(some_instruction),
@@ -376,35 +467,35 @@ impl Instruction {
             0x76 => Some(Instruction::HALT),
             0x40..=0x47 => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::B,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x48..=0x4F => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::C,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x50..=0x57 => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::D,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x58..=0x5F => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::E,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x60..=0x67 => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::H,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x68..=0x6F => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::L,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x70..=0x77 => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::HL,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             0x78..=0x7F => Some(Instruction::LD(LoadType::RegInReg(
                 HLTarget::A,
-                Self::arithmetic_target_helper(byte),
+                Self::hl_target_helper(byte),
             ))),
             _ => panic!("Register doesnt register"),
         }
@@ -501,63 +592,13 @@ impl CPU {
 
         match instruction {
             Instruction::ADD(target) => {
-                let target_register = match target {
-                    ArithmeticTarget::A => self.registers.a,
-                    ArithmeticTarget::B => self.registers.b,
-                    ArithmeticTarget::C => self.registers.c,
-                    ArithmeticTarget::D => self.registers.d,
-                    ArithmeticTarget::E => self.registers.e,
-                    ArithmeticTarget::H => self.registers.h,
-                    ArithmeticTarget::L => self.registers.l,
-                };
-
-                // Perform ADD and UPD flags
-                let new_value = self.add(target_register);
-
-                // UPD Register
-                self.registers.a = new_value;
-
-                // return next pc
-                self.pc.wrapping_add(1)
+                todo!()
             }
+
             Instruction::ADDHL(target) => {
-                // Get mutable reference to the target register
-                let target_register = match target {
-                    ArithmeticTarget::A => self.registers.a,
-                    ArithmeticTarget::B => self.registers.b,
-                    ArithmeticTarget::C => self.registers.c,
-                    ArithmeticTarget::D => self.registers.d,
-                    ArithmeticTarget::E => self.registers.e,
-                    ArithmeticTarget::H => self.registers.h,
-                    ArithmeticTarget::L => self.registers.l,
-                };
-
-                // Perform ADDHL and UPD flags
-                let new_value = self.add_hl(target_register as u16);
-
-                // UPD Register
-                self.registers.set_hl(new_value);
-
                 todo!()
             }
             Instruction::ADC(target) => {
-                // Get mutable reference to the target register
-                let target_register = match target {
-                    ArithmeticTarget::A => self.registers.a,
-                    ArithmeticTarget::B => self.registers.b,
-                    ArithmeticTarget::C => self.registers.c,
-                    ArithmeticTarget::D => self.registers.d,
-                    ArithmeticTarget::E => self.registers.e,
-                    ArithmeticTarget::H => self.registers.h,
-                    ArithmeticTarget::L => self.registers.l,
-                };
-
-                // Perfom ADC and UPD Flags
-                let new_value = self.adc(target_register);
-
-                // UPD Register
-                self.registers.a = new_value;
-
                 todo!()
             }
             Instruction::SUB(target) => {
@@ -584,10 +625,10 @@ impl CPU {
             Instruction::DEC(target) => {
                 todo!();
             }
-            Instruction::CCF(target) => {
+            Instruction::CCF => {
                 todo!();
             }
-            Instruction::SCF(target) => {
+            Instruction::SCF => {
                 todo!();
             }
             Instruction::RRA => {
@@ -599,7 +640,7 @@ impl CPU {
             Instruction::RRCA => {
                 todo!();
             }
-            Instruction::RRLA => {
+            Instruction::RLCA => {
                 todo!();
             }
             Instruction::CPL => {
@@ -618,7 +659,7 @@ impl CPU {
             Instruction::BIT(targt) => {
                 todo!();
             }
-            Instruction::RESET(target) => {
+            Instruction::RES(target) => {
                 todo!();
             }
             Instruction::SET(target) => {
@@ -659,57 +700,7 @@ impl CPU {
                 self.jump(jump_condition)
             }
             Instruction::LD(load_type) => {
-                match load_type {
-                    LoadType::Byte(target, source) => {
-                        let source_value = match source {
-                            LoadByteSource::A => self.registers.a,
-                            LoadByteSource::B => self.registers.b,
-                            LoadByteSource::C => self.registers.c,
-                            LoadByteSource::D => self.registers.d,
-                            LoadByteSource::E => self.registers.e,
-                            LoadByteSource::H => self.registers.h,
-                            LoadByteSource::L => self.registers.l,
-                            LoadByteSource::D8 => self.memory.read_next_byte(), // direct 8 bytes -> read next bytes
-                            LoadByteSource::HLI => self.memory.read_byte(self.registers.get_hl()), // read byte of address stored in hl
-                            _ => panic!("LD: Bad Source"),
-                        };
-                        match target {
-                            LoadByteTarget::A => self.registers.a = source_value,
-                            LoadByteTarget::B => self.registers.b = source_value,
-                            LoadByteTarget::C => self.registers.c = source_value,
-                            LoadByteTarget::D => self.registers.d = source_value,
-                            LoadByteTarget::E => self.registers.e = source_value,
-                            LoadByteTarget::H => self.registers.h = source_value,
-                            LoadByteTarget::L => self.registers.l = source_value,
-                            LoadByteTarget::HLI => self
-                                .memory
-                                .write_byte(self.registers.get_hl(), source_value),
-                            _ => panic!("LD: Bad Target"),
-                        };
-
-                        // Increment PC depending on source
-                        match source {
-                            LoadByteSource::D8 => self.pc.wrapping_add(2),
-                            _ => self.pc.wrapping_add(1),
-                        }
-                    }
-                    LoadType::Word => {
-                        todo!();
-                    }
-                    LoadType::AFromIndirect => {
-                        todo!();
-                    }
-                    LoadType::IndirectFromA => {
-                        todo!();
-                    }
-                    LoadType::AFromByteAddress => {
-                        todo!();
-                    }
-                    LoadType::ByteAddressFromA => {
-                        todo!();
-                    }
-                    _ => panic!("LD: BAD LOAD TYPE"),
-                }
+                todo!()
             }
             Instruction::PUSH(target) => {
                 let value = match target {

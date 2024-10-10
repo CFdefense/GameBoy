@@ -1,7 +1,7 @@
 pub mod memory;
 
 use core::panic;
-use std::f32::consts::PI;
+use std::borrow::BorrowMut;
 
 use memory::Memory;
 
@@ -806,9 +806,11 @@ impl CPU {
                 }
             },
             Instruction::INC(target) => {
+                let reg_target = self.match_all_registers(target);
                 todo!();
             }
             Instruction::DEC(target) => {
+                let reg_target = self.match_all_registers(target);
                 todo!();
             }
             Instruction::CCF => {
@@ -842,37 +844,139 @@ impl CPU {
                 self.is_halted = true;
                 todo!()
             }
-            Instruction::BIT(target) => {
-                todo!();
-            }
-            Instruction::RES(target) => {
-                todo!();
-            }
-            Instruction::SET(target) => {
-                todo!();
-            }
+            Instruction::BIT(target) => match target {
+                ByteTarget::Zero(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::One(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Two(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Three(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Four(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Five(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Six(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Seven(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+            },
+            Instruction::RES(target) => match target {
+                ByteTarget::Zero(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::One(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Two(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Three(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Four(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Five(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Six(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Seven(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+            },
+            Instruction::SET(target) => match target {
+                ByteTarget::Zero(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::One(hl_target) => {
+                    todo!();
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Two(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Three(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Four(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Five(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Six(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+                ByteTarget::Seven(hl_target) => {
+                    let reg_target = self.match_hl(hl_target);
+                    todo!()
+                }
+            },
             Instruction::SRL(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::RR(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::RL(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::RRC(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::RLC(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::SRA(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::SLA(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::SWAP(target) => {
+                let reg_target = self.match_hl(target);
                 todo!();
             }
             Instruction::JP(test) => {
@@ -1123,6 +1227,25 @@ impl CPU {
             LoadN16::HLDEC => todo!(),
         };
         n16_target
+    }
+
+    // Method to match to All Registers as u16
+    fn match_all_registers(&self, target: AllRegisters) -> u16 {
+        let reg_target = match target {
+            AllRegisters::A => self.registers.a as u16,
+            AllRegisters::B => self.registers.b as u16,
+            AllRegisters::C => self.registers.c as u16,
+            AllRegisters::D => self.registers.d as u16,
+            AllRegisters::E => self.registers.e as u16,
+            AllRegisters::H => self.registers.h as u16,
+            AllRegisters::L => self.registers.l as u16,
+            AllRegisters::HLMEM => todo!(),
+            AllRegisters::BC => self.registers.get_bc(),
+            AllRegisters::DE => self.registers.get_de(),
+            AllRegisters::HL => self.registers.get_hl(),
+            AllRegisters::SP => self.sp,
+        };
+        reg_target
     }
 
     // CPU ENDS HERE

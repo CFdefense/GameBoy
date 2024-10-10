@@ -68,11 +68,14 @@ enum Instruction {
     OR(OPType),
     CP(OPType),
     RET(JumpTest),
+    RETI,
     POP(StackTarget),
     JP(JumpTest),
     CALL(JumpTest),
     PUSH(StackTarget),
-    RST,
+    RST(RestTarget),
+    EI,
+    DI,
 
     // PREFIXED INSTRUCTIONS
     RLC(HLTarget),
@@ -161,6 +164,7 @@ enum JumpTest {
     NotCarry,
     Carry,
     Always,
+    HL,
 }
 
 // Enum For Possible Byte Load Targets
@@ -219,15 +223,23 @@ enum AddN16Target {
     SP,
 }
 
-enum D8Target {
-    D8,
-}
-
 enum OPType {
     LoadA(HLTarget),
     LoadHL(AddN16Target),
     LoadSP,
     LoadD8,
+}
+
+// RST Targets
+enum RestTarget {
+    Zero,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
 }
 
 // TODO IMPLEMENT
@@ -382,10 +394,8 @@ impl Instruction {
             0x80..=0x87 => Some(Instruction::ADD(OPType::LoadA(Self::hl_target_helper(
                 byte,
             )))),
-            // ADD D8
-            0xC6 => Some(Instruction::ADD(OPType::LoadD8)),
-            // ADD s8 SP
-            0xE8 => Some(Instruction::ADD(OPType::LoadSP)),
+            0xC6 => Some(Instruction::ADD(OPType::LoadD8)), // ADD D8
+            0xE8 => Some(Instruction::ADD(OPType::LoadSP)), // ADD s8 SP
             // ADD N16 Register to N16 Register
             0x09 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::BC))),
             0x19 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::DE))),
@@ -395,14 +405,77 @@ impl Instruction {
             0x88..=0x8F => Some(Instruction::ADC(OPType::LoadA(Self::hl_target_helper(
                 byte,
             )))),
-            // ADC D8
-            0xCE => Some(Instruction::ADC(OPType::LoadD8)),
+            0xCE => Some(Instruction::ADC(OPType::LoadD8)), // ADC D8
             // SUB
+            0x90..=0x97 => Some(Instruction::SUB(OPType::LoadA(Self::hl_target_helper(
+                byte,
+            )))),
+            0xD6 => Some(Instruction::SUB(OPType::LoadD8)), // SUB D8
             // SBC
+            0x98..=0x9F => Some(Instruction::SBC(OPType::LoadA(Self::hl_target_helper(
+                byte,
+            )))),
+            0xDE => Some(Instruction::SBC(OPType::LoadD8)), // SBC D8
             // AND
+            0xA0..=0xA7 => Some(Instruction::AND(OPType::LoadA(Self::hl_target_helper(
+                byte,
+            )))),
+            0xE6 => Some(Instruction::SBC(OPType::LoadD8)), // AND D8
             // XOR
+            0xA8..=0xAF => Some(Instruction::AND(OPType::LoadA(Self::hl_target_helper(
+                byte,
+            )))),
+            0xEE => Some(Instruction::XOR(OPType::LoadD8)), // XOR D8
             // OR
+            0xB0..=0xB7 => Some(Instruction::OR(OPType::LoadA(Self::hl_target_helper(byte)))),
+            0xF6 => Some(Instruction::OR(OPType::LoadD8)), // OR D8
             // CP
+            0xB8..=0xBF => Some(Instruction::CP(OPType::LoadA(Self::hl_target_helper(byte)))),
+            0xFE => Some(Instruction::CP(OPType::LoadD8)), // CP D8
+            // RET
+            0xC0 => Some(Instruction::RET(JumpTest::NotZero)),
+            0xC8 => Some(Instruction::RET(JumpTest::Zero)),
+            0xD0 => Some(Instruction::RET(JumpTest::NotCarry)),
+            0xD8 => Some(Instruction::RET(JumpTest::Carry)),
+            0xC9 => Some(Instruction::RET(JumpTest::Always)),
+            // RETI
+            0xD9 => Some(Instruction::RETI),
+            // POP
+            0xC1 => Some(Instruction::POP(StackTarget::BC)),
+            0xD1 => Some(Instruction::POP(StackTarget::DE)),
+            0xE1 => Some(Instruction::POP(StackTarget::HL)),
+            0xF1 => Some(Instruction::POP(StackTarget::AF)),
+            // JP
+            0xC2 => Some(Instruction::JP(JumpTest::NotZero)),
+            0xCA => Some(Instruction::JP(JumpTest::Zero)),
+            0xD2 => Some(Instruction::JP(JumpTest::NotCarry)),
+            0xDA => Some(Instruction::JP(JumpTest::Carry)),
+            0xC3 => Some(Instruction::JP(JumpTest::Always)),
+            0xE9 => Some(Instruction::JP(JumpTest::HL)),
+            // CALL
+            0xC4 => Some(Instruction::CALL(JumpTest::NotZero)),
+            0xCC => Some(Instruction::CALL(JumpTest::Zero)),
+            0xD4 => Some(Instruction::CALL(JumpTest::NotCarry)),
+            0xDC => Some(Instruction::CALL(JumpTest::Carry)),
+            0xCD => Some(Instruction::CALL(JumpTest::Always)),
+            // PUSH
+            0xC5 => Some(Instruction::PUSH(StackTarget::BC)),
+            0xD5 => Some(Instruction::PUSH(StackTarget::DE)),
+            0xE5 => Some(Instruction::PUSH(StackTarget::HL)),
+            0xF5 => Some(Instruction::PUSH(StackTarget::AF)),
+            // RST
+            0xC7 => Some(Instruction::RST(RestTarget::Zero)),
+            0xCF => Some(Instruction::RST(RestTarget::One)),
+            0xD7 => Some(Instruction::RST(RestTarget::Two)),
+            0xDF => Some(Instruction::RST(RestTarget::Three)),
+            0xE7 => Some(Instruction::RST(RestTarget::Four)),
+            0xEF => Some(Instruction::RST(RestTarget::Five)),
+            0xF7 => Some(Instruction::RST(RestTarget::Six)),
+            0xFF => Some(Instruction::RST(RestTarget::Seven)),
+            // DI
+            0xF3 => Some(Instruction::DI),
+            // EI
+            0xFB => Some(Instruction::EI),
             _ => todo!("Implement more byte not prefixed"),
         }
     }
@@ -656,7 +729,7 @@ impl CPU {
                 self.is_halted = true;
                 todo!()
             }
-            Instruction::BIT(targt) => {
+            Instruction::BIT(target) => {
                 todo!();
             }
             Instruction::RES(target) => {

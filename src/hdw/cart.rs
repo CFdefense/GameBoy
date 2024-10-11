@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use lazy_static::lazy_static;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
@@ -44,26 +44,40 @@ struct cartridge {
 }
 
 impl cartridge {
+    pub fn new() -> self {
+        Cartidge {
+            file_name: String::new(),
+            rom_size: 0,
+            rom_data: 0,
+            rom_header: cartridge_header::new(),
+        }
+    }
     // Function to load in cartridge
-    fn load_cart(&mut self, file_path: &str) -> Result<(), String>  {
-        
+    pub fn load_cart(&mut self, file_path: &str) -> Result<(), String> {
         // Update File Name
         self.file_name = file_path.to_string();
 
         // Open the cartridge file
-        let mut file = File::open(file_path).map_err(|e| format!("Failed to open: {}. Error: {}", file_path, e))?;
+        let mut file = File::open(file_path)
+            .map_err(|e| format!("Failed to open: {}. Error: {}", file_path, e))?;
         println!("Opened: {}", self.filename);
 
         // Seek to end of the file to update file size
-        file.seek(SeekFrom::End(0)).map_err(|e| format!("Error Seeking File: {}", e))?;
-        self.rom_size = file.metadata().map_err(|e| format!("Error Getting File Length {}", e))?.len() as usize;
+        file.seek(SeekFrom::End(0))
+            .map_err(|e| format!("Error Seeking File: {}", e))?;
+        self.rom_size = file
+            .metadata()
+            .map_err(|e| format!("Error Getting File Length {}", e))?
+            .len() as usize;
 
         // Rewind to start
-        file.seek(SeekFrom::Start(0)).map_err(|e| format!("Error Rewinding File {}", e))?;
+        file.seek(SeekFrom::Start(0))
+            .map_err(|e| format!("Error Rewinding File {}", e))?;
 
         // Allocate Mem Size
         self.rom_data.resize(self.rom_size, 0);
-        file.read_exact(&mut self.rom_data).map_err(|e| format!("Failed to Read Rom Data {}", e))?;
+        file.read_exact(&mut self.rom_data)
+            .map_err(|e| format!("Failed to Read Rom Data {}", e))?;
 
         println!("Cartidge Loaded");
 
@@ -89,17 +103,27 @@ impl cartridge {
 
         // Print Cartridge Information
         self.print_info();
-        
+
         Ok(())
     }
 
     fn print_info(&self) {
         println!("Cartridge Information:");
-        println!("  Title            : {:?}", std::str::from_utf8(&self.rom_header.rom_title).unwrap_or("Invalid UTF-8"));
+        println!(
+            "  Title            : {:?}",
+            std::str::from_utf8(&self.rom_header.rom_title).unwrap_or("Invalid UTF-8")
+        );
         println!("  New License Code : {:#04X}", self.rom_header.new_lic_code);
-        println!("  License Name     : {}", self.rom_header.license_lookup().unwrap_or("UNKNOWN"));
+        println!(
+            "  License Name     : {}",
+            self.rom_header.license_lookup().unwrap_or("UNKNOWN")
+        );
         println!("  SGB Flag         : {:#02X}", self.rom_header.sgb_flag);
-        println!("  Cartridge Type   : {:#02X} ({})", self.rom_header.cart_type, self.rom_header.license_lookup().unwrap_or("UNKNOWN"));
+        println!(
+            "  Cartridge Type   : {:#02X} ({})",
+            self.rom_header.cart_type,
+            self.rom_header.license_lookup().unwrap_or("UNKNOWN")
+        );
         println!("  ROM Size         : {} KB", 32 << self.rom_header.rom_size);
         println!("  RAM Size         : {:#02X}", self.rom_header.ram_size);
         println!("  Destination Code : {:#02X}", self.rom_header.dest_code);
@@ -110,12 +134,12 @@ impl cartridge {
     fn checksum_test(&self) -> Result<(), String> {
         // Calculate the checksum of the ROM using the specified method
         let mut checksum: u8 = 0;
-    
+
         // Calculate the checksum from the specified range
         for address in 0x0134..=0x014C {
             checksum = checksum.wrapping_sub(self.rom_data[address] + 1);
         }
-    
+
         // Check if the calculated checksum matches the stored checksum
         if checksum == self.rom_header.checksum {
             println!("\tChecksum: {:#02X} (PASSED)", checksum);
@@ -130,21 +154,38 @@ impl cartridge {
 }
 
 impl cartridge_header {
-
-    // Function to lookup publisher code 
+    // Constructor
+    pub fn new() -> Self {
+        cartridge_header {
+            entry_point: 0,
+            nintendo_logo: 0,
+            rom_title: 0,
+            new_lic_code: 0,
+            sgb_flag: 0,
+            cart_type: 0,
+            rom_size: 0,
+            ram_size: 0,
+            dest_code: 0,
+            old_lic_code: 0,
+            version: 0,
+            checksum: 0,
+            global_checksum: 0,
+        }
+    }
+    // Function to lookup publisher code
     fn license_lookup(self) -> Option<&'static str> {
         match PUBLISHER_CODES.get(&format!("{:02X}", self.old_lic_code)) {
-            Some(&publisher) => publisher,  // Return the found publisher
-            None => "UNKNOWN",  // Return "UNKNOWN" if not found
-        }         
+            Some(&publisher) => publisher, // Return the found publisher
+            None => "UNKNOWN",             // Return "UNKNOWN" if not found
+        }
     }
 
-    // Function to lookup cartridge type 
+    // Function to lookup cartridge type
     fn license_lookup(self) -> Option<&'static str> {
         match PUBLISHER_CODES.get(&format!("{:02X}", self.cart_type)) {
-            Some(&cart_type) => cart_type,  // Return the found publisher
-            None => "UNKNOWN",  // Return "UNKNOWN" if not found
-        }         
+            Some(&cart_type) => cart_type, // Return the found publisher
+            None => "UNKNOWN",             // Return "UNKNOWN" if not found
+        }
     }
 }
 

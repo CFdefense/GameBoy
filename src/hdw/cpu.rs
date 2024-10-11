@@ -1,7 +1,6 @@
 pub mod memory;
 
 use core::panic;
-use std::borrow::BorrowMut;
 
 use memory::Memory;
 
@@ -49,7 +48,6 @@ pub enum Instruction {
     INC(AllRegisters),
     DEC(AllRegisters),
     RLCA,
-    ADDHL(ArithmeticTarget),
     ADD(OPType),
     RRCA,
     STOP,
@@ -420,9 +418,9 @@ impl Instruction {
             0xA0..=0xA7 => Some(Instruction::AND(OPType::LoadA(Self::hl_target_helper(
                 byte,
             )))),
-            0xE6 => Some(Instruction::SBC(OPType::LoadD8)), // AND D8
+            0xE6 => Some(Instruction::AND(OPType::LoadD8)), // AND D8
             // XOR
-            0xA8..=0xAF => Some(Instruction::AND(OPType::LoadA(Self::hl_target_helper(
+            0xA8..=0xAF => Some(Instruction::XOR(OPType::LoadA(Self::hl_target_helper(
                 byte,
             )))),
             0xEE => Some(Instruction::XOR(OPType::LoadD8)), // XOR D8
@@ -664,6 +662,89 @@ impl CPU {
         }
 
         match instruction {
+            Instruction::NOP => {
+                // Stands for no-operation and it effectively does nothing except advance the program counter by 1.
+                self.pc = self.pc.wrapping_add(1);
+                todo!()
+            }
+            Instruction::STOP => {
+                todo!()
+            }
+            Instruction::RLCA => {
+                todo!()
+            }
+            Instruction::RRCA => {
+                todo!()
+            }
+            Instruction::RLA => {
+                todo!()
+            }
+            Instruction::RRA => {
+                todo!()
+            }
+            Instruction::DAA => {
+                todo!()
+            }
+            Instruction::SCF => {
+                todo!()
+            }
+            Instruction::CPL => {
+                todo!()
+            }
+            Instruction::CCF => {
+                todo!()
+            }
+            Instruction::JR => {
+                todo!()
+            }
+            Instruction::INC(target) => {
+                let reg_target = self.match_all_registers(target);
+                todo!();
+            }
+            Instruction::DEC(target) => {
+                let reg_target = self.match_all_registers(target);
+                todo!();
+            }
+            Instruction::LD(target) => match target {
+                LoadType::RegInReg(target, source) => {
+                    let reg_target = self.match_hl(target);
+                    let reg_source = self.match_hl(source);
+                    todo!()
+                }
+                LoadType::Word(target, source) => {
+                    let word_target = match target {
+                        LoadWordTarget::BC => self.registers.get_bc(),
+                        LoadWordTarget::DE => self.registers.get_de(),
+                        LoadWordTarget::HL => self.registers.get_hl(),
+                        LoadWordTarget::SP => self.sp,
+                        LoadWordTarget::N16 => todo!(),
+                    };
+                    let word_source = match source {
+                        LoadWordSource::SP => self.sp,
+                        LoadWordSource::N16 => todo!(),
+                        LoadWordSource::HL => self.registers.get_hl(),
+                        LoadWordSource::SPE8 => todo!(),
+                    };
+                    todo!()
+                }
+                LoadType::AStoreInN16(target) => {
+                    let n16_target = self.match_load_n16(target);
+                    todo!()
+                }
+                LoadType::N16StoreInA(target) => {
+                    let n16_target = self.match_load_n16(target);
+                    todo!()
+                }
+                LoadType::D8StoreInReg(target) => {
+                    let reg_target = self.match_hl(target);
+                    todo!()
+                }
+            },
+            Instruction::HALT => {
+                // Instruction For Halting CPU Cycle
+                self.is_halted = true;
+                todo!()
+            }
             Instruction::ADD(target) => match target {
                 OPType::LoadA(target) => {
                     let reg_target = self.match_hl(target);
@@ -680,19 +761,6 @@ impl CPU {
                     todo!()
                 }
             },
-
-            Instruction::ADDHL(target) => {
-                let reg_target = match target {
-                    ArithmeticTarget::A => self.registers.a,
-                    ArithmeticTarget::B => self.registers.b,
-                    ArithmeticTarget::C => self.registers.c,
-                    ArithmeticTarget::D => self.registers.d,
-                    ArithmeticTarget::E => self.registers.e,
-                    ArithmeticTarget::H => self.registers.h,
-                    ArithmeticTarget::L => self.registers.l,
-                };
-                todo!()
-            }
             Instruction::ADC(target) => match target {
                 OPType::LoadA(target) => {
                     let reg_target = self.match_hl(target);
@@ -757,7 +825,7 @@ impl CPU {
                     todo!()
                 }
             },
-            Instruction::OR(target) => match target {
+            Instruction::XOR(target) => match target {
                 OPType::LoadA(target) => {
                     let reg_target = self.match_hl(target);
                     todo!()
@@ -773,7 +841,7 @@ impl CPU {
                     todo!()
                 }
             },
-            Instruction::XOR(target) => match target {
+            Instruction::OR(target) => match target {
                 OPType::LoadA(target) => {
                     let reg_target = self.match_hl(target);
                     todo!()
@@ -805,44 +873,88 @@ impl CPU {
                     todo!()
                 }
             },
-            Instruction::INC(target) => {
-                let reg_target = self.match_all_registers(target);
-                todo!();
-            }
-            Instruction::DEC(target) => {
-                let reg_target = self.match_all_registers(target);
-                todo!();
-            }
-            Instruction::CCF => {
-                todo!();
-            }
-            Instruction::SCF => {
-                todo!();
-            }
-            Instruction::RRA => {
-                todo!();
-            }
-            Instruction::RLA => {
-                todo!();
-            }
-            Instruction::RRCA => {
-                todo!();
-            }
-            Instruction::RLCA => {
-                todo!();
-            }
-            Instruction::CPL => {
-                todo!();
-            }
-            Instruction::NOP => {
-                // Stands for no-operation and it effectively does nothing except advance the program counter by 1.
-                self.pc = self.pc.wrapping_add(1);
+            Instruction::RET(test) => {
+                let jump_condition = self.match_jump(test);
+                self.run_return(jump_condition);
                 todo!()
             }
-            Instruction::HALT => {
-                // Instruction For Halting CPU Cycle
-                self.is_halted = true;
+            Instruction::RETI => {
                 todo!()
+            }
+            Instruction::POP(target) => {
+                let result = self.pop();
+                match target {
+                    StackTarget::AF => self.registers.set_af(result),
+                    StackTarget::BC => self.registers.set_bc(result),
+                    StackTarget::DE => self.registers.set_de(result),
+                    StackTarget::HL => self.registers.set_hl(result),
+                }
+                todo!()
+            }
+            Instruction::JP(test) => {
+                let jump_condition = self.match_jump(test);
+                self.jump(jump_condition)
+            }
+            Instruction::CALL(test) => {
+                let jump_condition = self.match_jump(test);
+                self.call(jump_condition);
+                todo!()
+            }
+            Instruction::PUSH(target) => {
+                let value = match target {
+                    StackTarget::AF => self.registers.get_af(),
+                    StackTarget::BC => self.registers.get_bc(),
+                    StackTarget::DE => self.registers.get_de(),
+                    StackTarget::HL => self.registers.get_hl(),
+                };
+                // push value to stack
+                self.push(value);
+
+                // increment pc
+                self.pc.wrapping_add(1)
+            }
+            Instruction::RST => {
+                todo!()
+            }
+            Instruction::DI => {
+                todo!()
+            }
+            Instruction::EI => {
+                todo!()
+            }
+
+            // PREFIXED INSTRUCTIONS
+            Instruction::RLC(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::RRC(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::RL(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::RR(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::SLA(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::SRA(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::SWAP(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
+            }
+            Instruction::SRL(target) => {
+                let reg_target = self.match_hl(target);
+                todo!();
             }
             Instruction::BIT(target) => match target {
                 ByteTarget::Zero(hl_target) => {
@@ -918,7 +1030,6 @@ impl CPU {
                     todo!()
                 }
                 ByteTarget::One(hl_target) => {
-                    todo!();
                     let reg_target = self.match_hl(hl_target);
                     todo!()
                 }
@@ -947,112 +1058,7 @@ impl CPU {
                     todo!()
                 }
             },
-            Instruction::SRL(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::RR(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::RL(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::RRC(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::RLC(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::SRA(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::SLA(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::SWAP(target) => {
-                let reg_target = self.match_hl(target);
-                todo!();
-            }
-            Instruction::JP(test) => {
-                let jump_condition = self.match_jump(test);
-                self.jump(jump_condition)
-            }
-            Instruction::LD(target) => match target {
-                LoadType::RegInReg(target, source) => {
-                    let reg_target = self.match_hl(target);
-                    let reg_source = self.match_hl(source);
-                    todo!()
-                }
-                LoadType::Word(target, source) => {
-                    let word_target = match target {
-                        LoadWordTarget::BC => self.registers.get_bc(),
-                        LoadWordTarget::DE => self.registers.get_de(),
-                        LoadWordTarget::HL => self.registers.get_hl(),
-                        LoadWordTarget::SP => self.sp,
-                        LoadWordTarget::N16 => todo!(),
-                    };
-                    let word_source = match source {
-                        LoadWordSource::SP => self.sp,
-                        LoadWordSource::N16 => todo!(),
-                        LoadWordSource::HL => self.registers.get_hl(),
-                        LoadWordSource::SPE8 => todo!(),
-                    };
-                    todo!()
-                }
-                LoadType::AStoreInN16(target) => {
-                    let n16_target = self.match_load_n16(target);
-                    todo!()
-                }
-                LoadType::N16StoreInA(target) => {
-                    let n16_target = self.match_load_n16(target);
-                    todo!()
-                }
-                LoadType::D8StoreInReg(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
-                }
-            },
-            Instruction::PUSH(target) => {
-                let value = match target {
-                    StackTarget::AF => self.registers.get_af(),
-                    StackTarget::BC => self.registers.get_bc(),
-                    StackTarget::DE => self.registers.get_de(),
-                    StackTarget::HL => self.registers.get_hl(),
-                    _ => panic!("PUSH: Bad Target"),
-                };
-                // push value to stack
-                self.push(value);
 
-                // increment pc
-                self.pc.wrapping_add(1)
-            }
-            Instruction::POP(target) => {
-                let result = self.pop();
-                match target {
-                    StackTarget::AF => self.registers.set_af(result),
-                    StackTarget::BC => self.registers.set_bc(result),
-                    StackTarget::DE => self.registers.set_de(result),
-                    StackTarget::HL => self.registers.set_hl(result),
-                    _ => panic!("POP: Bad Target"),
-                }
-                todo!()
-            }
-            Instruction::CALL(test) => {
-                let jump_condition = self.match_jump(test);
-                self.call(jump_condition);
-                todo!()
-            }
-            Instruction::RET(test) => {
-                let jump_condition = self.match_jump(test);
-                self.run_return(jump_condition);
-                todo!()
-            }
             _ => panic!("Implement more Instructions"),
         }
     }
@@ -1161,7 +1167,7 @@ impl CPU {
     // Call function for call stack
     fn call(&mut self, should_jump: bool) -> u16 {
         let next_pc = self.pc.wrapping_add(3);
-        if (should_jump) {
+        if should_jump {
             self.push(next_pc);
             self.memory.read_next_byte();
             todo!()
@@ -1172,7 +1178,7 @@ impl CPU {
 
     // Return function for returning through call stack
     fn run_return(&mut self, jump_condition: bool) -> u16 {
-        if (jump_condition) {
+        if jump_condition {
             self.pop()
         } else {
             self.pc.wrapping_add(1)

@@ -1,6 +1,7 @@
 mod hdw;
 
-use hdw::cart::{self, cartridge};
+use hdw::cart::{self, Cartridge};
+use hdw::cpu::{self, CPU};
 
 use std::io::stdin;
 
@@ -32,24 +33,17 @@ fn main() {
     let file_path = file_path.trim();
 
     // Load Cart
-    let mut gb_cart = cartridge::new();
+    let mut gb_cart = Cartridge::new();
 
     if let Err(e) = gb_cart.load_cart(file_path) {
         println!("Error loading cartridge: {}", e);
         return;
     }
-
-    let mut pc: u16 = 0x0000;
-    print!("{:#02X} ", gb_cart.read_byte(0x07FBC));
-    pc += 1;
-
-    /*
     // Init Components
-    let mut emu_cpu = CPU::new();
+    let mut emu_cpu = CPU::new(gb_cart);
 
     // CPU Cycling
     loop {
         emu_cpu.step();
     }
-     */
 }

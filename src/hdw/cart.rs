@@ -21,7 +21,7 @@ Checksum
 
 */
 
-struct cartridge_header {
+struct CartridgeHeader {
     entry_point: [u8; 4],
     nintendo_logo: [u8; 0x30],
     rom_title: [u8; 16],
@@ -37,20 +37,20 @@ struct cartridge_header {
     global_checksum: u16,
 }
 
-pub struct cartridge {
+pub struct Cartridge {
     file_name: String,
     rom_size: usize,
     rom_data: Vec<u8>,
-    rom_header: cartridge_header,
+    rom_header: CartridgeHeader,
 }
 
-impl cartridge {
-    pub fn new() -> cartridge {
-        let mut cartridge = cartridge {
+impl Cartridge {
+    pub fn new() -> Cartridge {
+        let mut cartridge = Cartridge {
             file_name: String::new(),
             rom_size: 0,
             rom_data: Vec::<u8>::new(),
-            rom_header: cartridge_header::new(),
+            rom_header: CartridgeHeader::new(),
         };
         cartridge
     }
@@ -83,7 +83,7 @@ impl cartridge {
 
         println!("Cartidge Loaded");
         // Load Header Information
-        self.rom_header = cartridge_header {
+        self.rom_header = CartridgeHeader {
             entry_point: [0; 4],
             nintendo_logo: [0; 0x30],
             rom_title: self.rom_data[0x0134..0x0144]
@@ -117,7 +117,9 @@ impl cartridge {
         println!("Cartridge Information:");
         println!(
             "  Title            : {:?}",
-            std::str::from_utf8(&self.rom_header.rom_title).unwrap_or("Invalid UTF-8")
+            std::str::from_utf8(&self.rom_header.rom_title)
+                .unwrap_or("Invalid UTF-8")
+                .trim_end_matches('\0')
         );
         println!(
             "  New License Code : {:#04X} ({})",
@@ -132,13 +134,25 @@ impl cartridge {
         );
         println!("  ROM Size         : {} KB", 32 << self.rom_header.rom_size);
         println!("  RAM Size         : {:#02X}", self.rom_header.ram_size);
-        println!("  Destination Code : {:#02X}", self.rom_header.dest_code);
+        println!(
+            "  Destination Code : {:#02X} ({})",
+            self.rom_header.dest_code,
+            if self.rom_header.dest_code == 0x00 {
+                "Japan and possibly overseas"
+            } else {
+                "Overseas only"
+            }
+        );
         println!(
             "  Old Licensee Code: {:#02X} ({})",
             self.rom_header.old_lic_code,
             self.rom_header.old_license_lookup().unwrap_or("UNKNOWN")
         );
         println!("  Version Number   : {:#02X}", self.rom_header.version);
+        println!(
+            "  Global Checksum  : {:#02X}",
+            self.rom_header.global_checksum
+        );
     }
 
     fn checksum_test(&self) -> Result<(), String> {
@@ -167,10 +181,10 @@ impl cartridge {
     }
 }
 
-impl cartridge_header {
+impl CartridgeHeader {
     // Constructor
-    pub fn new() -> cartridge_header {
-        let cartridge_header = cartridge_header {
+    pub fn new() -> CartridgeHeader {
+        let cartridge_header = CartridgeHeader {
             entry_point: [0; 4],
             nintendo_logo: [0; 0x30],
             rom_title: [0; 16],

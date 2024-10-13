@@ -1,9 +1,8 @@
-/*
-pub mod memory;
+use crate::hdw::memory::Memory;
 
 use core::panic;
 
-use memory::Memory;
+use super::cart::Cartridge;
 
 // FLAG POSITIONS FOR FLAGS REGISTER
 const ZERO_FLAG_BYTE_POSITION: u8 = 7;
@@ -17,12 +16,14 @@ pub struct CPU {
     pc: u16,
     sp: u16,
     memory: Memory,
+    cartridge: Cartridge,
     is_halted: bool,
     curr_opcode: u8,
     curr_instruction: Option<Instruction>,
 }
 
 // Registers For Holding and Manipulating Data
+#[derive(Debug)]
 struct Registers {
     a: u8,
     b: u8,
@@ -35,6 +36,7 @@ struct Registers {
 }
 
 // Special Flags Register to act as u8 but be called as struct
+#[derive(Debug)]
 struct FlagsRegister {
     zero: bool,
     subtract: bool,
@@ -43,6 +45,7 @@ struct FlagsRegister {
 }
 
 // Target For All Instructions
+#[derive(Debug)]
 pub enum Instruction {
     NOP,
     LD(LoadType),
@@ -92,6 +95,7 @@ pub enum Instruction {
 }
 
 // Target All Except F register
+#[derive(Debug)]
 pub enum ArithmeticTarget {
     A,
     B,
@@ -103,6 +107,7 @@ pub enum ArithmeticTarget {
 }
 
 // Target All 8 bit and 16 bit register except f
+#[derive(Debug)]
 pub enum AllRegisters {
     A,
     B,
@@ -119,6 +124,7 @@ pub enum AllRegisters {
 }
 
 // Enum For BIT/RES/SET Instruction Types
+#[derive(Debug)]
 pub enum ByteTarget {
     Zero(HLTarget),
     One(HLTarget),
@@ -130,6 +136,7 @@ pub enum ByteTarget {
     Seven(HLTarget),
 }
 
+#[derive(Debug)]
 pub enum HLTarget {
     A,
     B,
@@ -142,6 +149,7 @@ pub enum HLTarget {
 }
 
 // 16 Bit Targets For Stack
+#[derive(Debug)]
 pub enum StackTarget {
     AF,
     BC,
@@ -150,6 +158,7 @@ pub enum StackTarget {
 }
 
 // Target F Register
+#[derive(Debug)]
 pub enum FlagsTarget {
     Zero,
     Subtract,
@@ -158,6 +167,7 @@ pub enum FlagsTarget {
 }
 
 // Jump Test
+#[derive(Debug)]
 pub enum JumpTest {
     NotZero,
     Zero,
@@ -168,6 +178,7 @@ pub enum JumpTest {
 }
 
 // Enum For Possible Byte Load Targets
+#[derive(Debug)]
 pub enum LoadByteTarget {
     A,
     B,
@@ -180,6 +191,7 @@ pub enum LoadByteTarget {
 }
 
 // Enum For Possible Byte Load Sources
+#[derive(Debug)]
 pub enum LoadByteSource {
     A,
     B,
@@ -193,6 +205,7 @@ pub enum LoadByteSource {
 }
 
 // Enum For Possible Word Load Targets
+#[derive(Debug)]
 pub enum LoadWordTarget {
     BC,
     DE,
@@ -202,6 +215,7 @@ pub enum LoadWordTarget {
 }
 
 // Enum For Possible Word Load Sources
+#[derive(Debug)]
 pub enum LoadWordSource {
     SP,
     N16,
@@ -209,6 +223,7 @@ pub enum LoadWordSource {
     SPE8,
 }
 
+#[derive(Debug)]
 pub enum LoadN16 {
     BC,
     DE,
@@ -216,6 +231,7 @@ pub enum LoadN16 {
     HLDEC,
 }
 
+#[derive(Debug)]
 pub enum AddN16Target {
     BC,
     DE,
@@ -223,6 +239,7 @@ pub enum AddN16Target {
     SP,
 }
 
+#[derive(Debug)]
 pub enum OPType {
     LoadA(HLTarget),
     LoadHL(AddN16Target),
@@ -231,6 +248,7 @@ pub enum OPType {
 }
 
 // RST Targets
+#[derive(Debug)]
 pub enum RestTarget {
     Zero,
     One,
@@ -244,6 +262,7 @@ pub enum RestTarget {
 
 // TODO IMPLEMENT
 // Enum Describes Load Rule
+#[derive(Debug)]
 pub enum LoadType {
     RegInReg(HLTarget, HLTarget),         // Store one register into another
     Word(LoadWordTarget, LoadWordSource), // Like Byte but 16 bit values
@@ -254,7 +273,6 @@ pub enum LoadType {
 
 // filter byte to instruction dependant on prefixes
 impl Instruction {
-    // TODO Implement
     // Match Instruction to Prefixed Instruction Set
     fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
         match byte {
@@ -283,7 +301,6 @@ impl Instruction {
         }
     }
 
-    // TODO IMPLEMENT
     // Match Instruction to Non Prefixed Instruction Set
     fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
         match byte {
@@ -389,6 +406,8 @@ impl Instruction {
             0x3A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC))),
             // LD Register to Register + HALT
             0x40..=0x7F => Self::load_register_helper(byte),
+            // ! IMPLEMENT E0 F0 EA FA
+
             // ADD Register to A
             0x80..=0x87 => Some(Instruction::ADD(OPType::LoadA(Self::hl_target_helper(
                 byte,
@@ -475,7 +494,7 @@ impl Instruction {
             0xF3 => Some(Instruction::DI),
             // EI
             0xFB => Some(Instruction::EI),
-            _ => todo!("Implement more byte not prefixed"),
+            _ => todo!("Implement more byte not prefixed for byte {:#02X}", byte),
         }
     }
 
@@ -576,7 +595,7 @@ impl Instruction {
 
 impl CPU {
     // Contructor
-    pub fn new() -> Self {
+    pub fn new(game_cart: Cartridge) -> Self {
         CPU {
             registers: Registers {
                 a: 0,
@@ -593,9 +612,10 @@ impl CPU {
                 h: 0,
                 l: 0,
             },
-            pc: 0,
+            pc: 100,
             sp: 0,
             memory: Memory::new(),
+            cartridge: game_cart,
             is_halted: false,
             curr_opcode: 0,
             curr_instruction: None,
@@ -604,25 +624,25 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self) {
-        // Get Next Opcode
+        // fetch next opcode from cartridge
         self.fetch();
 
-        // Check if byte is the prefix indicator
+        // Decode current opcode
         self.decode();
 
-        let mut next_pc = 0;
         // Execute the current instruction if it exists and reset it to none
         if let Some(instruction) = self.curr_instruction.take() {
-            next_pc = self.execute(instruction);
+            //next_pc = self.execute(instruction);
+            println!("Current Instruction: {:#?}", instruction);
         }
 
         // Increment pc to returned pc
-        self.pc = next_pc;
+        self.pc += 1;
     }
 
     // Function to fetch next opcode
     fn fetch(&mut self) {
-        self.curr_opcode = self.memory.read_byte(self.pc);
+        self.curr_opcode = self.cartridge.read_byte(self.pc);
     }
 
     // Function to decode current opcode
@@ -652,7 +672,6 @@ impl CPU {
         }
 
         // Update PC (if needed) based on instruction
-        self.pc = self.pc.wrapping_add(if prefixed { 2 } else { 1 });
     }
 
     // Function to execute an opcode by matching Instruction type and target then calling its method
@@ -695,7 +714,9 @@ impl CPU {
             Instruction::CCF => {
                 todo!()
             }
-            Instruction::JR => {
+            Instruction::JR(test) => {
+                let jump_condition = self.match_jump(test);
+
                 todo!()
             }
             Instruction::INC(target) => {
@@ -914,7 +935,7 @@ impl CPU {
                 // increment pc
                 self.pc.wrapping_add(1)
             }
-            Instruction::RST => {
+            Instruction::RST(target) => {
                 todo!()
             }
             Instruction::DI => {
@@ -1321,4 +1342,3 @@ impl std::convert::From<u8> for FlagsRegister {
         }
     }
 }
-*/

@@ -260,6 +260,27 @@ pub enum RestTarget {
     Seven,
 }
 
+// LD Targets For Edge Cases
+#[derive(Debug)]
+pub enum LoadA8Target {
+    A8,
+    A,
+}
+
+// LD Targets For Edge Cases
+#[derive(Debug)]
+pub enum LoadA16Target {
+    A16,
+    A,
+}
+
+// LD Targets For Edge Cases
+#[derive(Debug)]
+pub enum LoadACTarget {
+    C,
+    A,
+}
+
 // TODO IMPLEMENT
 // Enum Describes Load Rule
 #[derive(Debug)]
@@ -269,6 +290,9 @@ pub enum LoadType {
     AStoreInN16(LoadN16),                 // Store A register in N16 register
     N16StoreInA(LoadN16),                 // Store N16 register into A register
     D8StoreInReg(HLTarget),               // Store D8 into a register
+    AWithA8(LoadA8Target),                // Store A in a8 and reverse
+    AWithA16(LoadA16Target),              // Store A in a16 and reverse
+    AWithAC(LoadACTarget),                // Store A with C and reverse
 }
 
 // filter byte to instruction dependant on prefixes
@@ -406,8 +430,15 @@ impl Instruction {
             0x3A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC))),
             // LD Register to Register + HALT
             0x40..=0x7F => Self::load_register_helper(byte),
-            // ! IMPLEMENT E0 F0 EA FA
-
+            // LD A and a8
+            0xE0 => Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A8))),
+            0xF0 => Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A))),
+            // LD A and C
+            0xE3 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::C))),
+            0xF3 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::A))),
+            // LD A and a16
+            0xEA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A16))),
+            0xFA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A))),
             // ADD Register to A
             0x80..=0x87 => Some(Instruction::ADD(OPType::LoadA(Self::hl_target_helper(
                 byte,
@@ -651,7 +682,7 @@ impl CPU {
 
         // Determine Instruction Byte
         let instruction_opcode = if prefixed {
-            self.memory.read_byte(self.pc + 1)
+            self.cartridge.read_byte(self.pc + 1)
         } else {
             self.curr_opcode
         };
@@ -759,6 +790,15 @@ impl CPU {
                 }
                 LoadType::D8StoreInReg(target) => {
                     let reg_target = self.match_hl(target);
+                    todo!()
+                }
+                LoadType::AWithA8(target) => {
+                    todo!()
+                }
+                LoadType::AWithA16(target) => {
+                    todo!()
+                }
+                LoadType::AWithAC(target) => {
                     todo!()
                 }
             },

@@ -281,7 +281,6 @@ pub enum LoadACTarget {
     A,
 }
 
-// TODO IMPLEMENT
 // Enum Describes Load Rule
 #[derive(Debug)]
 pub enum LoadType {
@@ -522,7 +521,7 @@ impl Instruction {
             0xF7 => Some(Instruction::RST(RestTarget::Six)),
             0xFF => Some(Instruction::RST(RestTarget::Seven)),
             // DI
-            0xF3 => Some(Instruction::DI),
+            0xF4 => Some(Instruction::DI),
             // EI
             0xFB => Some(Instruction::EI),
             _ => todo!("Implement more byte not prefixed for byte {:#02X}", byte),
@@ -643,7 +642,7 @@ impl CPU {
                 h: 0,
                 l: 0,
             },
-            pc: 100,
+            pc: 0x0100,
             sp: 0,
             memory: Memory::new(),
             cartridge: game_cart,
@@ -663,12 +662,14 @@ impl CPU {
 
         // Execute the current instruction if it exists and reset it to none
         if let Some(instruction) = self.curr_instruction.take() {
-            //next_pc = self.execute(instruction);
-            println!("Current Instruction: {:#?}", instruction);
-        }
+            // Execute the current instruction
+            let next_pc = self.execute(instruction);
 
-        // Increment pc to returned pc
-        self.pc += 1;
+            // Increment pc to returned pc
+            self.pc += next_pc;
+        } else {
+            panic!("Decode Error: No Instruction")
+        }
     }
 
     // Function to fetch next opcode
@@ -715,8 +716,9 @@ impl CPU {
         match instruction {
             Instruction::NOP => {
                 // Stands for no-operation and it effectively does nothing except advance the program counter by 1.
+                print!("NOP");
                 self.pc = self.pc.wrapping_add(1);
-                todo!()
+                self.pc
             }
             Instruction::STOP => {
                 todo!()
@@ -737,26 +739,167 @@ impl CPU {
                 todo!()
             }
             Instruction::SCF => {
-                todo!()
+                self.registers.f.carry = true;
+                self.pc + 1
             }
             Instruction::CPL => {
                 todo!()
             }
             Instruction::CCF => {
-                todo!()
+                self.registers.f.carry = !self.registers.f.carry;
+                self.pc + 1
             }
             Instruction::JR(test) => {
-                let jump_condition = self.match_jump(test);
-
-                todo!()
+                let jump_distance = self.cartridge.read_byte(self.pc + 1) as i8;
+                match test {
+                    JumpTest::NotZero => {
+                        if !self.registers.f.zero {
+                            self.pc = self.pc.wrapping_add(jump_distance as u16)
+                        }
+                    }
+                    JumpTest::NotCarry => {
+                        if !self.registers.f.carry {
+                            self.pc = self.pc.wrapping_add(jump_distance as u16)
+                        }
+                    }
+                    JumpTest::Always => self.pc = self.pc.wrapping_add(jump_distance as u16),
+                    JumpTest::Zero => {
+                        if self.registers.f.zero {
+                            self.pc = self.pc.wrapping_add(jump_distance as u16)
+                        }
+                    }
+                    JumpTest::Carry => {
+                        if self.registers.f.carry {
+                            self.pc = self.pc.wrapping_add(jump_distance as u16)
+                        }
+                    }
+                    JumpTest::HL => {
+                        panic!("BAD JR REQUEST");
+                    }
+                }
+                self.pc + 1
             }
             Instruction::INC(target) => {
-                let reg_target = self.match_all_registers(target);
-                todo!();
+                match target {
+                    // Increment 8-bit registers and update flags
+                    AllRegisters::A => {
+                        self.registers.a = self.registers.a.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.a);
+                    }
+                    AllRegisters::B => {
+                        self.registers.b = self.registers.b.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.b);
+                    }
+                    AllRegisters::C => {
+                        self.registers.c = self.registers.c.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.c);
+                    }
+                    AllRegisters::D => {
+                        self.registers.d = self.registers.d.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.d);
+                    }
+                    AllRegisters::E => {
+                        self.registers.e = self.registers.e.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.e);
+                    }
+                    AllRegisters::H => {
+                        self.registers.h = self.registers.h.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.h);
+                    }
+                    AllRegisters::L => {
+                        self.registers.l = self.registers.l.wrapping_add(1);
+                        self.update_flags_after_inc(self.registers.l);
+                    }
+                    // Increment value at memory location HL
+                    AllRegisters::HLMEM => {
+                        let hl_addr = self.registers.get_hl();
+                        let value = self.cartridge.read_byte(hl_addr).wrapping_add(1);
+                        self.memory.write_byte(hl_addr, value);
+                        self.update_flags_after_inc(value);
+                    }
+                    // 16-bit register increments (don't need to update flags for these)
+                    AllRegisters::BC => {
+                        let new_bc = self.registers.get_bc().wrapping_add(1);
+                        self.registers.set_bc(new_bc);
+                    }
+                    AllRegisters::DE => {
+                        let new_de = self.registers.get_de().wrapping_add(1);
+                        self.registers.set_de(new_de);
+                    }
+                    AllRegisters::HL => {
+                        let new_hl = self.registers.get_hl().wrapping_add(1);
+                        self.registers.set_hl(new_hl);
+                    }
+                    AllRegisters::SP => {
+                        self.sp = self.sp.wrapping_add(1);
+                    }
+                }
+                self.pc + 1
             }
             Instruction::DEC(target) => {
-                let reg_target = self.match_all_registers(target);
-                todo!();
+                match target {
+                    // Increment 8-bit registers and update flags
+                    AllRegisters::A => {
+                        let original_value = self.registers.a;
+                        self.registers.a = self.registers.a.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.a, original_value);
+                    }
+                    AllRegisters::B => {
+                        let original_value = self.registers.b;
+                        self.registers.b = self.registers.b.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.b, original_value);
+                    }
+                    AllRegisters::C => {
+                        let original_value = self.registers.c;
+                        self.registers.c = self.registers.c.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.c, original_value);
+                    }
+                    AllRegisters::D => {
+                        let original_value = self.registers.d;
+                        self.registers.d = self.registers.d.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.d, original_value);
+                    }
+                    AllRegisters::E => {
+                        let original_value = self.registers.e;
+                        self.registers.e = self.registers.e.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.e, original_value);
+                    }
+                    AllRegisters::H => {
+                        let original_value = self.registers.h;
+                        self.registers.h = self.registers.h.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.h, original_value);
+                    }
+                    AllRegisters::L => {
+                        let original_value = self.registers.l;
+                        self.registers.l = self.registers.l.wrapping_sub(1);
+                        self.update_flags_after_dec(self.registers.l, original_value);
+                    }
+                    // Increment value at memory location HL
+                    AllRegisters::HLMEM => {
+                        let hl_addr = self.registers.get_hl();
+                        let original_value = self.cartridge.read_byte(hl_addr);
+                        let value = self.cartridge.read_byte(hl_addr).wrapping_sub(1);
+                        self.memory.write_byte(hl_addr, value);
+                        self.update_flags_after_dec(value, original_value);
+                    }
+                    // 16-bit register increments (don't need to update flags for these)
+                    AllRegisters::BC => {
+                        let new_bc = self.registers.get_bc().wrapping_sub(1);
+                        self.registers.set_bc(new_bc);
+                    }
+                    AllRegisters::DE => {
+                        let new_de = self.registers.get_de().wrapping_sub(1);
+                        self.registers.set_de(new_de);
+                    }
+                    AllRegisters::HL => {
+                        let new_hl = self.registers.get_hl().wrapping_sub(1);
+                        self.registers.set_hl(new_hl);
+                    }
+                    AllRegisters::SP => {
+                        self.sp = self.sp.wrapping_sub(1);
+                    }
+                }
+                self.pc + 1
             }
             Instruction::LD(target) => match target {
                 LoadType::RegInReg(target, source) => {
@@ -805,22 +948,95 @@ impl CPU {
             Instruction::HALT => {
                 // Instruction For Halting CPU Cycle
                 self.is_halted = true;
-                todo!()
+                self.pc + 1
             }
             Instruction::ADD(target) => match target {
                 OPType::LoadA(target) => {
                     let reg_target = self.match_hl(target);
-                    todo!()
+                    // Store the original value of A
+                    let original = self.registers.a;
+
+                    // Update register A by adding the target value
+                    self.registers.a = original.wrapping_add(reg_target);
+
+                    // Set Flags
+                    // Zero Flag: Set if the result is zero
+                    self.registers.f.zero = self.registers.a == 0;
+
+                    // Subtract Flag: Not set for ADD operations
+                    self.registers.f.subtract = false;
+
+                    // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
+                    self.registers.f.half_carry = (original & 0x0F) + (reg_target & 0x0F) > 0x0F;
+
+                    // Carry Flag: Set if the addition overflowed an 8-bit value
+                    self.registers.f.carry = self.registers.a < original; // Check if an overflow occurred
+
+                    self.pc + 1
                 }
                 OPType::LoadHL(target) => {
                     let reg_target = self.match_n16(target);
-                    todo!()
+                    self.registers
+                        .set_hl(self.registers.get_hl().wrapping_add(reg_target));
+
+                    // Set Flags
+
+                    // Carry Flag: Check for carry from the addition
+                    self.registers.f.carry =
+                        ((self.registers.get_hl() as u32) + (reg_target as u32)) > 0xFFFF;
+
+                    // Half-Carry Flag: Check if there was a carry from bit 11 to bit 12
+                    let half_carry =
+                        ((self.registers.get_hl() & 0x0FFF) + (reg_target & 0x0FFF)) > 0x0FFF;
+                    self.registers.f.half_carry = half_carry;
+
+                    // Subtract Flag: Not set for ADD operations
+                    self.registers.f.subtract = false;
+
+                    // Zero Flag: Not affected, but set to false
+                    self.registers.f.zero = false;
+
+                    self.pc + 1
                 }
                 OPType::LoadSP => {
-                    todo!()
+                    let immediate_operand: i8 = self.cartridge.read_byte(self.pc + 1) as i8;
+
+                    // Sign-extend the immediate operand to 16 bits
+                    let signed_value = immediate_operand as i16;
+
+                    self.sp = self.sp.wrapping_add(signed_value as u16);
+
+                    // Set Flags
+                    self.registers.f.zero = self.sp == 0;
+
+                    // Carry Flag: Check if there's a carry out (would occur if SP > 0xFFFF)
+                    self.registers.f.carry = (self.sp as i16) < (signed_value as i16);
+
+                    // Half-Carry Flag: Check if there's a carry from bit 11 to bit 12 this check is done based on the lower 4 bits
+                    let half_carry =
+                        ((self.sp & 0x0F) as i16 + (signed_value & 0x0F) as i16) > 0x0F;
+                    self.registers.f.half_carry = half_carry;
+
+                    self.registers.f.subtract = false;
+
+                    self.pc + 2
                 }
                 OPType::LoadD8 => {
-                    todo!()
+                    let immediate_operand: u8 = self.cartridge.read_byte(self.pc + 1);
+                    let original = self.registers.a;
+                    self.registers.a = self.registers.a.wrapping_add(immediate_operand);
+
+                    // Set Flags
+                    self.registers.f.zero = self.registers.a == 0;
+                    self.registers.f.subtract = false;
+                    // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
+                    self.registers.f.half_carry =
+                        ((original & 0x0F) + (self.registers.a & 0x0F)) > 0x0F;
+                    // Carry Flag: Set if there was a carry out from the most significant bit
+                    self.registers.f.carry =
+                        (self.registers.a < original) || (self.registers.a < immediate_operand);
+
+                    self.pc + 2
                 }
             },
             Instruction::ADC(target) => match target {
@@ -1307,7 +1523,7 @@ impl CPU {
             AllRegisters::E => self.registers.e as u16,
             AllRegisters::H => self.registers.h as u16,
             AllRegisters::L => self.registers.l as u16,
-            AllRegisters::HLMEM => todo!(),
+            AllRegisters::HLMEM => self.cartridge.read_byte(self.registers.get_hl()) as u16,
             AllRegisters::BC => self.registers.get_bc(),
             AllRegisters::DE => self.registers.get_de(),
             AllRegisters::HL => self.registers.get_hl(),
@@ -1316,6 +1532,31 @@ impl CPU {
         reg_target
     }
 
+    // Method to update relevant flags after INC operation
+    fn update_flags_after_inc(&mut self, result: u8) {
+        // Zero Flag: Set if the result is zero
+        self.registers.f.zero = result == 0;
+
+        // Subtract Flag: Reset (INC is an addition)
+        self.registers.f.subtract = false;
+
+        // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
+        let half_carry = (result & 0x0F) == 0;
+        self.registers.f.half_carry = half_carry;
+    }
+
+    // Method to update relevant flags after DEC operation
+    fn update_flags_after_dec(&mut self, result: u8, original_value: u8) {
+        // Zero Flag: Set if the result is zero
+        self.registers.f.zero = result == 0;
+
+        // Subtract Flag: SET (DEC is a subtraction)
+        self.registers.f.subtract = true;
+
+        // Half-Carry Flag: Set if there was a borrow from bit 4 to bit 3
+        let half_carry = (original_value & 0x0F) == 0x00; // Borrow occurs if lower nibble was 0 before decrement
+        self.registers.f.half_carry = half_carry;
+    }
     // CPU ENDS HERE
 }
 

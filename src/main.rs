@@ -1,7 +1,7 @@
-#[path = "hdw/cpu.rs"]
-mod cpu;
+mod hdw;
 
-use cpu::CPU;
+use hdw::cart::{self, cartridge};
+
 use std::io::stdin;
 
 /* Implement Initialization of Gameboy Here
@@ -28,8 +28,17 @@ fn main() {
     println!("Enter ROM Path");
     stdin().read_line(&mut file_path).expect("Didn't Get Input");
 
-    // Load Cart
+    // Remove newline character from input
+    let file_path = file_path.trim();
 
+    // Load Cart
+    let mut gb_cart = cartridge::new();
+
+    if let Err(e) = gb_cart.load_cart(file_path) {
+        println!("Error loading cartridge: {}", e);
+        return;
+    }
+    /*
     // Init Components
     let mut emu_cpu = CPU::new();
 
@@ -37,4 +46,5 @@ fn main() {
     loop {
         emu_cpu.step();
     }
+     */
 }

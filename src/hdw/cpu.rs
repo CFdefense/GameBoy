@@ -1,3 +1,4 @@
+/*
 pub mod memory;
 
 use core::panic;
@@ -1320,3 +1321,4 @@ impl std::convert::From<u8> for FlagsRegister {
         }
     }
 }
+*/

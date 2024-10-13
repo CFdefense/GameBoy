@@ -161,6 +161,10 @@ impl cartridge {
             ))
         }
     }
+
+    pub fn read_byte(&self, address: u16) -> u8 {
+        self.rom_data[address as usize]
+    }
 }
 
 impl cartridge_header {

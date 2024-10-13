@@ -38,6 +38,11 @@ fn main() {
         println!("Error loading cartridge: {}", e);
         return;
     }
+
+    let mut pc: u16 = 0x0000;
+    print!("{:#02X} ", gb_cart.read_byte(0x07FBC));
+    pc += 1;
+
     /*
     // Init Components
     let mut emu_cpu = CPU::new();

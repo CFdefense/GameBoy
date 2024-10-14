@@ -1486,20 +1486,77 @@ impl CPU {
                 }
             },
             Instruction::ADC(target) => match target {
-                OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
-                }
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
-                }
-                OPType::LoadSP => {
-                    todo!()
-                }
+                OPType::LoadA(target) => match target {
+                    HLTarget::B => {
+                        self.registers.a =
+                            self.registers.b.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                    HLTarget::C => {
+                        self.registers.a =
+                            self.registers.c.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                    HLTarget::E => {
+                        self.registers.a =
+                            self.registers.e.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                    HLTarget::D => {
+                        self.registers.a =
+                            self.registers.d.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                    HLTarget::H => {
+                        self.registers.a =
+                            self.registers.h.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                    HLTarget::L => {
+                        self.registers.a =
+                            self.registers.l.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+                        
+                        //! Upd Flags
+                    }
+                    HLTarget::HL => {
+                        self.registers.a = self
+                            .memory
+                            .read_byte(self.registers.get_hl())
+                            .wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                    HLTarget::A => {
+                        self.registers.a =
+                            self.registers.a.wrapping_add(self.registers.f.carry as u8);
+                        self.pc + 1
+
+                        //! Upd Flags
+                    }
+                },
                 OPType::LoadD8 => {
-                    todo!()
+                    self.registers.a = self
+                        .cartridge
+                        .read_byte(self.pc + 1)
+                        .wrapping_add(self.registers.f.carry as u8);
+                    self.pc + 2
+
+
+                    //! Upd Flags
                 }
+                _ => panic!("BAD ADC TYPE"),
             },
             Instruction::SUB(target) => match target {
                 OPType::LoadA(target) => {
@@ -1785,59 +1842,6 @@ impl CPU {
 
             _ => panic!("Implement more Instructions"),
         }
-    }
-
-    // ADD -> Adds specific registers contents to the a registers contents
-    fn add(&mut self, value: u8) -> u8 {
-        let (new_value, did_overflow) = self.registers.a.overflowing_add(value);
-
-        // Upd flags
-        self.registers.f.zero = new_value == 0; // zero flag updated if 0
-        self.registers.f.subtract = false; // set true if operation was subtraction
-        self.registers.f.carry = did_overflow; // set true if overflow occured
-
-        // Half Carry set true if lower nibbles of value and a register added are > than 0xF
-        // This would mean there was a carry from the lower nibble to the upper nibble
-        self.registers.f.half_carry = ((self.registers.a & 0x0F) + (value & 0x0F)) > 0x0F;
-
-        // Implicitly Returned
-        new_value
-    }
-
-    // ADDHL -> Adds specific registers contents to hl 16-bit register contents
-    fn add_hl(&mut self, value: u16) -> u16 {
-        // Get Current hl register value
-        let hl_value = self.registers.get_hl();
-
-        // Perform the addition
-        let (new_hl_value, did_overflow) = hl_value.overflowing_add(value);
-
-        // Update flags
-        self.registers.f.carry = did_overflow; // Set carry flag if overflow occurred
-        self.registers.f.zero = false; // Zero flag is not relevant for HL addition
-        self.registers.f.subtract = false; // This is not a subtraction operation
-        self.registers.f.half_carry = ((hl_value & 0x0F) + (value & 0x0F)) > 0x0F;
-
-        // Implicitly Return
-        new_hl_value
-    }
-
-    // ADC -> just like ADD except that the value of the carry flag is also added to the number
-    fn adc(&mut self, value: u8) -> u8 {
-        // Get carry value from the carry flag
-        let carry = if self.registers.f.carry { 1 } else { 0 };
-
-        // Perform the addition including carry
-        let (new_value, did_overflow) = self.registers.a.overflowing_add(value + carry);
-
-        // Update flags
-        self.registers.f.carry = did_overflow; // Set carry flag if overflow occurred
-        self.registers.f.zero = false; // Zero flag is not relevant for HL addition
-        self.registers.f.subtract = false; // This is not a subtraction operation
-        self.registers.f.half_carry = ((new_value & 0x0F) + (value & 0x0F)) > 0x0F;
-
-        // Implicitly Return
-        new_value
     }
 
     // Jump to addr in memory or increment pc

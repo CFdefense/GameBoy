@@ -1309,19 +1309,87 @@ impl CPU {
                         self.pc + 1
                     }
                 },
-                LoadType::D8StoreInReg(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
-                }
-                LoadType::AWithA8(target) => {
-                    todo!()
-                }
+                LoadType::D8StoreInReg(target) => match target {
+                    HLTarget::B => {
+                        self.registers.b = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                    HLTarget::C => {
+                        self.registers.c = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                    HLTarget::D => {
+                        self.registers.d = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                    HLTarget::E => {
+                        self.registers.e = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                    HLTarget::H => {
+                        self.registers.h = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                    HLTarget::L => {
+                        self.registers.l = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                    HLTarget::HL => {
+                        self.memory.write_byte(
+                            self.registers.get_hl(),
+                            self.cartridge.read_byte(self.pc + 1),
+                        );
+                        self.pc + 2
+                    }
+                    HLTarget::A => {
+                        self.registers.a = self.cartridge.read_byte(self.pc + 1);
+                        self.pc + 2
+                    }
+                },
+                LoadType::AWithA8(target) => match target {
+                    LoadA8Target::A => {
+                        self.registers.a = self
+                            .memory
+                            .read_byte(0xFF00 + self.cartridge.read_byte(self.pc + 1) as u16);
+                        self.pc + 2
+                    }
+                    LoadA8Target::A8 => {
+                        self.memory.write_byte(
+                            0xFF00 + self.cartridge.read_byte(self.pc + 1) as u16,
+                            self.registers.a,
+                        );
+                        self.pc + 2
+                    }
+                },
                 LoadType::AWithA16(target) => {
-                    todo!()
+                    let low_byte = self.cartridge.read_byte(self.pc + 1); // Read the low byte
+                    let high_byte = self.cartridge.read_byte(self.pc + 2); // Read the high byte
+
+                    // Combine the low and high bytes into a 16-bit value
+                    let address = ((high_byte as u16) << 8) | (low_byte as u16);
+
+                    match target {
+                        LoadA16Target::A => {
+                            self.registers.a = self.memory.read_byte(address);
+                            self.pc + 3
+                        }
+                        LoadA16Target::A16 => {
+                            self.memory.write_byte(address, self.registers.a);
+                            self.pc + 3
+                        }
+                    }
                 }
-                LoadType::AWithAC(target) => {
-                    todo!()
-                }
+                LoadType::AWithAC(target) => match target {
+                    LoadACTarget::A => {
+                        self.memory
+                            .write_byte(0xFF00 + self.registers.c as u16, self.registers.a);
+                        self.pc + 2
+                    }
+                    LoadACTarget::C => {
+                        self.registers.a = self.memory.read_byte(0xFF00 + self.registers.c as u16);
+                        self.pc + 2
+                    }
+                },
             },
             Instruction::HALT => {
                 // Instruction For Halting CPU Cycle

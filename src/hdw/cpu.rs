@@ -909,10 +909,284 @@ impl CPU {
                 self.pc + 1
             }
             Instruction::LD(target) => match target {
-                LoadType::RegInReg(target, source) => {
-                    // TODO
-                    self.pc + 1
-                }
+                LoadType::RegInReg(target, source) => match target {
+                    HLTarget::B => match target {
+                        HLTarget::B => {
+                            self.registers.b = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.b = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.b = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.b = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.b = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.b = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.b = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.b = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                    HLTarget::C => match target {
+                        HLTarget::B => {
+                            self.registers.c = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.c = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.c = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.c = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.c = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.c = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.c = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.c = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                    HLTarget::D => match target {
+                        HLTarget::B => {
+                            self.registers.d = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.d = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.d = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.d = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.d = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.d = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.d = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.d = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                    HLTarget::E => match target {
+                        HLTarget::B => {
+                            self.registers.e = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.e = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.e = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.e = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.e = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.e = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.e = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.e = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                    HLTarget::H => match target {
+                        HLTarget::B => {
+                            self.registers.h = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.h = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.h = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.h = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.h = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.h = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.h = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.h = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                    HLTarget::L => match target {
+                        HLTarget::B => {
+                            self.registers.l = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.l = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.l = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.l = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.l = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.l = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.l = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.l = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                    HLTarget::HL => match target {
+                        HLTarget::B => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.b);
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.c);
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.d);
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.e);
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.h);
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.l);
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.memory
+                                .write_byte(self.registers.get_hl(), self.registers.a);
+                            self.pc + 1
+                        }
+                        _ => panic!("Getting LD HL HL Should be HALT"),
+                    },
+                    HLTarget::A => match target {
+                        HLTarget::B => {
+                            self.registers.a = self.registers.b;
+                            self.pc + 1
+                        }
+                        HLTarget::C => {
+                            self.registers.a = self.registers.c;
+                            self.pc + 1
+                        }
+                        HLTarget::D => {
+                            self.registers.a = self.registers.d;
+                            self.pc + 1
+                        }
+                        HLTarget::E => {
+                            self.registers.a = self.registers.e;
+                            self.pc + 1
+                        }
+                        HLTarget::H => {
+                            self.registers.a = self.registers.h;
+                            self.pc + 1
+                        }
+                        HLTarget::L => {
+                            self.registers.a = self.registers.l;
+                            self.pc + 1
+                        }
+                        HLTarget::HL => {
+                            self.registers.a = self.memory.read_byte(self.registers.get_hl());
+                            self.pc + 1
+                        }
+                        HLTarget::A => {
+                            self.registers.a = self.registers.a;
+                            self.pc + 1
+                        }
+                    },
+                },
                 LoadType::Word(target, source) => {
                     // Read the next two bytes from memory at the current PC
                     let low_byte = self.cartridge.read_byte(self.pc + 1); // Read the low byte

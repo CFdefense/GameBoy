@@ -721,29 +721,36 @@ impl CPU {
                 self.pc
             }
             Instruction::STOP => {
-                todo!()
+                print!("STOP");
+                self.pc + 1
             }
             Instruction::RLCA => {
-                todo!()
+                print!("RLCA");
+                self.pc + 1
             }
             Instruction::RRCA => {
-                todo!()
+                print!("RRCA");
+                self.pc + 1
             }
             Instruction::RLA => {
-                todo!()
+                print!("RLA");
+                self.pc + 1
             }
             Instruction::RRA => {
-                todo!()
+                print!("RRA");
+                self.pc + 1
             }
             Instruction::DAA => {
-                todo!()
+                print!("DAA");
+                self.pc + 1
             }
             Instruction::SCF => {
                 self.registers.f.carry = true;
                 self.pc + 1
             }
             Instruction::CPL => {
-                todo!()
+                print!("CPL");
+                self.pc + 1
             }
             Instruction::CCF => {
                 self.registers.f.carry = !self.registers.f.carry;
@@ -903,34 +910,131 @@ impl CPU {
             }
             Instruction::LD(target) => match target {
                 LoadType::RegInReg(target, source) => {
-                    let reg_target = self.match_hl(target);
-                    let reg_source = self.match_hl(source);
-                    todo!()
+                    // TODO
+                    self.pc + 1
                 }
                 LoadType::Word(target, source) => {
-                    let word_target = match target {
-                        LoadWordTarget::BC => self.registers.get_bc(),
-                        LoadWordTarget::DE => self.registers.get_de(),
-                        LoadWordTarget::HL => self.registers.get_hl(),
-                        LoadWordTarget::SP => self.sp,
-                        LoadWordTarget::N16 => todo!(),
-                    };
-                    let word_source = match source {
-                        LoadWordSource::SP => self.sp,
-                        LoadWordSource::N16 => todo!(),
-                        LoadWordSource::HL => self.registers.get_hl(),
-                        LoadWordSource::SPE8 => todo!(),
-                    };
-                    todo!()
+                    // Read the next two bytes from memory at the current PC
+                    let low_byte = self.cartridge.read_byte(self.pc + 1); // Read the low byte
+                    let high_byte = self.cartridge.read_byte(self.pc + 2); // Read the high byte
+
+                    // Combine the low and high bytes into a 16-bit value
+                    let word_value = ((high_byte as u16) << 8) | (low_byte as u16);
+
+                    match target {
+                        LoadWordTarget::BC => match source {
+                            LoadWordSource::N16 => {
+                                self.registers
+                                    .set_bc(self.cartridge.read_byte(word_value) as u16);
+                                self.pc + 3
+                            }
+                            _ => panic!("BAD MATCH"),
+                        },
+                        LoadWordTarget::HL => match source {
+                            LoadWordSource::N16 => {
+                                self.registers
+                                    .set_hl(self.cartridge.read_byte(word_value) as u16);
+                                self.pc + 3
+                            }
+                            LoadWordSource::SPE8 => {
+                                self.registers.set_hl(
+                                    ((self.sp as i16).wrapping_add(
+                                        (self.cartridge.read_byte(self.pc + 1) as i8) as i16,
+                                    )) as u16,
+                                );
+
+                                // UPD FLAGS
+                                self.registers.f.subtract = false;
+
+                                self.registers.f.half_carry = ((self.sp & 0x0F)
+                                    + (self.cartridge.read_byte(self.pc + 1) as u16 & 0x0F))
+                                    > 0x0F;
+
+                                self.registers.f.carry = ((self.sp & 0xFF)
+                                    + (self.cartridge.read_byte(self.pc + 1) as u16 & 0xFF))
+                                    > 0xFF;
+
+                                self.pc + 2
+                            }
+                            _ => panic!("BAD MATCH"),
+                        },
+                        LoadWordTarget::DE => match source {
+                            LoadWordSource::N16 => {
+                                self.registers
+                                    .set_de(self.cartridge.read_byte(word_value) as u16);
+                                self.pc + 3
+                            }
+                            _ => panic!("BAD MATCH"),
+                        },
+                        LoadWordTarget::N16 => match source {
+                            LoadWordSource::SP => {
+                                self.memory.write_byte(word_value, (self.sp & 0x00FF) as u8);
+                                self.memory.write_byte(word_value + 1, (self.sp >> 8) as u8);
+                                self.pc + 3
+                            }
+                            _ => panic!("BAD MATCH"),
+                        },
+                        LoadWordTarget::SP => match source {
+                            LoadWordSource::HL => {
+                                self.registers.set_hl(self.sp);
+                                self.pc + 1
+                            }
+                            LoadWordSource::N16 => {
+                                self.sp = word_value;
+                                self.pc + 3
+                            }
+                            _ => panic!("BAD MATCH"),
+                        },
+                    }
                 }
-                LoadType::AStoreInN16(target) => {
-                    let n16_target = self.match_load_n16(target);
-                    todo!()
-                }
-                LoadType::N16StoreInA(target) => {
-                    let n16_target = self.match_load_n16(target);
-                    todo!()
-                }
+                LoadType::AStoreInN16(target) => match target {
+                    LoadN16::BC => {
+                        self.memory
+                            .write_byte(self.registers.get_bc(), self.registers.a);
+                        self.pc + 1
+                    }
+                    LoadN16::DE => {
+                        self.memory
+                            .write_byte(self.registers.get_de(), self.registers.a);
+                        self.pc + 1
+                    }
+                    LoadN16::HLDEC => {
+                        self.memory
+                            .write_byte(self.registers.get_hl(), self.registers.a);
+                        self.registers
+                            .set_hl(self.registers.get_hl().wrapping_sub(1));
+                        self.pc + 1
+                    }
+                    LoadN16::HLINC => {
+                        self.memory
+                            .write_byte(self.registers.get_hl(), self.registers.a);
+                        self.registers
+                            .set_hl(self.registers.get_hl().wrapping_add(1));
+                        self.pc + 1
+                    }
+                },
+                LoadType::N16StoreInA(source) => match source {
+                    LoadN16::BC => {
+                        self.registers.a = self.memory.read_byte(self.registers.get_bc());
+                        self.pc + 1
+                    }
+                    LoadN16::DE => {
+                        self.registers.a = self.memory.read_byte(self.registers.get_de());
+                        self.pc + 1
+                    }
+                    LoadN16::HLDEC => {
+                        self.registers.a = self.memory.read_byte(self.registers.get_hl());
+                        self.registers
+                            .set_hl(self.registers.get_hl().wrapping_sub(1));
+                        self.pc + 1
+                    }
+                    LoadN16::HLINC => {
+                        self.registers.a = self.memory.read_byte(self.registers.get_hl());
+                        self.registers
+                            .set_hl(self.registers.get_hl().wrapping_add(1));
+                        self.pc + 1
+                    }
+                },
                 LoadType::D8StoreInReg(target) => {
                     let reg_target = self.match_hl(target);
                     todo!()
@@ -1463,21 +1567,6 @@ impl CPU {
         }
     }
 
-    // Method to match a hl target to its register
-    fn match_hl(&self, target: HLTarget) -> u8 {
-        let reg_source = match target {
-            HLTarget::A => self.registers.a,
-            HLTarget::B => self.registers.b,
-            HLTarget::C => self.registers.c,
-            HLTarget::D => self.registers.d,
-            HLTarget::E => self.registers.e,
-            HLTarget::H => self.registers.h,
-            HLTarget::L => self.registers.l,
-            HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
-        };
-        reg_source
-    }
-
     // Method to match a N16 Target
     fn match_n16(&self, target: AddN16Target) -> u16 {
         let reg_target = match target {
@@ -1502,17 +1591,6 @@ impl CPU {
         jump_condition
     }
 
-    // Method to match Stack Target
-    fn match_load_n16(&self, target: LoadN16) -> u16 {
-        let n16_target = match target {
-            LoadN16::BC => self.registers.get_bc(),
-            LoadN16::DE => self.registers.get_de(),
-            LoadN16::HLINC => todo!(),
-            LoadN16::HLDEC => todo!(),
-        };
-        n16_target
-    }
-
     // Method to match to All Registers as u16
     fn match_all_registers(&self, target: AllRegisters) -> u16 {
         let reg_target = match target {
@@ -1530,6 +1608,21 @@ impl CPU {
             AllRegisters::SP => self.sp,
         };
         reg_target
+    }
+
+    // Method to match a hl target to its register
+    fn match_hl(&self, target: HLTarget) -> u8 {
+        let reg_source = match target {
+            HLTarget::A => self.registers.a,
+            HLTarget::B => self.registers.b,
+            HLTarget::C => self.registers.c,
+            HLTarget::D => self.registers.d,
+            HLTarget::E => self.registers.e,
+            HLTarget::H => self.registers.h,
+            HLTarget::L => self.registers.l,
+            HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+        };
+        reg_source
     }
 
     // Method to update relevant flags after INC operation

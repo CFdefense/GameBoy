@@ -1,7 +1,8 @@
-use crate::hdw::memory::Memory;
+use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
 use core::panic;
+use std::rc::Rc;
 
 use super::cart::Cartridge;
 
@@ -10,15 +11,15 @@ pub struct CPU {
     registers: Registers,
     pc: u16,
     sp: u16,
-    memory: Memory,
-    cartridge: Cartridge,
+    bus: Bus,
+    cartridge: Rc<Cartridge>,
     is_halted: bool,
     curr_opcode: u8,
     curr_instruction: Option<Instruction>,
 }
 impl CPU {
     // Contructor
-    pub fn new(game_cart: Cartridge) -> Self {
+    pub fn new(game_cart: Rc<Cartridge>) -> Self {
         CPU {
             registers: Registers {
                 a: 0,
@@ -37,7 +38,7 @@ impl CPU {
             },
             pc: 0x0100,
             sp: 0,
-            memory: Memory::new(),
+            bus: Bus::new(Rc::clone(&game_cart)),
             cartridge: game_cart,
             is_halted: false,
             curr_opcode: 0,
@@ -67,13 +68,13 @@ impl CPU {
 
     // Function to fetch next opcode
     fn fetch(&mut self) {
-        self.curr_opcode = self.cartridge.read_byte(self.pc);
+        self.curr_opcode = self.bus.read_byte(self.pc);
     }
 
     // Function to decode current opcode
     fn decode(&mut self) {
-        
-        self.curr_instruction = Instruction::decode_from_opcode(self.curr_opcode, &self.cartridge, self.pc);
+        self.curr_instruction =
+            Instruction::decode_from_opcode(self.curr_opcode, &self.cartridge, self.pc);
 
         // Error handling
         if self.curr_instruction.is_none() {
@@ -135,7 +136,7 @@ impl CPU {
                 self.pc + 1
             }
             Instruction::JR(test) => {
-                let jump_distance = self.cartridge.read_byte(self.pc + 1) as i8;
+                let jump_distance = self.bus.read_byte(self.pc + 1) as i8;
                 match test {
                     JumpTest::NotZero => {
                         if !self.registers.f.zero {
@@ -195,11 +196,11 @@ impl CPU {
                         self.registers.l = self.registers.l.wrapping_add(1);
                         self.update_flags_after_inc(self.registers.l);
                     }
-                    // Increment value at memory location HL
+                    // Increment value at bus location HL
                     AllRegisters::HLMEM => {
                         let hl_addr = self.registers.get_hl();
-                        let value = self.cartridge.read_byte(hl_addr).wrapping_add(1);
-                        self.memory.write_byte(hl_addr, value);
+                        let value = self.bus.read_byte(hl_addr).wrapping_add(1);
+                        self.bus.write_byte(hl_addr, value);
                         self.update_flags_after_inc(value);
                     }
                     // 16-bit register increments (don't need to update flags for these)
@@ -259,12 +260,12 @@ impl CPU {
                         self.registers.l = self.registers.l.wrapping_sub(1);
                         self.update_flags_after_dec(self.registers.l, original_value);
                     }
-                    // Increment value at memory location HL
+                    // Increment value at bus location HL
                     AllRegisters::HLMEM => {
                         let hl_addr = self.registers.get_hl();
-                        let original_value = self.cartridge.read_byte(hl_addr);
-                        let value = self.cartridge.read_byte(hl_addr).wrapping_sub(1);
-                        self.memory.write_byte(hl_addr, value);
+                        let original_value = self.bus.read_byte(hl_addr);
+                        let value = self.bus.read_byte(hl_addr).wrapping_sub(1);
+                        self.bus.write_byte(hl_addr, value);
                         self.update_flags_after_dec(value, original_value);
                     }
                     // 16-bit register increments (don't need to update flags for these)
@@ -314,7 +315,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.b = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.b = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -348,7 +349,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.c = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.c = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -382,7 +383,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.d = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.d = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -416,7 +417,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.e = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.e = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -450,7 +451,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.h = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.h = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -484,7 +485,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.l = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.l = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -494,37 +495,37 @@ impl CPU {
                     },
                     HLTarget::HL => match target {
                         HLTarget::B => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.b);
                             self.pc + 1
                         }
                         HLTarget::C => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.c);
                             self.pc + 1
                         }
                         HLTarget::D => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.d);
                             self.pc + 1
                         }
                         HLTarget::E => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.e);
                             self.pc + 1
                         }
                         HLTarget::H => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.h);
                             self.pc + 1
                         }
                         HLTarget::L => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.l);
                             self.pc + 1
                         }
                         HLTarget::A => {
-                            self.memory
+                            self.bus
                                 .write_byte(self.registers.get_hl(), self.registers.a);
                             self.pc + 1
                         }
@@ -556,7 +557,7 @@ impl CPU {
                             self.pc + 1
                         }
                         HLTarget::HL => {
-                            self.registers.a = self.memory.read_byte(self.registers.get_hl());
+                            self.registers.a = self.bus.read_byte(self.registers.get_hl());
                             self.pc + 1
                         }
                         HLTarget::A => {
@@ -566,9 +567,9 @@ impl CPU {
                     },
                 },
                 LoadType::Word(target, source) => {
-                    // Read the next two bytes from memory at the current PC
-                    let low_byte = self.cartridge.read_byte(self.pc + 1); // Read the low byte
-                    let high_byte = self.cartridge.read_byte(self.pc + 2); // Read the high byte
+                    // Read the next two bytes from bus at the current PC
+                    let low_byte = self.bus.read_byte(self.pc + 1); // Read the low byte
+                    let high_byte = self.bus.read_byte(self.pc + 2); // Read the high byte
 
                     // Combine the low and high bytes into a 16-bit value
                     let word_value = ((high_byte as u16) << 8) | (low_byte as u16);
@@ -576,22 +577,20 @@ impl CPU {
                     match target {
                         LoadWordTarget::BC => match source {
                             LoadWordSource::N16 => {
-                                self.registers
-                                    .set_bc(self.cartridge.read_byte(word_value) as u16);
+                                self.registers.set_bc(self.bus.read_byte(word_value) as u16);
                                 self.pc + 3
                             }
                             _ => panic!("BAD MATCH"),
                         },
                         LoadWordTarget::HL => match source {
                             LoadWordSource::N16 => {
-                                self.registers
-                                    .set_hl(self.cartridge.read_byte(word_value) as u16);
+                                self.registers.set_hl(self.bus.read_byte(word_value) as u16);
                                 self.pc + 3
                             }
                             LoadWordSource::SPE8 => {
                                 self.registers.set_hl(
                                     ((self.sp as i16).wrapping_add(
-                                        (self.cartridge.read_byte(self.pc + 1) as i8) as i16,
+                                        (self.bus.read_byte(self.pc + 1) as i8) as i16,
                                     )) as u16,
                                 );
 
@@ -599,11 +598,11 @@ impl CPU {
                                 self.registers.f.subtract = false;
 
                                 self.registers.f.half_carry = ((self.sp & 0x0F)
-                                    + (self.cartridge.read_byte(self.pc + 1) as u16 & 0x0F))
+                                    + (self.bus.read_byte(self.pc + 1) as u16 & 0x0F))
                                     > 0x0F;
 
                                 self.registers.f.carry = ((self.sp & 0xFF)
-                                    + (self.cartridge.read_byte(self.pc + 1) as u16 & 0xFF))
+                                    + (self.bus.read_byte(self.pc + 1) as u16 & 0xFF))
                                     > 0xFF;
 
                                 self.pc + 2
@@ -612,16 +611,15 @@ impl CPU {
                         },
                         LoadWordTarget::DE => match source {
                             LoadWordSource::N16 => {
-                                self.registers
-                                    .set_de(self.cartridge.read_byte(word_value) as u16);
+                                self.registers.set_de(self.bus.read_byte(word_value) as u16);
                                 self.pc + 3
                             }
                             _ => panic!("BAD MATCH"),
                         },
                         LoadWordTarget::N16 => match source {
                             LoadWordSource::SP => {
-                                self.memory.write_byte(word_value, (self.sp & 0x00FF) as u8);
-                                self.memory.write_byte(word_value + 1, (self.sp >> 8) as u8);
+                                self.bus.write_byte(word_value, (self.sp & 0x00FF) as u8);
+                                self.bus.write_byte(word_value + 1, (self.sp >> 8) as u8);
                                 self.pc + 3
                             }
                             _ => panic!("BAD MATCH"),
@@ -641,24 +639,24 @@ impl CPU {
                 }
                 LoadType::AStoreInN16(target) => match target {
                     LoadN16::BC => {
-                        self.memory
+                        self.bus
                             .write_byte(self.registers.get_bc(), self.registers.a);
                         self.pc + 1
                     }
                     LoadN16::DE => {
-                        self.memory
+                        self.bus
                             .write_byte(self.registers.get_de(), self.registers.a);
                         self.pc + 1
                     }
                     LoadN16::HLDEC => {
-                        self.memory
+                        self.bus
                             .write_byte(self.registers.get_hl(), self.registers.a);
                         self.registers
                             .set_hl(self.registers.get_hl().wrapping_sub(1));
                         self.pc + 1
                     }
                     LoadN16::HLINC => {
-                        self.memory
+                        self.bus
                             .write_byte(self.registers.get_hl(), self.registers.a);
                         self.registers
                             .set_hl(self.registers.get_hl().wrapping_add(1));
@@ -667,21 +665,21 @@ impl CPU {
                 },
                 LoadType::N16StoreInA(source) => match source {
                     LoadN16::BC => {
-                        self.registers.a = self.memory.read_byte(self.registers.get_bc());
+                        self.registers.a = self.bus.read_byte(self.registers.get_bc());
                         self.pc + 1
                     }
                     LoadN16::DE => {
-                        self.registers.a = self.memory.read_byte(self.registers.get_de());
+                        self.registers.a = self.bus.read_byte(self.registers.get_de());
                         self.pc + 1
                     }
                     LoadN16::HLDEC => {
-                        self.registers.a = self.memory.read_byte(self.registers.get_hl());
+                        self.registers.a = self.bus.read_byte(self.registers.get_hl());
                         self.registers
                             .set_hl(self.registers.get_hl().wrapping_sub(1));
                         self.pc + 1
                     }
                     LoadN16::HLINC => {
-                        self.registers.a = self.memory.read_byte(self.registers.get_hl());
+                        self.registers.a = self.bus.read_byte(self.registers.get_hl());
                         self.registers
                             .set_hl(self.registers.get_hl().wrapping_add(1));
                         self.pc + 1
@@ -689,82 +687,80 @@ impl CPU {
                 },
                 LoadType::D8StoreInReg(target) => match target {
                     HLTarget::B => {
-                        self.registers.b = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.b = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                     HLTarget::C => {
-                        self.registers.c = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.c = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                     HLTarget::D => {
-                        self.registers.d = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.d = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                     HLTarget::E => {
-                        self.registers.e = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.e = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                     HLTarget::H => {
-                        self.registers.h = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.h = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                     HLTarget::L => {
-                        self.registers.l = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.l = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                     HLTarget::HL => {
-                        self.memory.write_byte(
-                            self.registers.get_hl(),
-                            self.cartridge.read_byte(self.pc + 1),
-                        );
+                        self.bus
+                            .write_byte(self.registers.get_hl(), self.bus.read_byte(self.pc + 1));
                         self.pc + 2
                     }
                     HLTarget::A => {
-                        self.registers.a = self.cartridge.read_byte(self.pc + 1);
+                        self.registers.a = self.bus.read_byte(self.pc + 1);
                         self.pc + 2
                     }
                 },
                 LoadType::AWithA8(target) => match target {
                     LoadA8Target::A => {
                         self.registers.a = self
-                            .memory
-                            .read_byte(0xFF00 + self.cartridge.read_byte(self.pc + 1) as u16);
+                            .bus
+                            .read_byte(0xFF00 + self.bus.read_byte(self.pc + 1) as u16);
                         self.pc + 2
                     }
                     LoadA8Target::A8 => {
-                        self.memory.write_byte(
-                            0xFF00 + self.cartridge.read_byte(self.pc + 1) as u16,
+                        self.bus.write_byte(
+                            0xFF00 + self.bus.read_byte(self.pc + 1) as u16,
                             self.registers.a,
                         );
                         self.pc + 2
                     }
                 },
                 LoadType::AWithA16(target) => {
-                    let low_byte = self.cartridge.read_byte(self.pc + 1); // Read the low byte
-                    let high_byte = self.cartridge.read_byte(self.pc + 2); // Read the high byte
+                    let low_byte = self.bus.read_byte(self.pc + 1); // Read the low byte
+                    let high_byte = self.bus.read_byte(self.pc + 2); // Read the high byte
 
                     // Combine the low and high bytes into a 16-bit value
                     let address = ((high_byte as u16) << 8) | (low_byte as u16);
 
                     match target {
                         LoadA16Target::A => {
-                            self.registers.a = self.memory.read_byte(address);
+                            self.registers.a = self.bus.read_byte(address);
                             self.pc + 3
                         }
                         LoadA16Target::A16 => {
-                            self.memory.write_byte(address, self.registers.a);
+                            self.bus.write_byte(address, self.registers.a);
                             self.pc + 3
                         }
                     }
                 }
                 LoadType::AWithAC(target) => match target {
                     LoadACTarget::A => {
-                        self.memory
+                        self.bus
                             .write_byte(0xFF00 + self.registers.c as u16, self.registers.a);
                         self.pc + 2
                     }
                     LoadACTarget::C => {
-                        self.registers.a = self.memory.read_byte(0xFF00 + self.registers.c as u16);
+                        self.registers.a = self.bus.read_byte(0xFF00 + self.registers.c as u16);
                         self.pc + 2
                     }
                 },
@@ -823,7 +819,7 @@ impl CPU {
                     self.pc + 1
                 }
                 OPType::LoadSP => {
-                    let immediate_operand: i8 = self.cartridge.read_byte(self.pc + 1) as i8;
+                    let immediate_operand: i8 = self.bus.read_byte(self.pc + 1) as i8;
 
                     // Sign-extend the immediate operand to 16 bits
                     let signed_value = immediate_operand as i16;
@@ -846,7 +842,7 @@ impl CPU {
                     self.pc + 2
                 }
                 OPType::LoadD8 => {
-                    let immediate_operand: u8 = self.cartridge.read_byte(self.pc + 1);
+                    let immediate_operand: u8 = self.bus.read_byte(self.pc + 1);
                     let original = self.registers.a;
                     self.registers.a = self.registers.a.wrapping_add(immediate_operand);
 
@@ -866,73 +862,153 @@ impl CPU {
             Instruction::ADC(target) => match target {
                 OPType::LoadA(target) => match target {
                     HLTarget::B => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.b.wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.b,
+                        );
+                        self.pc + 1
                     }
                     HLTarget::C => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.c.wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.c,
+                        );
+                        self.pc + 1
                     }
                     HLTarget::E => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.e.wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.e,
+                        );
+                        self.pc + 1
                     }
                     HLTarget::D => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.d.wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.d,
+                        );
+                        self.pc + 1
                     }
                     HLTarget::H => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.h.wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.h,
+                        );
+                        self.pc + 1
                     }
                     HLTarget::L => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.l.wrapping_add(self.registers.f.carry as u8);
+
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.l,
+                        );
                         self.pc + 1
-                        
-                        //! Upd Flags
                     }
                     HLTarget::HL => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a = self
-                            .memory
+                            .bus
                             .read_byte(self.registers.get_hl())
                             .wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.bus.read_byte(self.registers.get_hl()),
+                        );
+                        self.pc + 1
                     }
                     HLTarget::A => {
+                        // Store Original Value
+                        let original_value = self.registers.a;
+
+                        // ADC
                         self.registers.a =
                             self.registers.a.wrapping_add(self.registers.f.carry as u8);
-                        self.pc + 1
 
-                        //! Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_adc(
+                            self.registers.a,
+                            original_value,
+                            self.registers.a,
+                        );
+                        self.pc + 1
                     }
                 },
                 OPType::LoadD8 => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
+
+                    // ADC
                     self.registers.a = self
-                        .cartridge
+                        .bus
                         .read_byte(self.pc + 1)
                         .wrapping_add(self.registers.f.carry as u8);
+
+                    // Upd Flags
+                    self.update_flags_after_adc(
+                        self.registers.a,
+                        original_value,
+                        self.bus.read_byte(self.pc + 1),
+                    );
                     self.pc + 2
-
-
-                    //! Upd Flags
                 }
                 _ => panic!("BAD ADC TYPE"),
             },
@@ -1222,11 +1298,11 @@ impl CPU {
         }
     }
 
-    // Jump to addr in memory or increment pc
+    // Jump to addr in bus or increment pc
     fn jump(&self, jump: bool) -> u16 {
         if jump {
-            let least_significant = self.memory.read_byte(self.pc + 1) as u16;
-            let most_significant = self.memory.read_byte(self.pc + 2) as u16;
+            let least_significant = self.bus.read_byte(self.pc + 1) as u16;
+            let most_significant = self.bus.read_byte(self.pc + 2) as u16;
 
             // combine and return 2 byte addr in lil endian
             (most_significant << 8) | least_significant
@@ -1241,27 +1317,26 @@ impl CPU {
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
 
-        // mask shift and write first byte to memory at SP
-        self.memory
-            .write_byte(self.sp, ((value & 0xFF00) >> 8) as u8);
+        // mask shift and write first byte to bus at SP
+        self.bus.write_byte(self.sp, ((value & 0xFF00) >> 8) as u8);
 
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
 
-        // mask and write second byte to memory at SP
-        self.memory.write_byte(self.sp, (value & 0xFF) as u8);
+        // mask and write second byte to bus at SP
+        self.bus.write_byte(self.sp, (value & 0xFF) as u8);
     }
 
     // Pop from stack and increment pointers
     fn pop(&mut self) -> u16 {
-        // read least significant byte from memory at SP
-        let least_significant_byte = self.memory.read_byte(self.sp) as u16;
+        // read least significant byte from bus at SP
+        let least_significant_byte = self.bus.read_byte(self.sp) as u16;
 
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
 
-        // read most significan byte from memory at SP
-        let most_significant_byte = self.memory.read_byte(self.sp) as u16;
+        // read most significan byte from bus at SP
+        let most_significant_byte = self.bus.read_byte(self.sp) as u16;
 
         // increment stack pointer
         self.sp = self.sp.wrapping_add(1);
@@ -1275,7 +1350,7 @@ impl CPU {
         let next_pc = self.pc.wrapping_add(3);
         if should_jump {
             self.push(next_pc);
-            self.memory.read_next_byte();
+            self.bus.read_next_byte();
             todo!()
         } else {
             next_pc
@@ -1325,7 +1400,7 @@ impl CPU {
             AllRegisters::E => self.registers.e as u16,
             AllRegisters::H => self.registers.h as u16,
             AllRegisters::L => self.registers.l as u16,
-            AllRegisters::HLMEM => self.cartridge.read_byte(self.registers.get_hl()) as u16,
+            AllRegisters::HLMEM => self.bus.read_byte(self.registers.get_hl()) as u16,
             AllRegisters::BC => self.registers.get_bc(),
             AllRegisters::DE => self.registers.get_de(),
             AllRegisters::HL => self.registers.get_hl(),
@@ -1344,7 +1419,7 @@ impl CPU {
             HLTarget::E => self.registers.e,
             HLTarget::H => self.registers.h,
             HLTarget::L => self.registers.l,
-            HLTarget::HL => self.memory.read_byte(self.registers.get_hl()),
+            HLTarget::HL => self.bus.read_byte(self.registers.get_hl()),
         };
         reg_source
     }
@@ -1375,20 +1450,20 @@ impl CPU {
         self.registers.f.half_carry = half_carry;
     }
 
-    // Method to update relevant flags after ADC instructions 
-    fn update_flags_after_adc(&mut self, result: u8, original_value: u8 ) {
+    // Method to update relevant flags after ADC instructions
+    fn update_flags_after_adc(&mut self, result: u8, original_value: u8, immediate_operand: u8) {
         // Zero Flag: Set if the result is zero
         self.registers.f.zero = result == 0;
 
         // Subtract Flag: SET (ADC is not a subtraction)
         self.registers.f.subtract = false;
 
-        // Half-Carry Flag: Set if there was a borrow from bit 4 to bit 3
-        let half_carry = (original_value & 0x0F) == 0x00; // Borrow occurs if lower nibble was 0 before decrement
+        // Half-Carry Flag: Set if there was a carry from bit 4 to bit 3
+        let half_carry = ((original_value & 0x0F) + (immediate_operand & 0x0F)) > 0x0F; // Check for carry from the lower nibble
         self.registers.f.half_carry = half_carry;
 
-        // TODO set carry flag to if there was a carry 
-        self.registers.f.carry = ( < ) || (self.registers.a < immediate_operand);
+        // Carry Flag: Set if there was a carry from the 8th bit
+        self.registers.f.carry = (result < original_value) || (result < immediate_operand);
     }
     // CPU ENDS HERE
 }

@@ -2,6 +2,7 @@ mod hdw;
 
 use hdw::cart::{self, Cartridge};
 use hdw::cpu::{self, CPU};
+use std::rc::Rc; // Import Rc for reference countings
 
 use std::io::stdin;
 
@@ -39,11 +40,19 @@ fn main() {
         println!("Error loading cartridge: {}", e);
         return;
     }
+
+    // Wrap in RC to pass to CPU
+    let gb_cart_rc = Rc::new(gb_cart);
     // Init Components
-    let mut emu_cpu = CPU::new(gb_cart);
+    let mut emu_cpu = CPU::new(gb_cart_rc.clone());
 
     // CPU Cycling
     loop {
         emu_cpu.step();
     }
+}
+
+// for synchronizing in future
+fn emu_cycles(cpu_cycles: i32) {
+    // TODO...
 }

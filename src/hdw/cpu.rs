@@ -860,139 +860,98 @@ impl CPU {
                 }
             },
             Instruction::ADC(target) => match target {
-                OPType::LoadA(target) => match target {
-                    HLTarget::B => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
+                OPTarget::B => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
+                    // ADC
+                    self.registers.a = self.registers.b.wrapping_add(self.registers.f.carry as u8);
 
-                        // ADC
-                        self.registers.a =
-                            self.registers.b.wrapping_add(self.registers.f.carry as u8);
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.b);
+                    self.pc + 1
+                }
+                OPTarget::C => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
+                    // ADC
+                    self.registers.a = self.registers.c.wrapping_add(self.registers.f.carry as u8);
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.c);
+                    self.pc + 1
+                }
+                OPTarget::E => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
+                    // ADC
+                    self.registers.a = self.registers.e.wrapping_add(self.registers.f.carry as u8);
 
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.b,
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::C => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.e);
+                    self.pc + 1
+                }
+                OPTarget::D => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
 
-                        // ADC
-                        self.registers.a =
-                            self.registers.c.wrapping_add(self.registers.f.carry as u8);
+                    // ADC
+                    self.registers.a = self.registers.d.wrapping_add(self.registers.f.carry as u8);
 
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.c,
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::E => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.d);
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
 
-                        // ADC
-                        self.registers.a =
-                            self.registers.e.wrapping_add(self.registers.f.carry as u8);
+                    // ADC
+                    self.registers.a = self.registers.h.wrapping_add(self.registers.f.carry as u8);
 
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.e,
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::D => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.h);
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
 
-                        // ADC
-                        self.registers.a =
-                            self.registers.d.wrapping_add(self.registers.f.carry as u8);
+                    // ADC
+                    self.registers.a = self.registers.l.wrapping_add(self.registers.f.carry as u8);
 
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.d,
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::H => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.l);
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
 
-                        // ADC
-                        self.registers.a =
-                            self.registers.h.wrapping_add(self.registers.f.carry as u8);
+                    // ADC
+                    self.registers.a = self
+                        .bus
+                        .read_byte(self.registers.get_hl())
+                        .wrapping_add(self.registers.f.carry as u8);
 
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.h,
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::L => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
+                    // Upd Flags
+                    self.update_flags_after_adc(
+                        self.registers.a,
+                        original_value,
+                        self.bus.read_byte(self.registers.get_hl()),
+                    );
+                    self.pc + 1
+                }
+                OPTarget::A => {
+                    // Store Original Value
+                    let original_value = self.registers.a;
 
-                        // ADC
-                        self.registers.a =
-                            self.registers.l.wrapping_add(self.registers.f.carry as u8);
+                    // ADC
+                    self.registers.a = self.registers.a.wrapping_add(self.registers.f.carry as u8);
 
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.l,
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::HL => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
-
-                        // ADC
-                        self.registers.a = self
-                            .bus
-                            .read_byte(self.registers.get_hl())
-                            .wrapping_add(self.registers.f.carry as u8);
-
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.bus.read_byte(self.registers.get_hl()),
-                        );
-                        self.pc + 1
-                    }
-                    HLTarget::A => {
-                        // Store Original Value
-                        let original_value = self.registers.a;
-
-                        // ADC
-                        self.registers.a =
-                            self.registers.a.wrapping_add(self.registers.f.carry as u8);
-
-                        // Upd Flags
-                        self.update_flags_after_adc(
-                            self.registers.a,
-                            original_value,
-                            self.registers.a,
-                        );
-                        self.pc + 1
-                    }
-                },
-                OPType::LoadD8 => {
+                    // Upd Flags
+                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.a);
+                    self.pc + 1
+                }
+                OPTarget::D8 => {
                     // Store Original Value
                     let original_value = self.registers.a;
 
@@ -1013,10 +972,11 @@ impl CPU {
                 _ => panic!("BAD ADC TYPE"),
             },
             Instruction::SUB(target) => match target {
-                OPType::LoadA(target) => {
+                OPTarget::A => {
                     let reg_target = self.match_hl(target);
                     todo!()
                 }
+                // TODO Make like above 'OPTarget'
                 OPType::LoadHL(target) => {
                     let reg_target = self.match_n16(target);
                     todo!()
@@ -1033,16 +993,10 @@ impl CPU {
                     let reg_target = self.match_hl(target);
                     todo!()
                 }
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
-                }
-                OPType::LoadSP => {
-                    todo!()
-                }
                 OPType::LoadD8 => {
                     todo!()
                 }
+                _ => panic!("Bad SBC OPType"),
             },
             Instruction::AND(target) => match target {
                 OPType::LoadA(target) => {

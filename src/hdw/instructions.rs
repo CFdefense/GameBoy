@@ -25,13 +25,13 @@ pub enum Instruction {
     SCF,
     CCF,
     HALT,
-    ADC(OPType),
-    SUB(OPType),
-    SBC(OPType),
-    AND(OPType),
-    XOR(OPType),
-    OR(OPType),
-    CP(OPType),
+    ADC(OPTarget),
+    SUB(OPTarget),
+    SBC(OPTarget),
+    AND(OPTarget),
+    XOR(OPTarget),
+    OR(OPTarget),
+    CP(OPTarget),
     RET(JumpTest),
     RETI,
     POP(StackTarget),
@@ -246,6 +246,19 @@ pub enum LoadACTarget {
     A,
 }
 
+#[derive(Debug)]
+pub enum OPTarget {
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HL,
+    A,
+    D8,
+}
+
 // Enum Describes Load Rule
 #[derive(Debug)]
 pub enum LoadType {
@@ -435,37 +448,20 @@ impl Instruction {
             0x19 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::DE))),
             0x29 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::HL))),
             0x39 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::SP))),
-            // ADC Register to A
-            0x88..=0x8F => Some(Instruction::ADC(OPType::LoadA(Self::hl_target_helper(
-                byte,
-            )))),
-            0xCE => Some(Instruction::ADC(OPType::LoadD8)), // ADC D8
+            // ADC
+            0x88..=0x8F | 0xCE => Some(Instruction::ADC(Self::op_target_helper(byte))),
             // SUB
-            0x90..=0x97 => Some(Instruction::SUB(OPType::LoadA(Self::hl_target_helper(
-                byte,
-            )))),
-            0xD6 => Some(Instruction::SUB(OPType::LoadD8)), // SUB D8
+            0x90..=0x97 | 0xD6 => Some(Instruction::SUB(Self::op_target_helper(byte))),
             // SBC
-            0x98..=0x9F => Some(Instruction::SBC(OPType::LoadA(Self::hl_target_helper(
-                byte,
-            )))),
-            0xDE => Some(Instruction::SBC(OPType::LoadD8)), // SBC D8
+            0x98..=0x9F | 0xDE => Some(Instruction::SBC(Self::op_target_helper(byte))),
             // AND
-            0xA0..=0xA7 => Some(Instruction::AND(OPType::LoadA(Self::hl_target_helper(
-                byte,
-            )))),
-            0xE6 => Some(Instruction::AND(OPType::LoadD8)), // AND D8
+            0xA0..=0xA7 | 0xE6 => Some(Instruction::AND(Self::op_target_helper(byte))),
             // XOR
-            0xA8..=0xAF => Some(Instruction::XOR(OPType::LoadA(Self::hl_target_helper(
-                byte,
-            )))),
-            0xEE => Some(Instruction::XOR(OPType::LoadD8)), // XOR D8
+            0xA8..=0xAF | 0xEE => Some(Instruction::XOR(Self::op_target_helper(byte))),
             // OR
-            0xB0..=0xB7 => Some(Instruction::OR(OPType::LoadA(Self::hl_target_helper(byte)))),
-            0xF6 => Some(Instruction::OR(OPType::LoadD8)), // OR D8
+            0xB0..=0xB7 | 0xF6 => Some(Instruction::OR(Self::op_target_helper(byte))),
             // CP
-            0xB8..=0xBF => Some(Instruction::CP(OPType::LoadA(Self::hl_target_helper(byte)))),
-            0xFE => Some(Instruction::CP(OPType::LoadD8)), // CP D8
+            0xB8..=0xBF | 0xFE => Some(Instruction::CP(Self::op_target_helper(byte))),
             // RET
             0xC0 => Some(Instruction::RET(JumpTest::NotZero)),
             0xC8 => Some(Instruction::RET(JumpTest::Zero)),
@@ -526,6 +522,22 @@ impl Instruction {
             6 => Some(HLTarget::HL),
             7 => Some(HLTarget::A),
             _ => None,
+        }
+        .expect("Math doesn't math") // Unwrap and panic if None
+    }
+
+    // Function for OP Targets
+    fn op_target_helper(byte: u8) -> OPTarget {
+        match byte % 8 {
+            0 => Some(OPTarget::B),
+            1 => Some(OPTarget::C),
+            2 => Some(OPTarget::D),
+            3 => Some(OPTarget::E),
+            4 => Some(OPTarget::H),
+            5 => Some(OPTarget::L),
+            6 => Some(OPTarget::HL),
+            7 => Some(OPTarget::A),
+            _ => Some(OPTarget::D8),
         }
         .expect("Math doesn't math") // Unwrap and panic if None
     }

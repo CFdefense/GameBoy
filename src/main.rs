@@ -1,9 +1,8 @@
 mod hdw;
 
 use hdw::bus::Bus;
-use hdw::cart::{self, Cartridge};
-use hdw::cpu::{self, CPU};
-use std::rc::Rc; // Import Rc for reference countings
+use hdw::cart::Cartridge;
+use hdw::cpu::CPU;
 
 use std::io::stdin;
 

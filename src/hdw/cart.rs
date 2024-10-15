@@ -1,5 +1,4 @@
 use lazy_static::lazy_static;
-use std::collections::btree_map::Values;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -44,7 +43,7 @@ pub struct Cartridge {
 
 impl Cartridge {
     pub fn new() -> Cartridge {
-        let mut cartridge = Cartridge {
+        let cartridge = Cartridge {
             file_name: String::new(),
             rom_size: 0,
             rom_data: Vec::<u8>::new(),

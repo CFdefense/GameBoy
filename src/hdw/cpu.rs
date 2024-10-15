@@ -943,11 +943,11 @@ impl CPU {
                     self.registers.a = self.registers.a.wrapping_add(self.registers.f.carry as u8);
 
                     // Upd Flags
-                    self.update_flags_after_adc(self.registers.a, original_value, self.registers.a);
+                    self.update_flags_after_adc(self.registers.a, original_value, original_value);
                     self.pc + 1
                 }
                 OPTarget::D8 => {
-                    // Store Original Value
+                    // Store Original Values
                     let original_value = self.registers.a;
 
                     // ADC
@@ -965,86 +965,135 @@ impl CPU {
                     self.pc + 2
                 }
             },
-            Instruction::SUB(target) => match target {
-                OPTarget::B => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.b);
+            Instruction::SUB(target) => {
+                // Get Original Value
+                let original_value = self.registers.a;
+                match target {
+                    OPTarget::B => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.b);
 
-                    // Upd Flags
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.b,
+                        );
 
-                    self.pc + 1
+                        self.pc + 1
+                    }
+                    OPTarget::C => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.c);
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.c,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::D => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.d);
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.d,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::E => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.e);
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.e,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::H => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.h);
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.h,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::L => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.l);
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.l,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::HL => {
+                        // SUB
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.bus.read_byte(self.registers.get_hl()));
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.bus.read_byte(self.registers.get_hl()),
+                        );
+
+                        self.pc + 3
+                    }
+                    OPTarget::A => {
+                        // SUB
+                        self.registers.a = self.registers.a.wrapping_sub(self.registers.a);
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            original_value,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::D8 => {
+                        // SUB
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.bus.read_byte(self.pc + 1));
+
+                        // Upd Flags
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.bus.read_byte(self.pc + 1),
+                        );
+
+                        self.pc + 2
+                    }
                 }
-                OPTarget::C => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.c);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.d);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::E => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.e);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::H => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.h);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::L => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.l);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::HL => {
-                    // SUB
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.bus.read_byte(self.registers.get_hl()));
-
-                    // Upd Flags
-
-                    self.pc + 3
-                }
-                OPTarget::A => {
-                    // SUB
-                    self.registers.a = self.registers.a.wrapping_sub(self.registers.a);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D8 => {
-                    // SUB
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.bus.read_byte(self.pc + 1));
-
-                    // Upd Flags
-
-                    self.pc + 2
-                }
-            },
+            }
             Instruction::SBC(target) => match target {
                 OPTarget::B => {
                     // SBC
@@ -1650,8 +1699,6 @@ impl CPU {
                     todo!()
                 }
             },
-
-            _ => panic!("Implement more Instructions"),
         }
     }
 
@@ -1781,7 +1828,7 @@ impl CPU {
         reg_source
     }
 
-    // Method to update relevant flags after INC operation
+    // Method to update relevant flags after INC instructions
     fn update_flags_after_inc(&mut self, result: u8) {
         // Zero Flag: Set if the result is zero
         self.registers.f.zero = result == 0;
@@ -1794,7 +1841,7 @@ impl CPU {
         self.registers.f.half_carry = half_carry;
     }
 
-    // Method to update relevant flags after DEC operation
+    // Method to update relevant flags after DEC instructions
     fn update_flags_after_dec(&mut self, result: u8, original_value: u8) {
         // Zero Flag: Set if the result is zero
         self.registers.f.zero = result == 0;
@@ -1816,11 +1863,25 @@ impl CPU {
         self.registers.f.subtract = false;
 
         // Half-Carry Flag: Set if there was a carry from bit 4 to bit 3
-        let half_carry = ((original_value & 0x0F) + (immediate_operand & 0x0F)) > 0x0F; // Check for carry from the lower nibble
-        self.registers.f.half_carry = half_carry;
+        self.registers.f.half_carry = ((original_value & 0x0F) + (immediate_operand & 0x0F)) > 0x0F; // Check for carry from the lower nibble
 
         // Carry Flag: Set if there was a carry from the 8th bit
         self.registers.f.carry = (result < original_value) || (result < immediate_operand);
+    }
+
+    // Method to update relevant flags after SUB instructions
+    fn update_flags_after_sub(&mut self, result: u8, original_value: u8, immediate_operand: u8) {
+        // Zero Flag
+        self.registers.f.zero = result == 0;
+
+        // Subtract Flag Always set because we SUB
+        self.registers.f.subtract = true;
+
+        // Half-Carry Flag
+        self.registers.f.half_carry = (original_value & 0xF) < (immediate_operand & 0xF);
+
+        // Carry Flag
+        self.registers.f.carry = original_value < immediate_operand;
     }
     // CPU ENDS HERE
 }

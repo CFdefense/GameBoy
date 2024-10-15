@@ -2,9 +2,6 @@ use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
 use core::panic;
-use std::rc::Rc;
-
-use super::cart::Cartridge;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -12,14 +9,13 @@ pub struct CPU {
     pc: u16,
     sp: u16,
     bus: Bus,
-    cartridge: Rc<Cartridge>,
     is_halted: bool,
     curr_opcode: u8,
     curr_instruction: Option<Instruction>,
 }
 impl CPU {
     // Contructor
-    pub fn new(game_cart: Rc<Cartridge>) -> Self {
+    pub fn new(new_bus: Bus) -> Self {
         CPU {
             registers: Registers {
                 a: 0,
@@ -38,8 +34,7 @@ impl CPU {
             },
             pc: 0x0100,
             sp: 0,
-            bus: Bus::new(Rc::clone(&game_cart)),
-            cartridge: game_cart,
+            bus: new_bus,
             is_halted: false,
             curr_opcode: 0,
             curr_instruction: None,
@@ -74,7 +69,7 @@ impl CPU {
     // Function to decode current opcode
     fn decode(&mut self) {
         self.curr_instruction =
-            Instruction::decode_from_opcode(self.curr_opcode, &self.cartridge, self.pc);
+            Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
 
         // Error handling
         if self.curr_instruction.is_none() {
@@ -289,7 +284,7 @@ impl CPU {
             }
             Instruction::LD(target) => match target {
                 LoadType::RegInReg(target, source) => match target {
-                    HLTarget::B => match target {
+                    HLTarget::B => match source {
                         HLTarget::B => {
                             self.registers.b = self.registers.b;
                             self.pc + 1
@@ -969,97 +964,505 @@ impl CPU {
                     );
                     self.pc + 2
                 }
-                _ => panic!("BAD ADC TYPE"),
             },
             Instruction::SUB(target) => match target {
+                OPTarget::B => {
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.b);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::C => {
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.c);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::D => {
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.d);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::E => {
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.e);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.h);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.l);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // SUB
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.bus.read_byte(self.registers.get_hl()));
+
+                    // Upd Flags
+
+                    self.pc + 3
+                }
                 OPTarget::A => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
+                    // SUB
+                    self.registers.a = self.registers.a.wrapping_sub(self.registers.a);
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                // TODO Make like above 'OPTarget'
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
-                }
-                OPType::LoadSP => {
-                    todo!()
-                }
-                OPType::LoadD8 => {
-                    todo!()
+                OPTarget::D8 => {
+                    // SUB
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.bus.read_byte(self.pc + 1));
+
+                    // Upd Flags
+
+                    self.pc + 2
                 }
             },
             Instruction::SBC(target) => match target {
-                OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
+                OPTarget::B => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.b)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadD8 => {
-                    todo!()
+                OPTarget::C => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.c)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                _ => panic!("Bad SBC OPType"),
+                OPTarget::D => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.d)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::E => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.e)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.h)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.l)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.bus.read_byte(self.registers.get_hl()))
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 3
+                }
+                OPTarget::A => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.registers.a)
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::D8 => {
+                    // SBC
+                    self.registers.a = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.bus.read_byte(self.pc + 1))
+                        .wrapping_sub(self.registers.f.carry as u8);
+
+                    // Upd Flags
+
+                    self.pc + 2
+                }
             },
             Instruction::AND(target) => match target {
-                OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
+                OPTarget::B => {
+                    // AND
+                    self.registers.a &= self.registers.b;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
+                OPTarget::C => {
+                    // AND
+                    self.registers.a &= self.registers.c;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadSP => {
-                    todo!()
+                OPTarget::D => {
+                    // AND
+                    self.registers.a &= self.registers.d;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadD8 => {
-                    todo!()
+                OPTarget::E => {
+                    // AND
+                    self.registers.a &= self.registers.e;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // AND
+                    self.registers.a &= self.registers.h;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // AND
+                    self.registers.a &= self.registers.l;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // AND
+                    self.registers.a &= self.bus.read_byte(self.registers.get_hl());
+
+                    // Upd Flags
+
+                    self.pc + 3
+                }
+                OPTarget::A => {
+                    // AND
+                    self.registers.a &= self.registers.a;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::D8 => {
+                    // AND
+                    self.registers.a &= self.bus.read_byte(self.pc + 1);
+
+                    // Upd Flags
+
+                    self.pc + 2
                 }
             },
             Instruction::XOR(target) => match target {
-                OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
+                OPTarget::B => {
+                    // XOR
+                    self.registers.a ^= self.registers.b;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
+                OPTarget::C => {
+                    // XOR
+                    self.registers.a ^= self.registers.c;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadSP => {
-                    todo!()
+                OPTarget::D => {
+                    // XOR
+                    self.registers.a ^= self.registers.d;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadD8 => {
-                    todo!()
+                OPTarget::E => {
+                    // XOR
+                    self.registers.a ^= self.registers.e;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // XOR
+                    self.registers.a ^= self.registers.h;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // XOR
+                    self.registers.a ^= self.registers.l;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // XOR
+                    self.registers.a ^= self.bus.read_byte(self.registers.get_hl());
+
+                    // Upd Flags
+
+                    self.pc + 3
+                }
+                OPTarget::A => {
+                    // XOR
+                    self.registers.a ^= self.registers.a;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::D8 => {
+                    // XOR
+                    self.registers.a ^= self.bus.read_byte(self.pc + 1);
+
+                    // Upd Flags
+
+                    self.pc + 2
                 }
             },
             Instruction::OR(target) => match target {
-                OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
+                OPTarget::B => {
+                    // OR
+                    self.registers.a |= self.registers.b;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
+                OPTarget::C => {
+                    // OR
+                    self.registers.a |= self.registers.c;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadSP => {
-                    todo!()
+                OPTarget::D => {
+                    // OR
+                    self.registers.a |= self.registers.d;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadD8 => {
-                    todo!()
+                OPTarget::E => {
+                    // OR
+                    self.registers.a |= self.registers.e;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // OR
+                    self.registers.a |= self.registers.h;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // OR
+                    self.registers.a |= self.registers.l;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // OR
+                    self.registers.a |= self.bus.read_byte(self.registers.get_hl());
+
+                    // Upd Flags
+
+                    self.pc + 3
+                }
+                OPTarget::A => {
+                    // OR
+                    self.registers.a |= self.registers.a;
+
+                    // Upd Flags
+
+                    self.pc + 1
+                }
+                OPTarget::D8 => {
+                    // OR
+                    self.registers.a = self.bus.read_byte(self.pc + 1);
+
+                    // Upd Flags
+
+                    self.pc + 2
                 }
             },
             Instruction::CP(target) => match target {
-                OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
-                    todo!()
+                OPTarget::B => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.b);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flags
+
+                    self.pc + 1
                 }
-                OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
-                    todo!()
+                OPTarget::C => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.c);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 1
                 }
-                OPType::LoadSP => {
-                    todo!()
+                OPTarget::D => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.d);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 1
                 }
-                OPType::LoadD8 => {
-                    todo!()
+                OPTarget::E => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.e);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 1
+                }
+                OPTarget::H => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.h);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 1
+                }
+                OPTarget::L => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.l);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 1
+                }
+                OPTarget::HL => {
+                    // CP
+                    let cp_value = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.bus.read_byte(self.registers.get_hl()));
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 3
+                }
+                OPTarget::A => {
+                    // CP
+                    let cp_value = self.registers.a.wrapping_sub(self.registers.a);
+                    self.registers.f.zero = cp_value == 0;
+
+                    // Upd Flag
+
+                    self.pc + 1
+                }
+                OPTarget::D8 => {
+                    // CP
+                    let cp_value = self
+                        .registers
+                        .a
+                        .wrapping_sub(self.bus.read_byte(self.pc + 1));
+                    self.registers.f.zero = cp_value == 0;
+                    // Upd Flag
+
+                    self.pc + 2
                 }
             },
             Instruction::RET(test) => {

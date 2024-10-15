@@ -21,16 +21,15 @@
 */
 
 use super::cart::Cartridge;
-use std::rc::Rc;
 
 pub struct Bus {
     pub bus: [u8; 0xFFFF],
-    cart: Rc<Cartridge>,
+    cart: Cartridge,
 }
 
 impl Bus {
     // Consructor
-    pub fn new(cart: Rc<Cartridge>) -> Self {
+    pub fn new(cart: Cartridge) -> Self {
         Bus {
             // initialize vars
             bus: [0; 0xFFFF],
@@ -52,6 +51,12 @@ impl Bus {
     // Function to write byte to correct place
     pub fn write_byte(&mut self, address: u16, value: u8) {
         // Need to filter destination of byte and write to there
+        if address < 0x8000 {
+            // ROM DATA
+            self.cart.write_byte(address, value);
+        } else {
+            // Handle other memory areas or return 0 for now
+        }
     }
 
     // Function to read next byte

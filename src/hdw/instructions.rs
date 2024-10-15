@@ -4,7 +4,7 @@
     As well as all implementations of Instruction operations such as decoding and matching bytes to instructions
 
 */
-use super::cart::Cartridge;
+use super::bus::Bus;
 
 // Target For All Instructions
 #[derive(Debug)]
@@ -274,7 +274,7 @@ pub enum LoadType {
 
 impl Instruction {
     // Function to take opcode from cpu and match it to a corresponding Instruction
-    pub fn decode_from_opcode(opcode: u8, cart: &Cartridge, pc: u16) -> Option<Instruction> {
+    pub fn decode_from_opcode(opcode: u8, cart: &Bus, pc: u16) -> Option<Instruction> {
         let prefixed = opcode == 0xCB;
 
         // determine if instruction is a PREFIX

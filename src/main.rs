@@ -1,5 +1,6 @@
 mod hdw;
 
+use hdw::bus::Bus;
 use hdw::cart::{self, Cartridge};
 use hdw::cpu::{self, CPU};
 use std::rc::Rc; // Import Rc for reference countings
@@ -41,10 +42,9 @@ fn main() {
         return;
     }
 
-    // Wrap in RC to pass to CPU
-    let gb_cart_rc = Rc::new(gb_cart);
     // Init Components
-    let mut emu_cpu = CPU::new(gb_cart_rc.clone());
+    let emu_bus = Bus::new(gb_cart);
+    let mut emu_cpu = CPU::new(emu_bus);
 
     // CPU Cycling
     loop {

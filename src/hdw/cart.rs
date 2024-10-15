@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use std::collections::btree_map::Values;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -173,8 +174,14 @@ impl Cartridge {
         }
     }
 
+    // Method to read a byte at an address
     pub fn read_byte(&self, address: u16) -> u8 {
         self.rom_data[address as usize]
+    }
+
+    // Method to write a value to an address
+    pub fn write_byte(&mut self, address: u16, value: u8) {
+        self.rom_data[address as usize] = value;
     }
 }
 

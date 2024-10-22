@@ -1586,140 +1586,246 @@ impl CPU {
                 let reg_target = self.match_hl(target);
                 todo!();
             }
-            Instruction::BIT(target) => match target {
-                ByteTarget::Zero(hl_target) => {
-                    let bit_0 = 0b00000001;
-                    let mut target_register: u8 = 0;
-                    //! Before continue write helper function to return target register given an hl target and then continue for below
-                    match hl_target {
-                        HLTarget::B => {
-                            target_register = self.registers.b;
-                        }
-                        HLTarget::C => {
-                            target_register = self.registers.c;
-                        }
-                        HLTarget::D => {
-                            target_register = self.registers.d;
-                        }
-                        HLTarget::E => {
-                            target_register = self.registers.e;
-                        }
-                        HLTarget::H => {
-                            target_register = self.registers.h;
-                        }
-                        HLTarget::L => {
-                            target_register = self.registers.l;
-                        }
-                        HLTarget::HL => {
-                            target_register = self.bus.read_byte(self.registers.get_hl());
-                        }
-                        HLTarget::A => {
-                            target_register = self.registers.a;
-                        }
+            Instruction::BIT(target) => {
+                let bit: u8;
+                let target_register: u8;
+                match target {
+                    ByteTarget::Zero(hl_target) => {
+                        bit = 0b00000010; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
                     }
-                    // Upd Flags
-                    self.update_flags_after_bit(bit_0, target_register);
+                    ByteTarget::One(hl_target) => {
+                        bit = 0b00000100; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                    ByteTarget::Two(hl_target) => {
+                        bit = 0b00001000; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                    ByteTarget::Three(hl_target) => {
+                        bit = 0b00010000; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                    ByteTarget::Four(hl_target) => {
+                        bit = 0b00100000; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                    ByteTarget::Five(hl_target) => {
+                        bit = 0b01000000; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                    ByteTarget::Six(hl_target) => {
+                        bit = 0b10000000; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                    ByteTarget::Seven(hl_target) => {
+                        bit = 0b00000000; // Byte to match
+                        target_register = self.match_hl(hl_target); // find target
+                    }
+                }
+                // Upd Flags
+                self.update_flags_after_bit(bit, target_register);
 
-                    // Prefixed Return
-                    self.pc.wrapping_add(2)
+                // Prefixed Return
+                self.pc.wrapping_add(2)
+            }
+            Instruction::RES(target) => {
+                let mask: u8;
+                let mut target_register: u8;
+                let mut is_mem: bool = false;
+                match target {
+                    ByteTarget::Zero(hl_target) => {
+                        mask = 0b11111110; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::One(hl_target) => {
+                        mask = 0b11111101; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Two(hl_target) => {
+                        mask = 0b11111011; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Three(hl_target) => {
+                        mask = 0b11110111; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Four(hl_target) => {
+                        mask = 0b11101111; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Five(hl_target) => {
+                        mask = 0b11011111; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Six(hl_target) => {
+                        mask = 0b10111111; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Seven(hl_target) => {
+                        mask = 0b01111111; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
                 }
-                ByteTarget::One(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
+
+                // Perform Operation
+                if is_mem {
+                    // if were updating memory write back to grabbed location the new value
+                    self.bus
+                        .write_byte(self.registers.get_hl(), target_register & mask);
+                } else {
+                    target_register &= mask;
                 }
-                ByteTarget::Two(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
+
+                // Prefixed Return
+                self.pc.wrapping_add(2)
+            }
+            Instruction::SET(target) => {
+                let mask: u8;
+                let mut target_register: u8;
+                let mut is_mem: bool = false;
+                match target {
+                    ByteTarget::Zero(hl_target) => {
+                        mask = 0b00000001; // Byte Mask
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::One(hl_target) => {
+                        mask = 0b00000010;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Two(hl_target) => {
+                        mask = 0b00000100;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Three(hl_target) => {
+                        mask = 0b00001000;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Four(hl_target) => {
+                        mask = 0b00010000;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Five(hl_target) => {
+                        mask = 0b00100000;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Six(hl_target) => {
+                        mask = 0b01000000;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
+                    ByteTarget::Seven(hl_target) => {
+                        mask = 0b10000000;
+                        match hl_target {
+                            HLTarget::HL => {
+                                is_mem = true; // flag that were grabbing memory
+                            }
+                            _ => {}
+                        }
+                        target_register = self.match_hl(hl_target);
+                    }
                 }
-                ByteTarget::Three(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
+                // Perform Operation
+                if is_mem {
+                    // if were updating memory write back to grabbed location the new value
+                    self.bus
+                        .write_byte(self.registers.get_hl(), target_register & mask);
+                } else {
+                    target_register &= mask;
                 }
-                ByteTarget::Four(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Five(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Six(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Seven(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-            },
-            Instruction::RES(target) => match target {
-                ByteTarget::Zero(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::One(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Two(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Three(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Four(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Five(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Six(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Seven(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-            },
-            Instruction::SET(target) => match target {
-                ByteTarget::Zero(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::One(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Two(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Three(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Four(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Five(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Six(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-                ByteTarget::Seven(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
-                }
-            },
+
+                // Prefixed Return
+                self.pc.wrapping_add(2)
+            }
         }
     }
 
@@ -1836,7 +1942,7 @@ impl CPU {
 
     // Method to match a hl target to its register
     fn match_hl(&self, target: HLTarget) -> u8 {
-        let reg_source = match target {
+        let reg_target = match target {
             HLTarget::A => self.registers.a,
             HLTarget::B => self.registers.b,
             HLTarget::C => self.registers.c,
@@ -1846,7 +1952,7 @@ impl CPU {
             HLTarget::L => self.registers.l,
             HLTarget::HL => self.bus.read_byte(self.registers.get_hl()),
         };
-        reg_source
+        reg_target
     }
 
     // Method to update relevant flags after INC instructions

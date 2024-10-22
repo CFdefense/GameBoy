@@ -2,6 +2,7 @@ use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
 use core::panic;
+use std::result;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -1094,423 +1095,411 @@ impl CPU {
                     }
                 }
             }
-            Instruction::SBC(target) => match target {
-                OPTarget::B => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.b)
-                        .wrapping_sub(self.registers.f.carry as u8);
+            Instruction::SBC(target) => {
+                let original_value = self.registers.a;
+                match target {
+                    OPTarget::B => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.registers.b)
+                            .wrapping_sub(self.registers.f.carry as u8);
 
-                    // Upd Flags
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.b,
+                        );
 
-                    self.pc + 1
+                        self.pc + 1
+                    }
+                    OPTarget::C => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.registers.c)
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.c,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::D => {
+                        let immediate_operand = self.registers.d;
+                        let carry_value = self.registers.f.carry as u8;
+
+                        // Perform SBC: A = A - D - carry
+                        let result = original_value
+                            .wrapping_sub(immediate_operand)
+                            .wrapping_sub(carry_value);
+
+                        self.registers.a = result;
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.d,
+                        );
+
+                        // Increment the program counter
+                        self.pc + 1
+                    }
+                    OPTarget::E => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.registers.e)
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.e,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::H => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.registers.h)
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.h,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::L => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.registers.l)
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.l,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::HL => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.bus.read_byte(self.registers.get_hl()))
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.registers.get_hl() as u8,
+                        );
+
+                        self.pc + 3
+                    }
+                    OPTarget::A => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.registers.a)
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            original_value,
+                        );
+
+                        self.pc + 1
+                    }
+                    OPTarget::D8 => {
+                        // SBC
+                        self.registers.a = self
+                            .registers
+                            .a
+                            .wrapping_sub(self.bus.read_byte(self.pc + 1))
+                            .wrapping_sub(self.registers.f.carry as u8);
+
+                        // Upd Flags -> use sub logic?
+                        self.update_flags_after_sub(
+                            self.registers.a,
+                            original_value,
+                            self.bus.read_byte(self.pc + 1),
+                        );
+
+                        self.pc + 2
+                    }
                 }
-                OPTarget::C => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.c)
-                        .wrapping_sub(self.registers.f.carry as u8);
+            }
+            Instruction::AND(target) => {
+                let mut result_pc: u16 = 0;
+                match target {
+                    OPTarget::B => {
+                        // AND
+                        self.registers.a &= self.registers.b;
 
-                    // Upd Flags
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::C => {
+                        // AND
+                        self.registers.a &= self.registers.c;
 
-                    self.pc + 1
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::D => {
+                        // AND
+                        self.registers.a &= self.registers.d;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::E => {
+                        // AND
+                        self.registers.a &= self.registers.e;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::H => {
+                        // AND
+                        self.registers.a &= self.registers.h;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::L => {
+                        // AND
+                        self.registers.a &= self.registers.l;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::HL => {
+                        // AND
+                        self.registers.a &= self.bus.read_byte(self.registers.get_hl());
+
+                        result_pc = self.pc + 3;
+                    }
+                    OPTarget::A => {
+                        // AND
+                        self.registers.a &= self.registers.a;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::D8 => {
+                        // AND
+                        self.registers.a &= self.bus.read_byte(self.pc + 1);
+
+                        result_pc = self.pc + 2;
+                    }
                 }
-                OPTarget::D => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.d)
-                        .wrapping_sub(self.registers.f.carry as u8);
+                // Upd Flags
+                self.update_flags_after_and(self.registers.a);
 
-                    // Upd Flags
+                // Implicit Return
+                result_pc
+            }
+            Instruction::XOR(target) => {
+                let mut result_pc: u16 = 0;
+                match target {
+                    OPTarget::B => {
+                        // XOR
+                        self.registers.a ^= self.registers.b;
 
-                    self.pc + 1
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::C => {
+                        // XOR
+                        self.registers.a ^= self.registers.c;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::D => {
+                        // XOR
+                        self.registers.a ^= self.registers.d;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::E => {
+                        // XOR
+                        self.registers.a ^= self.registers.e;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::H => {
+                        // XOR
+                        self.registers.a ^= self.registers.h;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::L => {
+                        // XOR
+                        self.registers.a ^= self.registers.l;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::HL => {
+                        // XOR
+                        self.registers.a ^= self.bus.read_byte(self.registers.get_hl());
+
+                        result_pc = self.pc + 3;
+                    }
+                    OPTarget::A => {
+                        // XOR
+                        self.registers.a ^= self.registers.a;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::D8 => {
+                        // XOR
+                        self.registers.a ^= self.bus.read_byte(self.pc + 1);
+
+                        result_pc = self.pc + 2;
+                    }
                 }
-                OPTarget::E => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.e)
-                        .wrapping_sub(self.registers.f.carry as u8);
+                // Upd Flags
+                self.update_flags_after_xor_or(self.registers.a);
 
-                    // Upd Flags
+                // Implicit Return
+                result_pc
+            }
+            Instruction::OR(target) => {
+                let mut result_pc: u16 = 0;
+                match target {
+                    OPTarget::B => {
+                        // OR
+                        self.registers.a |= self.registers.b;
 
-                    self.pc + 1
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::C => {
+                        // OR
+                        self.registers.a |= self.registers.c;
+
+                        result_pc = self.pc + 1;
+                    }
+                    OPTarget::D => {
+                        // OR
+                        self.registers.a |= self.registers.d;
+
+                        result_pc = self.pc + 1
+                    }
+                    OPTarget::E => {
+                        // OR
+                        self.registers.a |= self.registers.e;
+
+                        result_pc = self.pc + 1
+                    }
+                    OPTarget::H => {
+                        // OR
+                        self.registers.a |= self.registers.h;
+
+                        result_pc = self.pc + 1
+                    }
+                    OPTarget::L => {
+                        // OR
+                        self.registers.a |= self.registers.l;
+
+                        result_pc = self.pc + 1
+                    }
+                    OPTarget::HL => {
+                        // OR
+                        self.registers.a |= self.bus.read_byte(self.registers.get_hl());
+
+                        result_pc = self.pc + 3
+                    }
+                    OPTarget::A => {
+                        // OR
+                        self.registers.a |= self.registers.a;
+
+                        result_pc = self.pc + 1
+                    }
+                    OPTarget::D8 => {
+                        // OR
+                        self.registers.a = self.bus.read_byte(self.pc + 1);
+
+                        result_pc = self.pc + 2
+                    }
                 }
-                OPTarget::H => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.h)
-                        .wrapping_sub(self.registers.f.carry as u8);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::L => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.l)
-                        .wrapping_sub(self.registers.f.carry as u8);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::HL => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.bus.read_byte(self.registers.get_hl()))
-                        .wrapping_sub(self.registers.f.carry as u8);
-
-                    // Upd Flags
-
-                    self.pc + 3
-                }
-                OPTarget::A => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.registers.a)
-                        .wrapping_sub(self.registers.f.carry as u8);
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D8 => {
-                    // SBC
-                    self.registers.a = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.bus.read_byte(self.pc + 1))
-                        .wrapping_sub(self.registers.f.carry as u8);
-
-                    // Upd Flags
-
-                    self.pc + 2
-                }
-            },
-            Instruction::AND(target) => match target {
-                OPTarget::B => {
-                    // AND
-                    self.registers.a &= self.registers.b;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::C => {
-                    // AND
-                    self.registers.a &= self.registers.c;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D => {
-                    // AND
-                    self.registers.a &= self.registers.d;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::E => {
-                    // AND
-                    self.registers.a &= self.registers.e;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::H => {
-                    // AND
-                    self.registers.a &= self.registers.h;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::L => {
-                    // AND
-                    self.registers.a &= self.registers.l;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::HL => {
-                    // AND
-                    self.registers.a &= self.bus.read_byte(self.registers.get_hl());
-
-                    // Upd Flags
-
-                    self.pc + 3
-                }
-                OPTarget::A => {
-                    // AND
-                    self.registers.a &= self.registers.a;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D8 => {
-                    // AND
-                    self.registers.a &= self.bus.read_byte(self.pc + 1);
-
-                    // Upd Flags
-
-                    self.pc + 2
-                }
-            },
-            Instruction::XOR(target) => match target {
-                OPTarget::B => {
-                    // XOR
-                    self.registers.a ^= self.registers.b;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::C => {
-                    // XOR
-                    self.registers.a ^= self.registers.c;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D => {
-                    // XOR
-                    self.registers.a ^= self.registers.d;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::E => {
-                    // XOR
-                    self.registers.a ^= self.registers.e;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::H => {
-                    // XOR
-                    self.registers.a ^= self.registers.h;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::L => {
-                    // XOR
-                    self.registers.a ^= self.registers.l;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::HL => {
-                    // XOR
-                    self.registers.a ^= self.bus.read_byte(self.registers.get_hl());
-
-                    // Upd Flags
-
-                    self.pc + 3
-                }
-                OPTarget::A => {
-                    // XOR
-                    self.registers.a ^= self.registers.a;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D8 => {
-                    // XOR
-                    self.registers.a ^= self.bus.read_byte(self.pc + 1);
-
-                    // Upd Flags
-
-                    self.pc + 2
-                }
-            },
-            Instruction::OR(target) => match target {
-                OPTarget::B => {
-                    // OR
-                    self.registers.a |= self.registers.b;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::C => {
-                    // OR
-                    self.registers.a |= self.registers.c;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D => {
-                    // OR
-                    self.registers.a |= self.registers.d;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::E => {
-                    // OR
-                    self.registers.a |= self.registers.e;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::H => {
-                    // OR
-                    self.registers.a |= self.registers.h;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::L => {
-                    // OR
-                    self.registers.a |= self.registers.l;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::HL => {
-                    // OR
-                    self.registers.a |= self.bus.read_byte(self.registers.get_hl());
-
-                    // Upd Flags
-
-                    self.pc + 3
-                }
-                OPTarget::A => {
-                    // OR
-                    self.registers.a |= self.registers.a;
-
-                    // Upd Flags
-
-                    self.pc + 1
-                }
-                OPTarget::D8 => {
-                    // OR
-                    self.registers.a = self.bus.read_byte(self.pc + 1);
-
-                    // Upd Flags
-
-                    self.pc + 2
-                }
-            },
+                // Upd Flags
+                self.update_flags_after_xor_or(self.registers.a);
+
+                // Implicit Return
+                result_pc
+            }
             Instruction::CP(target) => match target {
                 OPTarget::B => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.b);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flags
+                    // CP -> Upd Flags
+                    self.update_flags_after_cp(self.registers.a, self.registers.b);
 
                     self.pc + 1
                 }
                 OPTarget::C => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.c);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
+                    // CP -> Upd Flag
+                    self.update_flags_after_cp(self.registers.a, self.registers.c);
 
                     self.pc + 1
                 }
                 OPTarget::D => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.d);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
+                    // CP -> Upd Flag
+                    self.update_flags_after_cp(self.registers.a, self.registers.d);
 
                     self.pc + 1
                 }
                 OPTarget::E => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.e);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
+                    // CP -> Upd Flags
+                    self.update_flags_after_cp(self.registers.a, self.registers.e);
 
                     self.pc + 1
                 }
                 OPTarget::H => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.h);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
+                    // CP -> Upd Flags
+                    self.update_flags_after_cp(self.registers.a, self.registers.h);
 
                     self.pc + 1
                 }
                 OPTarget::L => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.l);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
+                    // CP -> Upd Flags
+                    self.update_flags_after_cp(self.registers.a, self.registers.l);
 
                     self.pc + 1
                 }
                 OPTarget::HL => {
-                    // CP
-                    let cp_value = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.bus.read_byte(self.registers.get_hl()));
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
+                    // CP -> Upd Flags
+                    self.update_flags_after_cp(self.registers.a, self.registers.get_hl() as u8);
 
                     self.pc + 3
                 }
                 OPTarget::A => {
-                    // CP
-                    let cp_value = self.registers.a.wrapping_sub(self.registers.a);
-                    self.registers.f.zero = cp_value == 0;
-
-                    // Upd Flag
-
+                    // CP -> Upd Flag
+                    self.update_flags_after_cp(self.registers.a, self.registers.a);
                     self.pc + 1
                 }
                 OPTarget::D8 => {
-                    // CP
-                    let cp_value = self
-                        .registers
-                        .a
-                        .wrapping_sub(self.bus.read_byte(self.pc + 1));
-                    self.registers.f.zero = cp_value == 0;
-                    // Upd Flag
-
+                    // CP -> Upd Flag
+                    self.update_flags_after_cp(self.registers.a, self.bus.read_byte(self.pc + 1));
                     self.pc + 2
                 }
             },
@@ -1599,8 +1588,40 @@ impl CPU {
             }
             Instruction::BIT(target) => match target {
                 ByteTarget::Zero(hl_target) => {
-                    let reg_target = self.match_hl(hl_target);
-                    todo!()
+                    let bit_0 = 0b00000001;
+                    let mut target_register: u8 = 0;
+                    //! Before continue write helper function to return target register given an hl target and then continue for below
+                    match hl_target {
+                        HLTarget::B => {
+                            target_register = self.registers.b;
+                        }
+                        HLTarget::C => {
+                            target_register = self.registers.c;
+                        }
+                        HLTarget::D => {
+                            target_register = self.registers.d;
+                        }
+                        HLTarget::E => {
+                            target_register = self.registers.e;
+                        }
+                        HLTarget::H => {
+                            target_register = self.registers.h;
+                        }
+                        HLTarget::L => {
+                            target_register = self.registers.l;
+                        }
+                        HLTarget::HL => {
+                            target_register = self.bus.read_byte(self.registers.get_hl());
+                        }
+                        HLTarget::A => {
+                            target_register = self.registers.a;
+                        }
+                    }
+                    // Upd Flags
+                    self.update_flags_after_bit(bit_0, target_register);
+
+                    // Prefixed Return
+                    self.pc.wrapping_add(2)
                 }
                 ByteTarget::One(hl_target) => {
                     let reg_target = self.match_hl(hl_target);
@@ -1882,6 +1903,58 @@ impl CPU {
 
         // Carry Flag
         self.registers.f.carry = original_value < immediate_operand;
+    }
+
+    fn update_flags_after_and(&mut self, result: u8) {
+        // Zero Flag: Set if result is zero, otherwise cleared
+        self.registers.f.zero = result == 0;
+
+        // Subtract Flag: Always cleared (AND is not a subtraction)
+        self.registers.f.subtract = false;
+
+        // Half-Carry Flag: Always set for an AND operation
+        self.registers.f.half_carry = true;
+
+        // Carry Flag: Always cleared (AND does not affect carry)
+        self.registers.f.carry = false;
+    }
+
+    fn update_flags_after_xor_or(&mut self, result: u8) {
+        // Zero Flag: Set if the result is zero, otherwise cleared
+        self.registers.f.zero = result == 0;
+
+        // Subtract Flag: Always cleared (XOR is not a subtraction)
+        self.registers.f.subtract = false;
+
+        // Half-Carry Flag: Always cleared (XOR does not involve a carry)
+        self.registers.f.half_carry = false;
+
+        // Carry Flag: Always cleared (XOR does not affect the carry)
+        self.registers.f.carry = false;
+    }
+
+    fn update_flags_after_cp(&mut self, a: u8, b: u8) {
+        // Calculate the result of A - B, but don't store it
+        let result = a.wrapping_sub(b);
+
+        // Zero Flag: Set if A == B
+        self.registers.f.zero = result == 0;
+
+        // Subtract Flag: Always set because this is a subtraction
+        self.registers.f.subtract = true;
+
+        // Half-Carry Flag: Set if there was a borrow from bit 4
+        self.registers.f.half_carry = (a & 0xF) < (b & 0xF);
+
+        // Carry Flag: Set if there was a borrow from bit 8 (A < B)
+        self.registers.f.carry = a < b;
+    }
+
+    fn update_flags_after_bit(&mut self, bit: u8, target_register: u8) {
+        // Update flags
+        self.registers.f.zero = (target_register & bit) == 0; // Z flag is set if bit 0 is 0
+        self.registers.f.subtract = false; // N flag is always cleared
+        self.registers.f.half_carry = true; // H flag is always set
     }
     // CPU ENDS HERE
 }

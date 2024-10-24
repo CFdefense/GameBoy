@@ -19,8 +19,8 @@ Checksum
 */
 
 struct CartridgeHeader {
-    entry_point: [u8; 4],
-    nintendo_logo: [u8; 0x30],
+    //entry_point: [u8; 4],
+    //nintendo_logo: [u8; 0x30],
     rom_title: [u8; 16],
     new_lic_code: u16,
     sgb_flag: u8,
@@ -81,8 +81,8 @@ impl Cartridge {
         println!("Cartidge Loaded");
         // Load Header Information
         self.rom_header = CartridgeHeader {
-            entry_point: [0; 4],
-            nintendo_logo: [0; 0x30],
+            //entry_point: [0; 4],
+            //nintendo_logo: [0; 0x30],
             rom_title: self.rom_data[0x0134..0x0144]
                 .try_into()
                 .expect("Failed to read ROM title"),
@@ -188,8 +188,8 @@ impl CartridgeHeader {
     // Constructor
     pub fn new() -> CartridgeHeader {
         let cartridge_header = CartridgeHeader {
-            entry_point: [0; 4],
-            nintendo_logo: [0; 0x30],
+            //entry_point: [0; 4],
+            //nintendo_logo: [0; 0x30],
             rom_title: [0; 16],
             new_lic_code: 0,
             sgb_flag: 0,

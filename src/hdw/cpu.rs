@@ -2,7 +2,6 @@ use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
 use core::panic;
-use std::result;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -47,8 +46,12 @@ impl CPU {
         // fetch next opcode from cartridge
         self.fetch();
 
+        print!("\n Found: {:#02X} at {} - ", self.curr_opcode, self.pc);
+
         // Decode current opcode
         self.decode();
+
+        print!("Instruction is {:#?} \n", self.curr_instruction);
 
         // Execute the current instruction if it exists and reset it to none
         if let Some(instruction) = self.curr_instruction.take() {
@@ -56,7 +59,7 @@ impl CPU {
             let next_pc = self.execute(instruction);
 
             // Increment pc to returned pc
-            self.pc += next_pc;
+            self.pc = next_pc;
         } else {
             panic!("Decode Error: No Instruction")
         }
@@ -1258,7 +1261,7 @@ impl CPU {
                 }
             }
             Instruction::AND(target) => {
-                let mut result_pc: u16 = 0;
+                let result_pc: u16;
                 match target {
                     OPTarget::B => {
                         // AND
@@ -1322,7 +1325,7 @@ impl CPU {
                 result_pc
             }
             Instruction::XOR(target) => {
-                let mut result_pc: u16 = 0;
+                let result_pc: u16;
                 match target {
                     OPTarget::B => {
                         // XOR
@@ -1386,7 +1389,7 @@ impl CPU {
                 result_pc
             }
             Instruction::OR(target) => {
-                let mut result_pc: u16 = 0;
+                let result_pc: u16;
                 match target {
                     OPTarget::B => {
                         // OR
@@ -1506,10 +1509,10 @@ impl CPU {
             Instruction::RET(test) => {
                 let jump_condition = self.match_jump(test);
                 self.run_return(jump_condition);
-                todo!()
+                panic!("RET NOT IMPLEMENTED")
             }
             Instruction::RETI => {
-                todo!()
+                panic!("RETI NOT IMPLEMENTED")
             }
             Instruction::POP(target) => {
                 let result = self.pop();
@@ -1519,7 +1522,7 @@ impl CPU {
                     StackTarget::DE => self.registers.set_de(result),
                     StackTarget::HL => self.registers.set_hl(result),
                 }
-                todo!()
+                panic!("POP NOT IMPLEMENTED")
             }
             Instruction::JP(test) => {
                 let jump_condition = self.match_jump(test);
@@ -1528,7 +1531,7 @@ impl CPU {
             Instruction::CALL(test) => {
                 let jump_condition = self.match_jump(test);
                 self.call(jump_condition);
-                todo!()
+                panic!("CALL NOT IMPLEMENTED")
             }
             Instruction::PUSH(target) => {
                 let value = match target {
@@ -1544,47 +1547,47 @@ impl CPU {
                 self.pc.wrapping_add(1)
             }
             Instruction::RST(target) => {
-                todo!()
+                panic!("RST NOT IMPLEMENTED")
             }
             Instruction::DI => {
-                todo!()
+                panic!("DI NOT IMPLEMENTED")
             }
             Instruction::EI => {
-                todo!()
+                panic!("EI NOT IMPLEMENTED")
             }
 
             // PREFIXED INSTRUCTIONS
             Instruction::RLC(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("RLC NOT IMPLEMENTED")
             }
             Instruction::RRC(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("RRC NOT IMPLEMENTED")
             }
             Instruction::RL(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("RL NOT IMPLEMENTED")
             }
             Instruction::RR(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("RR NOT IMPLEMENTED")
             }
             Instruction::SLA(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("SLA NOT IMPLEMENTED")
             }
             Instruction::SRA(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("SRA NOT IMPLEMENTED")
             }
             Instruction::SWAP(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("SWAP NOT IMPLEMENTED")
             }
             Instruction::SRL(target) => {
                 let reg_target = self.match_hl(target);
-                todo!();
+                panic!("SRL NOT IMPLEMENTED")
             }
             Instruction::BIT(target) => {
                 let bit: u8;
@@ -1882,7 +1885,7 @@ impl CPU {
         if should_jump {
             self.push(next_pc);
             self.bus.read_next_byte();
-            todo!()
+            panic!("INSIDE CALL NOT IMPLEMENTED")
         } else {
             next_pc
         }
@@ -1919,25 +1922,6 @@ impl CPU {
             JumpTest::HL => panic!("HL BAD"),
         };
         jump_condition
-    }
-
-    // Method to match to All Registers as u16
-    fn match_all_registers(&self, target: AllRegisters) -> u16 {
-        let reg_target = match target {
-            AllRegisters::A => self.registers.a as u16,
-            AllRegisters::B => self.registers.b as u16,
-            AllRegisters::C => self.registers.c as u16,
-            AllRegisters::D => self.registers.d as u16,
-            AllRegisters::E => self.registers.e as u16,
-            AllRegisters::H => self.registers.h as u16,
-            AllRegisters::L => self.registers.l as u16,
-            AllRegisters::HLMEM => self.bus.read_byte(self.registers.get_hl()) as u16,
-            AllRegisters::BC => self.registers.get_bc(),
-            AllRegisters::DE => self.registers.get_de(),
-            AllRegisters::HL => self.registers.get_hl(),
-            AllRegisters::SP => self.sp,
-        };
-        reg_target
     }
 
     // Method to match a hl target to its register

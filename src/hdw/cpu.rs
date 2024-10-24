@@ -1949,7 +1949,7 @@ impl CPU {
         let next_pc = self.pc.wrapping_add(3);
         if should_jump {
             self.push(next_pc);
-            self.bus.read_next_byte();
+            self.bus.read_byte(self.pc + 1);
             panic!("INSIDE CALL NOT IMPLEMENTED")
         } else {
             next_pc

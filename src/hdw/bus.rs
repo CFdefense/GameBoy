@@ -55,12 +55,7 @@ impl Bus {
             // ROM DATA
             self.cart.write_byte(address, value);
         } else {
-            // Handle other memory areas or return 0 for now
+            // Handle other memory areas
         }
-    }
-
-    // Function to read next byte
-    pub fn read_next_byte(&self) -> u8 {
-        todo!()
     }
 }

@@ -1,20 +1,22 @@
 use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
+use crate::hdw::cpu_util::*;
+use crate::hdw::cpu_ops::*;
 use core::panic;
 use regex::Regex;
 
 // Our CPU to Call and Control
 pub struct CPU {
-    registers: Registers,
-    pc: u16,
-    sp: u16,
-    bus: Bus,
-    is_halted: bool,
-    master_enabled: bool,
-    curr_opcode: u8,
-    curr_instruction: Option<Instruction>,
-    ie_register: u8,
+    pub registers: Registers,
+    pub pc: u16,
+    pub sp: u16,
+    pub bus: Bus,
+    pub is_halted: bool,
+    pub master_enabled: bool,
+    pub curr_opcode: u8,
+    pub curr_instruction: Option<Instruction>,
+    pub ie_register: u8,
 }
 impl CPU {
     // Contructor
@@ -283,38 +285,38 @@ impl CPU {
                     // Increment 8-bit registers and Set Flags
                     AllRegisters::A => {
                         self.registers.a = self.registers.a.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.a);
+                        set_flags_after_inc(self, self.registers.a);
                     }
                     AllRegisters::B => {
                         self.registers.b = self.registers.b.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.b);
+                        set_flags_after_inc(self,self.registers.b);
                     }
                     AllRegisters::C => {
                         self.registers.c = self.registers.c.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.c);
+                        set_flags_after_inc(self,self.registers.c);
                     }
                     AllRegisters::D => {
                         self.registers.d = self.registers.d.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.d);
+                        set_flags_after_inc(self,self.registers.d);
                     }
                     AllRegisters::E => {
                         self.registers.e = self.registers.e.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.e);
+                        set_flags_after_inc(self,self.registers.e);
                     }
                     AllRegisters::H => {
                         self.registers.h = self.registers.h.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.h);
+                        set_flags_after_inc(self,self.registers.h);
                     }
                     AllRegisters::L => {
                         self.registers.l = self.registers.l.wrapping_add(1);
-                        self.set_flags_after_inc(self.registers.l);
+                        set_flags_after_inc(self,self.registers.l);
                     }
                     // Increment value at bus location HL
                     AllRegisters::HLMEM => {
                         let hl_addr = self.registers.get_hl();
                         let value = self.bus.read_byte(None, hl_addr).wrapping_add(1);
                         self.bus.write_byte(None, hl_addr, value);
-                        self.set_flags_after_inc(value);
+                        set_flags_after_inc(self,value);
                     }
                     // 16-bit register increments (don't need to Set Flags for these)
                     AllRegisters::BC => {
@@ -341,37 +343,37 @@ impl CPU {
                     AllRegisters::A => {
                         let original_value = self.registers.a;
                         self.registers.a = self.registers.a.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.a, original_value);
+                        set_flags_after_dec(self,self.registers.a, original_value);
                     }
                     AllRegisters::B => {
                         let original_value = self.registers.b;
                         self.registers.b = self.registers.b.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.b, original_value);
+                        set_flags_after_dec(self,self.registers.b, original_value);
                     }
                     AllRegisters::C => {
                         let original_value = self.registers.c;
                         self.registers.c = self.registers.c.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.c, original_value);
+                        set_flags_after_dec(self,self.registers.c, original_value);
                     }
                     AllRegisters::D => {
                         let original_value = self.registers.d;
                         self.registers.d = self.registers.d.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.d, original_value);
+                        set_flags_after_dec(self,self.registers.d, original_value);
                     }
                     AllRegisters::E => {
                         let original_value = self.registers.e;
                         self.registers.e = self.registers.e.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.e, original_value);
+                        set_flags_after_dec(self,self.registers.e, original_value);
                     }
                     AllRegisters::H => {
                         let original_value = self.registers.h;
                         self.registers.h = self.registers.h.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.h, original_value);
+                        set_flags_after_dec(self,self.registers.h, original_value);
                     }
                     AllRegisters::L => {
                         let original_value = self.registers.l;
                         self.registers.l = self.registers.l.wrapping_sub(1);
-                        self.set_flags_after_dec(self.registers.l, original_value);
+                        set_flags_after_dec(self,self.registers.l, original_value);
                     }
                     // Increment value at bus location HL
                     AllRegisters::HLMEM => {
@@ -379,7 +381,7 @@ impl CPU {
                         let original_value = self.bus.read_byte(None, hl_addr);
                         let value = self.bus.read_byte(None, hl_addr).wrapping_sub(1);
                         self.bus.write_byte(None, hl_addr, value);
-                        self.set_flags_after_dec(value, original_value);
+                        set_flags_after_dec(self,value, original_value);
                     }
                     // 16-bit register increments (don't need to Set Flags for these)
                     AllRegisters::BC => {
@@ -919,7 +921,7 @@ impl CPU {
             }
             Instruction::ADD(target) => match target {
                 OPType::LoadA(target) => {
-                    let reg_target = self.match_hl(target);
+                    let reg_target = match_hl(self, target);
                     // Store the original value of A
                     let original = self.registers.a;
 
@@ -942,7 +944,7 @@ impl CPU {
                     self.pc.wrapping_add(1)
                 }
                 OPType::LoadHL(target) => {
-                    let reg_target = self.match_n16(target);
+                    let reg_target = match_n16(self, target);
                     self.registers
                         .set_hl(self.registers.get_hl().wrapping_add(reg_target));
 
@@ -1014,7 +1016,7 @@ impl CPU {
                     self.registers.a = self.registers.b.wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, self.registers.b);
+                    set_flags_after_adc(self,self.registers.a, original_value, self.registers.b);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::C => {
@@ -1023,7 +1025,7 @@ impl CPU {
                     // ADC
                     self.registers.a = self.registers.c.wrapping_add(self.registers.f.carry as u8);
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, self.registers.c);
+                    set_flags_after_adc(self,self.registers.a, original_value, self.registers.c);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::E => {
@@ -1033,7 +1035,7 @@ impl CPU {
                     self.registers.a = self.registers.e.wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, self.registers.e);
+                    set_flags_after_adc(self,self.registers.a, original_value, self.registers.e);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::D => {
@@ -1044,7 +1046,7 @@ impl CPU {
                     self.registers.a = self.registers.d.wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, self.registers.d);
+                    set_flags_after_adc(self,self.registers.a, original_value, self.registers.d);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::H => {
@@ -1055,7 +1057,7 @@ impl CPU {
                     self.registers.a = self.registers.h.wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, self.registers.h);
+                    set_flags_after_adc(self,self.registers.a, original_value, self.registers.h);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::L => {
@@ -1066,7 +1068,7 @@ impl CPU {
                     self.registers.a = self.registers.l.wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, self.registers.l);
+                    set_flags_after_adc(self,self.registers.a, original_value, self.registers.l);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::HL => {
@@ -1080,7 +1082,7 @@ impl CPU {
                         .wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(
+                    set_flags_after_adc(self,
                         self.registers.a,
                         original_value,
                         self.bus.read_byte(None, self.registers.get_hl()),
@@ -1095,7 +1097,7 @@ impl CPU {
                     self.registers.a = self.registers.a.wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(self.registers.a, original_value, original_value);
+                    set_flags_after_adc(self,self.registers.a, original_value, original_value);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::D8 => {
@@ -1109,7 +1111,7 @@ impl CPU {
                         .wrapping_add(self.registers.f.carry as u8);
 
                     // Set Flags
-                    self.set_flags_after_adc(
+                    set_flags_after_adc(self,
                         self.registers.a,
                         original_value,
                         self.bus.read_byte(None, self.pc + 1),
@@ -1126,7 +1128,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.b);
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.b,
@@ -1139,7 +1141,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.c);
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.c,
@@ -1152,7 +1154,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.d);
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.d,
@@ -1165,7 +1167,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.e);
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.e,
@@ -1178,7 +1180,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.h);
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.h,
@@ -1191,7 +1193,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.l);
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.l,
@@ -1207,7 +1209,7 @@ impl CPU {
                             .wrapping_sub(self.bus.read_byte(None, self.registers.get_hl()));
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.bus.read_byte(None, self.registers.get_hl()),
@@ -1220,7 +1222,7 @@ impl CPU {
                         self.registers.a = self.registers.a.wrapping_sub(self.registers.a);
 
                         // Set Flags
-                        self.set_flags_after_sub(self.registers.a, original_value, original_value);
+                        set_flags_after_sub(self,self.registers.a, original_value, original_value);
 
                         self.pc.wrapping_add(1)
                     }
@@ -1232,7 +1234,7 @@ impl CPU {
                             .wrapping_sub(self.bus.read_byte(None, self.pc + 1));
 
                         // Set Flags
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.bus.read_byte(None, self.pc + 1),
@@ -1254,7 +1256,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.b,
@@ -1271,7 +1273,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.c,
@@ -1291,7 +1293,7 @@ impl CPU {
                         self.registers.a = result;
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.d,
@@ -1309,7 +1311,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.e,
@@ -1326,7 +1328,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.h,
@@ -1343,7 +1345,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.l,
@@ -1360,7 +1362,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.registers.get_hl() as u8,
@@ -1377,7 +1379,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(self.registers.a, original_value, original_value);
+                        set_flags_after_sub(self,self.registers.a, original_value, original_value);
 
                         self.pc.wrapping_add(1)
                     }
@@ -1390,7 +1392,7 @@ impl CPU {
                             .wrapping_sub(self.registers.f.carry as u8);
 
                         // Set Flags -> use sub logic?
-                        self.set_flags_after_sub(
+                        set_flags_after_sub(self,
                             self.registers.a,
                             original_value,
                             self.bus.read_byte(None, self.pc + 1),
@@ -1459,7 +1461,7 @@ impl CPU {
                     }
                 }
                 // Set Flags
-                self.set_flags_after_and(self.registers.a);
+                set_flags_after_and(self,self.registers.a);
 
                 // Implicit Return
                 result_pc
@@ -1523,7 +1525,7 @@ impl CPU {
                     }
                 }
                 // Set Flags
-                self.set_flags_after_xor_or(self.registers.a);
+                set_flags_after_xor_or(self,self.registers.a);
 
                 // Implicit Return
                 result_pc
@@ -1587,7 +1589,7 @@ impl CPU {
                     }
                 }
                 // Set Flags
-                self.set_flags_after_xor_or(self.registers.a);
+                set_flags_after_xor_or(self,self.registers.a);
 
                 // Implicit Return
                 result_pc
@@ -1595,54 +1597,54 @@ impl CPU {
             Instruction::CP(target) => match target {
                 OPTarget::B => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.b);
+                    set_flags_after_cp(self,self.registers.a, self.registers.b);
 
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::C => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.c);
+                    set_flags_after_cp(self,self.registers.a, self.registers.c);
 
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::D => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.d);
+                    set_flags_after_cp(self,self.registers.a, self.registers.d);
 
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::E => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.e);
+                    set_flags_after_cp(self,self.registers.a, self.registers.e);
 
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::H => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.h);
+                    set_flags_after_cp(self,self.registers.a, self.registers.h);
 
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::L => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.l);
+                    set_flags_after_cp(self,self.registers.a, self.registers.l);
 
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::HL => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.get_hl() as u8);
+                    set_flags_after_cp(self,self.registers.a, self.registers.get_hl() as u8);
 
                     self.pc.wrapping_add(3)
                 }
                 OPTarget::A => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(self.registers.a, self.registers.a);
+                    set_flags_after_cp(self,self.registers.a, self.registers.a);
                     self.pc.wrapping_add(1)
                 }
                 OPTarget::D8 => {
                     // CP -> Set Flags
-                    self.set_flags_after_cp(
+                    set_flags_after_cp(self,
                         self.registers.a,
                         self.bus.read_byte(None, self.pc + 1),
                     );
@@ -1650,30 +1652,21 @@ impl CPU {
                 }
             },
             Instruction::RET(test) => {
-                let jump_condition = self.match_jump(test);
-                self.run_return(jump_condition);
+                let jump_condition = match_jump(self, test);
                 panic!("RET NOT IMPLEMENTED")
             }
             Instruction::RETI => {
                 panic!("RETI NOT IMPLEMENTED")
             }
             Instruction::POP(target) => {
-                let result = self.pop();
-                match target {
-                    StackTarget::AF => self.registers.set_af(result),
-                    StackTarget::BC => self.registers.set_bc(result),
-                    StackTarget::DE => self.registers.set_de(result),
-                    StackTarget::HL => self.registers.set_hl(result),
-                }
                 panic!("POP NOT IMPLEMENTED")
             }
             Instruction::JP(test) => {
-                let jump_condition = self.match_jump(test);
-                self.jump(jump_condition)
+                let jump_condition = match_jump(self, test);
+                jump(self, jump_condition)
             }
             Instruction::CALL(test) => {
-                let jump_condition = self.match_jump(test);
-                self.call(jump_condition);
+                let jump_condition = match_jump(self, test);
                 panic!("CALL NOT IMPLEMENTED")
             }
             Instruction::PUSH(target) => {
@@ -1684,14 +1677,14 @@ impl CPU {
                     StackTarget::HL => self.registers.get_hl(),
                 };
                 // push value to stack
-                self.push(value);
+                //push(self, value);
 
                 // increment pc
                 self.pc.wrapping_add(1)
             }
             Instruction::RST(target) => {
                 // Push PC to memory stack
-                self.push(self.pc);
+                //self.push(self.pc);
 
                 // Wait to see how this is done
 
@@ -1710,618 +1703,107 @@ impl CPU {
 
             // PREFIXED INSTRUCTIONS
             Instruction::RLC(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find Target Register
+                let mut reg_target = match_hl(self, target);
 
-                // Get Bit 7 For Carry
-                let bit_7 = (reg_target >> 7) & 0x1;
-
-                // Rotate Left With Carry
-                reg_target = (reg_target << 1) | bit_7;
-
-                // Update Flags
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.carry = bit_7 != 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_rlc(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::RRC(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find target Register
+                let mut reg_target = match_hl(self, target);
 
-                // Get Bit 0 For Carry
-                let bit_0 = reg_target & 0x1;
-
-                // Rotate Right and Append bit 0
-                reg_target = (reg_target >> 1) | (bit_0 >> 7);
-
-                // Update Flags
-                self.registers.f.carry = bit_0 != 0;
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_rrc(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::RL(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find Target Register
+                let mut reg_target = match_hl(self, target);
 
-                // Store Previous Carry
-                let prev_carry = self.registers.f.carry;
-
-                // Store Bit 7 For Carry
-                let bit_7 = (reg_target >> 7) & 0x1;
-
-                // Rotate Left and Append
-                reg_target = (reg_target << 1) | (prev_carry as u8);
-
-                // Update Flags
-                self.registers.f.carry = bit_7 != 0;
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_rl(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::RR(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find Target Register
+                let mut reg_target = match_hl(self, target);
 
-                // Store Previous Carry
-                let prev_carry = self.registers.f.carry;
-
-                // Store Bit 0
-                let bit_0 = reg_target & 0x1;
-
-                // Rotate Right and append bit 0
-                reg_target = (reg_target >> 1) | (prev_carry as u8) << 7;
-
-                // Update Flags
-                self.registers.f.carry = bit_0 != 0;
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_rr(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::SLA(target) => {
-                let mut reg_target = self.match_hl(target);
+                let mut reg_target = match_hl(self, target);
 
-                // Get Bit 7 For Carry
-                let bit_7 = (reg_target & 0x80) != 0;
-
-                // Shift Left
-                reg_target <<= 1;
-
-                // Update Flag
-                self.registers.f.carry = bit_7;
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                op_sla(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::SRA(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find Target Register
+                let mut reg_target = match_hl(self,target);
 
-                // Get LSB For Carry
-                let lsb = reg_target & 0x1;
-
-                // Preserve Sign Bit
-                let sign_bit = (reg_target & 0x80) != 0;
-
-                // Shift Right
-                reg_target >>= 1;
-
-                // Put Sign Bit Back
-                if sign_bit {
-                    reg_target |= 0x80;
-                }
-
-                // Update Flags
-                self.registers.f.carry = lsb != 0;
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_sra(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::SWAP(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find Target Register
+                let mut reg_target = match_hl(self,target);
 
-                // Swap the the nibbles
-                reg_target = (reg_target << 4) | (reg_target >> 4);
-
-                // Upd Flags
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.carry = false;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_swap(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::SRL(target) => {
-                let mut reg_target = self.match_hl(target);
+                // Find Target Register
+                let mut reg_target = match_hl(self,target);
 
-                // Get LSB For Carry Flag
-                let lsb = reg_target & 0x1;
-
-                // Shift Right
-                reg_target = reg_target >> 1;
-
-                // Update Flags
-                self.registers.f.carry = lsb != 0;
-                self.registers.f.zero = reg_target == 0;
-                self.registers.f.half_carry = false;
-                self.registers.f.subtract = false;
+                // Perform Operation
+                op_srl(self, &mut reg_target);
 
                 // Implicit Return
                 self.pc.wrapping_add(1)
             }
             Instruction::BIT(target) => {
-                let bit: u8;
-                let target_register: u8;
-                match target {
-                    ByteTarget::Zero(hl_target) => {
-                        bit = 0b00000010; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::One(hl_target) => {
-                        bit = 0b00000100; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::Two(hl_target) => {
-                        bit = 0b00001000; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::Three(hl_target) => {
-                        bit = 0b00010000; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::Four(hl_target) => {
-                        bit = 0b00100000; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::Five(hl_target) => {
-                        bit = 0b01000000; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::Six(hl_target) => {
-                        bit = 0b10000000; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                    ByteTarget::Seven(hl_target) => {
-                        bit = 0b00000000; // Byte to match
-                        target_register = self.match_hl(hl_target); // find target
-                    }
-                }
-                // Set Flags
-                self.set_flags_after_bit(bit, target_register);
+                // Perform Operation
+                op_bit(self, target);
 
                 // Prefixed Return
                 self.pc.wrapping_add(2)
             }
             Instruction::RES(target) => {
-                let mask: u8;
-                let mut target_register: u8;
-                let mut is_mem: bool = false;
-                match target {
-                    ByteTarget::Zero(hl_target) => {
-                        mask = 0b11111110; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::One(hl_target) => {
-                        mask = 0b11111101; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Two(hl_target) => {
-                        mask = 0b11111011; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Three(hl_target) => {
-                        mask = 0b11110111; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Four(hl_target) => {
-                        mask = 0b11101111; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Five(hl_target) => {
-                        mask = 0b11011111; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Six(hl_target) => {
-                        mask = 0b10111111; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Seven(hl_target) => {
-                        mask = 0b01111111; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                }
-
                 // Perform Operation
-                if is_mem {
-                    // if were updating memory write back to grabbed location the new value
-                    self.bus
-                        .write_byte(None, self.registers.get_hl(), target_register & mask);
-                } else {
-                    target_register &= mask;
-                }
+                op_res(self, target);
 
                 // Prefixed Return
                 self.pc.wrapping_add(2)
             }
             Instruction::SET(target) => {
-                let mask: u8;
-                let mut target_register: u8;
-                let mut is_mem: bool = false;
-                match target {
-                    ByteTarget::Zero(hl_target) => {
-                        mask = 0b00000001; // Byte Mask
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::One(hl_target) => {
-                        mask = 0b00000010;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Two(hl_target) => {
-                        mask = 0b00000100;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Three(hl_target) => {
-                        mask = 0b00001000;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Four(hl_target) => {
-                        mask = 0b00010000;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Five(hl_target) => {
-                        mask = 0b00100000;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Six(hl_target) => {
-                        mask = 0b01000000;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                    ByteTarget::Seven(hl_target) => {
-                        mask = 0b10000000;
-                        match hl_target {
-                            HLTarget::HL => {
-                                is_mem = true; // flag that were grabbing memory
-                            }
-                            _ => {}
-                        }
-                        target_register = self.match_hl(hl_target);
-                    }
-                }
                 // Perform Operation
-                if is_mem {
-                    // if were updating memory write back to grabbed location the new value
-                    self.bus
-                        .write_byte(None, self.registers.get_hl(), target_register & mask);
-                } else {
-                    target_register &= mask;
-                }
-
+                op_set(self, target);
+                
                 // Prefixed Return
                 self.pc.wrapping_add(2)
             }
         }
     }
 
-    // Jump to addr in bus or increment pc
-    fn jump(&self, jump: bool) -> u16 {
-        if jump {
-            let least_significant = self.bus.read_byte(None, self.pc + 1) as u16;
-            let most_significant = self.bus.read_byte(None, self.pc + 2) as u16;
-
-            // combine and return 2 byte addr in lil endian
-            (most_significant << 8) | least_significant
-        } else {
-            // return next pc
-            self.pc.wrapping_add(3)
-        }
-    }
-
-    // Push to stack and increment pointers
-    fn push(&mut self, value: u16) {
-        // increment stack pointer
-        self.sp = self.sp.wrapping_add(1);
-
-        // mask shift and write first byte to bus at SP
-        self.bus
-            .write_byte(None, self.sp, ((value & 0xFF00) >> 8) as u8);
-
-        // increment stack pointer
-        self.sp = self.sp.wrapping_add(1);
-
-        // mask and write second byte to bus at SP
-        self.bus.write_byte(None, self.sp, (value & 0xFF) as u8);
-    }
-
-    // Pop from stack and increment pointers
-    fn pop(&mut self) -> u16 {
-        // read least significant byte from bus at SP
-        let least_significant_byte = self.bus.read_byte(None, self.sp) as u16;
-
-        // increment stack pointer
-        self.sp = self.sp.wrapping_add(1);
-
-        // read most significan byte from bus at SP
-        let most_significant_byte = self.bus.read_byte(None, self.sp) as u16;
-
-        // increment stack pointer
-        self.sp = self.sp.wrapping_add(1);
-
-        // shift+OR to combine bytes and implicitly return
-        (most_significant_byte << 8) | least_significant_byte
-    }
-
-    // Call function for call stack
-    fn call(&mut self, should_jump: bool) -> u16 {
-        let next_pc = self.pc.wrapping_add(3);
-        if should_jump {
-            self.push(next_pc);
-            self.bus.read_byte(None, self.pc + 1);
-            panic!("INSIDE CALL NOT IMPLEMENTED")
-        } else {
-            next_pc
-        }
-    }
-
-    // Return function for returning through call stack
-    fn run_return(&mut self, jump_condition: bool) -> u16 {
-        if jump_condition {
-            self.pop()
-        } else {
-            self.pc.wrapping_add(1)
-        }
-    }
-
-    // Method to match a N16 Target
-    fn match_n16(&self, target: AddN16Target) -> u16 {
-        let reg_target = match target {
-            AddN16Target::BC => self.registers.get_bc(),
-            AddN16Target::DE => self.registers.get_de(),
-            AddN16Target::HL => self.registers.get_hl(),
-            AddN16Target::SP => self.sp,
-        };
-        reg_target
-    }
-
-    // Method to match Jump Condition
-    fn match_jump(&self, test: JumpTest) -> bool {
-        let jump_condition = match test {
-            JumpTest::NotZero => !self.registers.f.zero,
-            JumpTest::NotCarry => !self.registers.f.carry,
-            JumpTest::Zero => !self.registers.f.zero,
-            JumpTest::Carry => !self.registers.f.carry,
-            JumpTest::Always => true,
-            JumpTest::HL => panic!("HL BAD"),
-        };
-        jump_condition
-    }
-
-    // Method to match a hl target to its register
-    fn match_hl(&self, target: HLTarget) -> u8 {
-        let reg_target = match target {
-            HLTarget::A => self.registers.a,
-            HLTarget::B => self.registers.b,
-            HLTarget::C => self.registers.c,
-            HLTarget::D => self.registers.d,
-            HLTarget::E => self.registers.e,
-            HLTarget::H => self.registers.h,
-            HLTarget::L => self.registers.l,
-            HLTarget::HL => self.bus.read_byte(None, self.registers.get_hl()),
-        };
-        reg_target
-    }
-
-    // Method to update relevant flags after INC instructions
-    fn set_flags_after_inc(&mut self, result: u8) {
-        // Zero Flag: Set if the result is zero
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag: Reset (INC is an addition)
-        self.registers.f.subtract = false;
-
-        // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
-        let half_carry = (result & 0x0F) == 0;
-        self.registers.f.half_carry = half_carry;
-    }
-
-    // Method to update relevant flags after DEC instructions
-    fn set_flags_after_dec(&mut self, result: u8, original_value: u8) {
-        // Zero Flag: Set if the result is zero
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag: SET (DEC is a subtraction)
-        self.registers.f.subtract = true;
-
-        // Half-Carry Flag: Set if there was a borrow from bit 4 to bit 3
-        let half_carry = (original_value & 0x0F) == 0x00; // Borrow occurs if lower nibble was 0 before decrement
-        self.registers.f.half_carry = half_carry;
-    }
-
-    // Method to update relevant flags after ADC instructions
-    fn set_flags_after_adc(&mut self, result: u8, original_value: u8, immediate_operand: u8) {
-        // Zero Flag: Set if the result is zero
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag: SET (ADC is not a subtraction)
-        self.registers.f.subtract = false;
-
-        // Half-Carry Flag: Set if there was a carry from bit 4 to bit 3
-        self.registers.f.half_carry = ((original_value & 0x0F) + (immediate_operand & 0x0F)) > 0x0F; // Check for carry from the lower nibble
-
-        // Carry Flag: Set if there was a carry from the 8th bit
-        self.registers.f.carry = (result < original_value) || (result < immediate_operand);
-    }
-
-    // Method to update relevant flags after SUB instructions
-    fn set_flags_after_sub(&mut self, result: u8, original_value: u8, immediate_operand: u8) {
-        // Zero Flag
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag Always set because we SUB
-        self.registers.f.subtract = true;
-
-        // Half-Carry Flag
-        self.registers.f.half_carry = (original_value & 0xF) < (immediate_operand & 0xF);
-
-        // Carry Flag
-        self.registers.f.carry = original_value < immediate_operand;
-    }
-
-    fn set_flags_after_and(&mut self, result: u8) {
-        // Zero Flag: Set if result is zero, otherwise cleared
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag: Always cleared (AND is not a subtraction)
-        self.registers.f.subtract = false;
-
-        // Half-Carry Flag: Always set for an AND operation
-        self.registers.f.half_carry = true;
-
-        // Carry Flag: Always cleared (AND does not affect carry)
-        self.registers.f.carry = false;
-    }
-
-    fn set_flags_after_xor_or(&mut self, result: u8) {
-        // Zero Flag: Set if the result is zero, otherwise cleared
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag: Always cleared (XOR is not a subtraction)
-        self.registers.f.subtract = false;
-
-        // Half-Carry Flag: Always cleared (XOR does not involve a carry)
-        self.registers.f.half_carry = false;
-
-        // Carry Flag: Always cleared (XOR does not affect the carry)
-        self.registers.f.carry = false;
-    }
-
-    fn set_flags_after_cp(&mut self, a: u8, b: u8) {
-        // Calculate the result of A - B, but don't store it
-        let result = a.wrapping_sub(b);
-
-        // Zero Flag: Set if A == B
-        self.registers.f.zero = result == 0;
-
-        // Subtract Flag: Always set because this is a subtraction
-        self.registers.f.subtract = true;
-
-        // Half-Carry Flag: Set if there was a borrow from bit 4
-        self.registers.f.half_carry = (a & 0xF) < (b & 0xF);
-
-        // Carry Flag: Set if there was a borrow from bit 8 (A < B)
-        self.registers.f.carry = a < b;
-    }
-
-    fn set_flags_after_bit(&mut self, bit: u8, target_register: u8) {
-        // Set Flags
-        self.registers.f.zero = (target_register & bit) == 0; // Z flag is set if bit 0 is 0
-        self.registers.f.subtract = false; // N flag is always cleared
-        self.registers.f.half_carry = true; // H flag is always set
-    }
 
     // IE Getter
     pub fn get_ie_register(&self) -> u8 {

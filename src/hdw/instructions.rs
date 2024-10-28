@@ -1,3 +1,5 @@
+use core::panic;
+
 /*
 
     File to contain all Enumerations for Instructions and their expected targets and target sources
@@ -432,8 +434,8 @@ impl Instruction {
             0xE0 => Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A8))),
             0xF0 => Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A))),
             // LD A and C
-            0xE3 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::C))),
-            0xF3 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::A))),
+            0xE2 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::C))),
+            0xF2 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::A))),
             // LD A and a16
             0xEA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A16))),
             0xFA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A))),
@@ -503,10 +505,13 @@ impl Instruction {
             0xF7 => Some(Instruction::RST(RestTarget::Six)),
             0xFF => Some(Instruction::RST(RestTarget::Seven)),
             // DI
-            0xF4 => Some(Instruction::DI),
+            0xF3 => Some(Instruction::DI),
             // EI
             0xFB => Some(Instruction::EI),
-            _ => todo!("Implement more byte not prefixed for byte {:#02X}", byte),
+            0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xCB | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
+                panic!("NULL INSTRUCTION READ")
+            }
+            _ => panic!("NOT AN INSTRUCTION"),
         }
     }
 

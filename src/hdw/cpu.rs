@@ -2,6 +2,7 @@ use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
 use core::panic;
+use regex::Regex;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -10,6 +11,7 @@ pub struct CPU {
     sp: u16,
     bus: Bus,
     is_halted: bool,
+    master_enabled: bool,
     curr_opcode: u8,
     curr_instruction: Option<Instruction>,
 }
@@ -18,7 +20,7 @@ impl CPU {
     pub fn new(new_bus: Bus) -> Self {
         CPU {
             registers: Registers {
-                a: 0,
+                a: 0x01,
                 b: 0,
                 c: 0,
                 d: 0,
@@ -36,6 +38,7 @@ impl CPU {
             sp: 0,
             bus: new_bus,
             is_halted: false,
+            master_enabled: false,
             curr_opcode: 0,
             curr_instruction: None,
         }
@@ -46,12 +49,47 @@ impl CPU {
         // fetch next opcode from cartridge
         self.fetch();
 
-        print!("\n Found: {:#02X} at {} - ", self.curr_opcode, self.pc);
-
         // Decode current opcode
         self.decode();
 
-        print!("Instruction is {:#?} \n", self.curr_instruction);
+        // print information
+        // Convert `curr_instruction` to a string
+        let instruction_output = format!("{:#?}", self.curr_instruction);
+
+        // Define a regex to capture the instruction name within `Some(...)`
+        let re = Regex::new(r"Some\(\s*([A-Z]+)").unwrap();
+
+        // Use regex to capture the instruction name
+        let instruction_name = if let Some(cap) = re.captures(&instruction_output) {
+            cap.get(1).map_or("Unknown", |m| m.as_str())
+        } else {
+            "Unknown"
+        };
+
+        // Print information, including the extracted instruction name
+        print!(
+            "{:04X}:\t {} ({:02X} {:02X} {:02X})\nA:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} AF:{:04X} BC:{:04X} DE:{:04X} HL:{:04X}\nZ:{:02X} N:{:02X} H:{:02X} C:{:02X} \n\n",
+            self.pc,
+            instruction_name,
+            self.curr_opcode,
+            self.bus.read_byte(self.pc + 1),
+            self.bus.read_byte(self.pc + 2),
+            self.registers.a,
+            self.registers.b,
+            self.registers.c,
+            self.registers.d,
+            self.registers.e,
+            self.registers.h,
+            self.registers.l,
+            self.registers.get_af(),
+            self.registers.get_bc(),
+            self.registers.get_de(),
+            self.registers.get_hl(),
+            self.registers.f.zero as u8,
+            self.registers.f.subtract as u8,
+            self.registers.f.half_carry as u8,
+            self.registers.f.carry as u8,
+        );
 
         // Execute the current instruction if it exists and reset it to none
         if let Some(instruction) = self.curr_instruction.take() {
@@ -649,14 +687,15 @@ impl CPU {
                     match target {
                         LoadWordTarget::BC => match source {
                             LoadWordSource::N16 => {
-                                self.registers.set_bc(self.bus.read_byte(word_value) as u16);
+                                self.registers.set_bc(word_value as u16);
                                 self.pc.wrapping_add(3)
                             }
                             _ => panic!("LD WORD BAD MATCH"),
                         },
                         LoadWordTarget::HL => match source {
                             LoadWordSource::N16 => {
-                                self.registers.set_hl(self.bus.read_byte(word_value) as u16);
+                                self.registers.set_hl(word_value as u16);
+
                                 self.pc.wrapping_add(3)
                             }
                             LoadWordSource::SPE8 => {
@@ -1615,7 +1654,8 @@ impl CPU {
                 panic!("RST NOT IMPLEMENTED")
             }
             Instruction::DI => {
-                panic!("DI NOT IMPLEMENTED")
+                self.master_enabled = false;
+                self.pc + 1 // unsure what to return here leaving this for now
             }
             Instruction::EI => {
                 panic!("EI NOT IMPLEMENTED")

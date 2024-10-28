@@ -20,6 +20,7 @@
 */
 
 use super::cart::Cartridge;
+use crate::hdw::cpu::CPU;
 use crate::hdw::ram::RAM;
 
 pub struct Bus {
@@ -38,13 +39,14 @@ impl Bus {
     }
 
     // Function to return a byte at an address
-    pub fn read_byte(&self, address: u16) -> u8 {
+    pub fn read_byte(&self, cpu: Option<&mut CPU>, address: u16) -> u8 {
         if address < 0x8000 {
             // ROM DATA
             self.cart.read_byte(address)
         } else if address < 0xA000 {
             // Char/Map Data
-            panic!("MEM NOT IMPL")
+            print!("MEM NOT IMPL\n");
+            0
         } else if address < 0xC000 {
             // Cartridge RAM
             self.cart.read_byte(address)
@@ -56,16 +58,22 @@ impl Bus {
             0
         } else if address < 0xFEA0 {
             // OAM
-            panic!("MEM NOT IMPL")
+            print!("MEM NOT IMPL\n");
+            0
         } else if address < 0xFF00 {
             // Reserved Unusable
             0
         } else if address < 0xFF80 {
             // IO Registers
-            panic!("MEM NOT IMPL")
+            print!("MEM NOT IMPL\n");
+            0
         } else if address == 0xFFFF {
             // CPU ENABLE
-            panic!("MEM NOT IMPL")
+            if let Some(cpu) = cpu {
+                cpu.get_ie_register()
+            } else {
+                panic!("BUS: FOUND CPU REF BUT NO CPU PASSED")
+            }
         } else {
             // HRAM (Zero Page)
             self.ram.hram_read(address)
@@ -73,14 +81,14 @@ impl Bus {
     }
 
     // Function to write byte to correct place
-    pub fn write_byte(&mut self, address: u16, value: u8) {
+    pub fn write_byte(&mut self, cpu: Option<&mut CPU>, address: u16, value: u8) {
         // Need to filter destination of byte and write to there
         if address < 0x8000 {
             // ROM DATA
             self.cart.write_byte(address, value);
         } else if address < 0xA000 {
             // Char/Map Data
-            panic!("MEM NOT IMPL")
+            print!("MEM NOT IMPL\n")
         } else if address < 0xC000 {
             // EXT RAM
             self.cart.write_byte(address, value);
@@ -91,15 +99,19 @@ impl Bus {
             // Reserved ECHO RAM
         } else if address < 0xFEA0 {
             // OAM RAM
-            panic!("MEM NOT IMPL")
+            print!("MEM NOT IMPL\n")
         } else if address < 0xFF00 {
             // Reserved Unusuable
         } else if address < 0xFF80 {
             // IO Registers
-            panic!("MEM NOT IMPL")
+            print!("MEM NOT IMPL\n")
         } else if address == 0xFFFF {
             // CPU ENABLE
-            panic!("MEM NOT IMPL")
+            if let Some(cpu) = cpu {
+                cpu.set_ie_register(value);
+            } else {
+                panic!("BUS: FOUND CPU REF BUT NO CPU PASSED");
+            }
         } else {
             // HRAM
             self.ram.hram_write(address, value);

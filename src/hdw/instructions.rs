@@ -233,7 +233,7 @@ impl Instruction {
 
         // determine if instruction is a PREFIX
         let instruction_opcode = if prefixed {
-            cart.read_byte(pc + 1)
+            cart.read_byte(None, pc + 1)
         } else {
             opcode
         };

@@ -58,18 +58,6 @@ pub enum Instruction {
     SET(ByteTarget),
 }
 
-// Target All Except F register
-#[derive(Debug)]
-pub enum ArithmeticTarget {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-}
-
 // Target All 8 bit and 16 bit register except f
 #[derive(Debug)]
 pub enum AllRegisters {
@@ -121,15 +109,6 @@ pub enum StackTarget {
     HL,
 }
 
-// Target F Register
-#[derive(Debug)]
-pub enum FlagsTarget {
-    Zero,
-    Subtract,
-    HalfCarry,
-    Carry,
-}
-
 // Jump Test
 #[derive(Debug)]
 pub enum JumpTest {
@@ -139,33 +118,6 @@ pub enum JumpTest {
     Carry,
     Always,
     HL,
-}
-
-// Enum For Possible Byte Load Targets
-#[derive(Debug)]
-pub enum LoadByteTarget {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    HLI,
-}
-
-// Enum For Possible Byte Load Sources
-#[derive(Debug)]
-pub enum LoadByteSource {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    D8,
-    HLI,
 }
 
 // Enum For Possible Word Load Targets

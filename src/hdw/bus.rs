@@ -23,7 +23,6 @@ use super::cart::Cartridge;
 use crate::hdw::ram::RAM;
 
 pub struct Bus {
-    pub bus: [u8; 0xFFFF],
     cart: Cartridge,
     ram: RAM,
 }
@@ -33,7 +32,6 @@ impl Bus {
     pub fn new(cart: Cartridge) -> Self {
         Bus {
             // initialize vars
-            bus: [0; 0xFFFF],
             cart,
             ram: RAM::new(),
         }

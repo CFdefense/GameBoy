@@ -71,7 +71,7 @@ impl CPU {
 
         // Print information, including the extracted instruction name
         print!(
-            "{:04X}:\t {} ({:02X} {:02X} {:02X})\nA:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} AF:{:04X} BC:{:04X} DE:{:04X} HL:{:04X}\nZ:{:02X} N:{:02X} H:{:02X} C:{:02X}\n\n",
+            "{:04X}:\t {} ({:02X} {:02X} {:02X})\nA:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} AF:{:04X} BC:{:04X} DE:{:04X} HL:{:04X}\nZ:{:02X} N:{:02X} H:{:02X} C:{:02X} \n\n",
             self.pc,
             instruction_name,
             self.curr_opcode,
@@ -89,9 +89,9 @@ impl CPU {
             self.registers.get_de(),
             self.registers.get_hl(),
             self.registers.f.zero as u8,
-            self.registers.f.subtract as u8,            self.ie_register,
+            self.registers.f.subtract as u8,    
             self.registers.f.half_carry as u8,
-            self.registers.f.carry as u8,
+            self.registers.f.carry as u8
         );
 
         // Execute the current instruction if it exists and reset it to none

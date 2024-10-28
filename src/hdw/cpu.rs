@@ -878,8 +878,8 @@ impl CPU {
             },
             Instruction::HALT => {
                 // Instruction For Halting CPU Cycle
-                //self.is_halted = true;
-                panic!("IMPL HALT")
+                self.is_halted = true;
+                self.pc.wrapping_add(1)
             }
             Instruction::ADD(target) => match target {
                 OPType::LoadA(target) => {
@@ -1655,7 +1655,7 @@ impl CPU {
             }
             Instruction::DI => {
                 self.master_enabled = false;
-                self.pc + 1 // unsure what to return here leaving this for now
+                self.pc.wrapping_add(1) // unsure what to return here leaving this for now
             }
             Instruction::EI => {
                 panic!("EI NOT IMPLEMENTED")
@@ -1687,12 +1687,37 @@ impl CPU {
                 panic!("SRA NOT IMPLEMENTED")
             }
             Instruction::SWAP(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("SWAP NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Swap the the nibbles
+                reg_target = (reg_target << 4) | (reg_target >> 4);
+
+                // Upd Flags
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.carry = false;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::SRL(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("SRL NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Get LSB For Carry Flag
+                let lsb = reg_target & 0x1;
+
+                // Shift Right
+                reg_target = reg_target >> 1;
+
+                // Update Flags
+                self.registers.f.carry = lsb != 0;
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::BIT(target) => {
                 let bit: u8;

@@ -88,7 +88,7 @@ pub enum ByteTarget {
     Seven(HLTarget),
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum HLTarget {
     A,
     B,

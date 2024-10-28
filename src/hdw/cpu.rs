@@ -1651,6 +1651,13 @@ impl CPU {
                 self.pc.wrapping_add(1)
             }
             Instruction::RST(target) => {
+                // Push PC to memory stack
+                self.push(self.pc);
+
+                // Wait to see how this is done
+
+                // After Push decrement SP and
+
                 panic!("RST NOT IMPLEMENTED")
             }
             Instruction::DI => {
@@ -1658,33 +1665,132 @@ impl CPU {
                 self.pc.wrapping_add(1) // unsure what to return here leaving this for now
             }
             Instruction::EI => {
-                panic!("EI NOT IMPLEMENTED")
+                self.master_enabled = true;
+                self.pc.wrapping_add(1) // unsure what to return here leavint his for now
             }
 
             // PREFIXED INSTRUCTIONS
             Instruction::RLC(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("RLC NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Get Bit 7 For Carry
+                let bit_7 = (reg_target >> 7) & 0x1;
+
+                // Rotate Left With Carry
+                reg_target = (reg_target << 1) | bit_7;
+
+                // Update Flags
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.carry = bit_7 != 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::RRC(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("RRC NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Get Bit 0 For Carry
+                let bit_0 = reg_target & 0x1;
+
+                // Rotate Right and Append bit 0
+                reg_target = (reg_target >> 1) | (bit_0 >> 7);
+
+                // Update Flags
+                self.registers.f.carry = bit_0 != 0;
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::RL(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("RL NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Store Previous Carry
+                let prev_carry = self.registers.f.carry;
+
+                // Store Bit 7 For Carry
+                let bit_7 = (reg_target >> 7) & 0x1;
+
+                // Rotate Left and Append
+                reg_target = (reg_target << 1) | (prev_carry as u8);
+
+                // Update Flags
+                self.registers.f.carry = bit_7 != 0;
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::RR(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("RR NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Store Previous Carry
+                let prev_carry = self.registers.f.carry;
+
+                // Store Bit 0
+                let bit_0 = reg_target & 0x1;
+
+                // Rotate Right and append bit 0
+                reg_target = (reg_target >> 1) | (prev_carry as u8) << 7;
+
+                // Update Flags
+                self.registers.f.carry = bit_0 != 0;
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::SLA(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("SLA NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Get Bit 7 For Carry
+                let bit_7 = (reg_target & 0x80) != 0;
+
+                // Shift Left
+                reg_target <<= 1;
+
+                // Update Flag
+                self.registers.f.carry = bit_7;
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::SRA(target) => {
-                let reg_target = self.match_hl(target);
-                panic!("SRA NOT IMPLEMENTED")
+                let mut reg_target = self.match_hl(target);
+
+                // Get LSB For Carry
+                let lsb = reg_target & 0x1;
+
+                // Preserve Sign Bit
+                let sign_bit = (reg_target & 0x80) != 0;
+
+                // Shift Right
+                reg_target >>= 1;
+
+                // Put Sign Bit Back
+                if sign_bit {
+                    reg_target |= 0x80;
+                }
+
+                // Update Flags
+                self.registers.f.carry = lsb != 0;
+                self.registers.f.zero = reg_target == 0;
+                self.registers.f.half_carry = false;
+                self.registers.f.subtract = false;
+
+                // Implicit Return
+                self.pc.wrapping_add(1)
             }
             Instruction::SWAP(target) => {
                 let mut reg_target = self.match_hl(target);

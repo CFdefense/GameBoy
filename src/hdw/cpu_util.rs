@@ -8,6 +8,8 @@
 use crate::hdw::cpu::CPU;
 use crate::hdw::instructions::*;
 
+use super::stack::stack_push16;
+
 // Method to match a N16 Target
 pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
     let reg_target = match target {
@@ -153,4 +155,22 @@ pub fn set_flags_after_bit(cpu: &mut CPU, bit: u8, target_register: u8) {
     cpu.registers.f.zero = (target_register & bit) == 0; // Z flag is set if bit 0 is 0
     cpu.registers.f.subtract = false; // N flag is always cleared
     cpu.registers.f.half_carry = true; // H flag is always set
+}
+
+// Jump Helper Function
+pub fn goto_addr(cpu: &mut CPU, address: u16, jump: bool, push_pc: bool) -> u16 {
+    if jump {
+        if push_pc {
+            // cycle 2
+            stack_push16(cpu, cpu.pc);
+        }
+        // combine and set pc to 2 byte addr in lil endian
+        cpu.pc = address;
+
+        // Implicit Return
+        cpu.pc
+    } else {
+        // Implicit Return
+        cpu.pc.wrapping_add(3)
+    }
 }

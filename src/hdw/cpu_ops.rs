@@ -6,8 +6,7 @@
 use crate::hdw::cpu::*;
 use crate::hdw::cpu_util::*;
 use crate::hdw::instructions::*;
-
-use super::cpu;
+use crate::hdw::stack::*;
 
 pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
@@ -286,22 +285,34 @@ pub fn op_rlca(cpu: &mut CPU) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
-// Jump to addr in bus or increment pc
 pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> u16 {
     // Match Jump
     let jump = match_jump(cpu, target);
 
-    // Determine if were jumping
-    if jump {
-        let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
-        let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
+    // Get Bytes
+    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
+    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
 
-        // combine and return 2 byte addr in lil endian
-        (most_significant << 8) | least_significant
-    } else {
-        // return next pc
-        cpu.pc.wrapping_add(3)
-    }
+    // Perform Operation & Implicit Return
+    goto_addr(
+        cpu,
+        (most_significant << 8) | least_significant,
+        jump,
+        false,
+    )
+}
+
+// Jump to addr in bus or increment pc
+pub fn op_call(cpu: &mut CPU, target: JumpTest) -> u16 {
+    // Match Jump
+    let jump = match_jump(cpu, target);
+
+    // Get Bytes
+    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
+    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
+
+    // Perform Operation & Implicit Return
+    goto_addr(cpu, (most_significant << 8) | least_significant, jump, true)
 }
 
 pub fn op_bit(cpu: &mut CPU, target: ByteTarget) -> u16 {
@@ -1875,6 +1886,7 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
+// MAYBE CHANGE TO GOTO_ADDR IN FUTURE?
 pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     let jump_distance = cpu.bus.read_byte(None, cpu.pc + 1) as i8;
     match target {
@@ -1904,4 +1916,126 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
         }
     }
     cpu.pc.wrapping_add(1)
+}
+
+pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
+    // Pop Low and High Bytes
+    let low: u16 = stack_pop(cpu) as u16;
+    //Cycle
+    let high: u16 = stack_pop(cpu) as u16;
+    //Cycle
+
+    // Combine Bytes
+    let combined: u16 = (high << 8) | low;
+
+    // Perform Operation
+    match target {
+        StackTarget::AF => {
+            cpu.registers.set_af(combined & 0xFFF0);
+        }
+        StackTarget::BC => {
+            cpu.registers.set_bc(combined);
+        }
+        StackTarget::DE => {
+            cpu.registers.set_de(combined);
+        }
+        StackTarget::HL => {
+            cpu.registers.set_hl(combined);
+        }
+    }
+
+    // Implicit Return
+    cpu.pc.wrapping_add(1)
+}
+
+pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
+    let value = match target {
+        StackTarget::AF => {
+            let high: u16 = (cpu.registers.get_af() >> 8) & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, high as u8);
+
+            let low: u16 = cpu.registers.get_af() & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, low as u8);
+
+            // Cycle
+        }
+        StackTarget::BC => {
+            let high: u16 = (cpu.registers.get_bc() >> 8) & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, high as u8);
+
+            let low: u16 = cpu.registers.get_bc() & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, low as u8);
+
+            // Cycle
+        }
+        StackTarget::DE => {
+            let high: u16 = (cpu.registers.get_de() >> 8) & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, high as u8);
+
+            let low: u16 = cpu.registers.get_de() & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, low as u8);
+
+            // Cycle
+        }
+        StackTarget::HL => {
+            let high: u16 = (cpu.registers.get_hl() >> 8) & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, high as u8);
+
+            let low: u16 = cpu.registers.get_hl() & 0xFF as u16;
+            // Cycle
+            stack_push(cpu, low as u8);
+
+            // Cycle
+        }
+    };
+    cpu.pc.wrapping_add(1)
+}
+
+pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
+    // Maybe Cycle Here?? RESEARCH
+
+    // Get Condition
+    let jump = match_jump(cpu, target);
+
+    if jump {
+        let low: u16 = stack_pop(cpu) as u16;
+        // Cycle
+        let high: u16 = stack_pop(cpu) as u16;
+        // Cycle
+
+        cpu.pc = (high << 8) | low;
+
+        // Implicit Return
+        cpu.pc
+    } else {
+        cpu.pc.wrapping_add(3) // maybe not correct
+    }
+}
+
+pub fn op_reti(cpu: &mut CPU) -> u16 {
+    // Update Interrupt
+    cpu.master_enabled = true;
+
+    // Call RET Logic w Always so it executes
+    op_ret(cpu, JumpTest::Always)
+}
+
+pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
+    let low: u8 = match target {
+        RestTarget::Zero => 0x00,
+        RestTarget::One => 0x08,
+        RestTarget::Two => 0x10,
+        RestTarget::Three => 0x18,
+        RestTarget::Four => 0x20,
+        RestTarget::Five => 0x28,
+        RestTarget::Six => 0x30,
+        RestTarget::Seven => 0x38,
+    };
 }

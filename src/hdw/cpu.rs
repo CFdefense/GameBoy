@@ -227,46 +227,33 @@ impl CPU {
                 // Perform Operation & Implicit Return
                 op_cp(self, target)
             },
-            Instruction::RET(test) => {
-                let jump_condition = match_jump(self, test);
-                panic!("RET NOT IMPLEMENTED")
+            Instruction::RET(target) => {
+                // Perform Operation & Implicit Return
+                op_ret(self, target)
             }
             Instruction::RETI => {
-                panic!("RETI NOT IMPLEMENTED")
+                // Perform Operation & Implicit Return
+                op_reti(self)
             }
             Instruction::POP(target) => {
-                panic!("POP NOT IMPLEMENTED")
+                // Perform Operation & Implicit Return
+                op_pop(self, target)
             }
             Instruction::JP(target) => {
                 // Perform Operation & Implicit Return
                 op_jp(self, target)
             }
-            Instruction::CALL(test) => {
-                let jump_condition = match_jump(self, test);
-                panic!("CALL NOT IMPLEMENTED")
+            Instruction::CALL(target) => {
+                // Perform Operation & Implicit Return
+                op_call(self, target)
             }
             Instruction::PUSH(target) => {
-                let value = match target {
-                    StackTarget::AF => self.registers.get_af(),
-                    StackTarget::BC => self.registers.get_bc(),
-                    StackTarget::DE => self.registers.get_de(),
-                    StackTarget::HL => self.registers.get_hl(),
-                };
-                // push value to stack
-                //push(self, value);
-
-                // increment pc
-                self.pc.wrapping_add(1)
+                // Perform Operation & Implicit Return
+               op_push(self, target)
             }
             Instruction::RST(target) => {
-                // Push PC to memory stack
-                //self.push(self.pc);
-
-                // Wait to see how this is done
-
-                // After Push decrement SP and
-
-                panic!("RST NOT IMPLEMENTED")
+                // Perform Operation & Implicit Return
+               op_rst(self, target)
             }
             Instruction::DI => {
                 self.master_enabled = false;

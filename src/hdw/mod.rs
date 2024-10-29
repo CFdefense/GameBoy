@@ -9,3 +9,4 @@ pub mod cpu_util;
 pub mod instructions;
 pub mod ram;
 pub mod registers;
+pub mod stack;

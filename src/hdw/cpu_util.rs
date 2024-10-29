@@ -47,20 +47,6 @@ pub fn match_hl(cpu: &mut CPU, target: HLTarget) -> u8 {
     reg_target
 }
 
-// Jump to addr in bus or increment pc
-pub fn jump(cpu: &mut CPU, jump: bool) -> u16 {
-    if jump {
-        let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
-        let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
-
-        // combine and return 2 byte addr in lil endian
-        (most_significant << 8) | least_significant
-    } else {
-        // return next pc
-        cpu.pc.wrapping_add(3)
-    }
-}
-
 // Method to update relevant flags after INC instructions
 pub fn set_flags_after_inc(cpu: &mut CPU, result: u8) {
     // Zero Flag: Set if the result is zero

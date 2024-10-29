@@ -1,7 +1,6 @@
 use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
 use crate::hdw::registers::*;
-use crate::hdw::cpu_util::*;
 use crate::hdw::cpu_ops::*;
 use core::panic;
 use regex::Regex;
@@ -253,7 +252,7 @@ impl CPU {
             }
             Instruction::RST(target) => {
                 // Perform Operation & Implicit Return
-               op_rst(self, target)
+                op_rst(self, target)
             }
             Instruction::DI => {
                 self.master_enabled = false;

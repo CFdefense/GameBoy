@@ -364,88 +364,53 @@ pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
     let mask: u8;
     let mut target_register: u8;
     let mut is_mem: bool = false;
+    let found_target: HLTarget;
+
     match target {
         ByteTarget::Zero(hl_target) => {
             mask = 0b11111110; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::One(hl_target) => {
             mask = 0b11111101; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Two(hl_target) => {
             mask = 0b11111011; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Three(hl_target) => {
             mask = 0b11110111; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Four(hl_target) => {
             mask = 0b11101111; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Five(hl_target) => {
             mask = 0b11011111; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Six(hl_target) => {
             mask = 0b10111111; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Seven(hl_target) => {
             mask = 0b01111111; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
     }
+
+    // Now see if found target is hl -> memory location
+    match found_target {
+        HLTarget::HL => {
+            is_mem = true;
+        }
+        _ => {}
+    }
+
+    // Get Target Register
+    target_register = match_hl(cpu, found_target);
 
     // Perform Operation
     if is_mem {
@@ -464,88 +429,53 @@ pub fn op_set(cpu: &mut CPU, target: ByteTarget) -> u16 {
     let mask: u8;
     let mut target_register: u8;
     let mut is_mem: bool = false;
+    let found_target: HLTarget;
+
     match target {
         ByteTarget::Zero(hl_target) => {
             mask = 0b00000001; // Byte Mask
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::One(hl_target) => {
             mask = 0b00000010;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Two(hl_target) => {
             mask = 0b00000100;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Three(hl_target) => {
             mask = 0b00001000;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Four(hl_target) => {
             mask = 0b00010000;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Five(hl_target) => {
             mask = 0b00100000;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Six(hl_target) => {
             mask = 0b01000000;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
         ByteTarget::Seven(hl_target) => {
             mask = 0b10000000;
-            match hl_target {
-                HLTarget::HL => {
-                    is_mem = true; // flag that were grabbing memory
-                }
-                _ => {}
-            }
-            target_register = match_hl(cpu, hl_target);
+            found_target = hl_target;
         }
     }
+    // Determine if were using memory
+    match found_target {
+        HLTarget::HL => {
+            is_mem = true; // flag that were grabbing memory
+        }
+        _ => {}
+    }
+
+    // Find Target
+    target_register = match_hl(cpu, found_target);
+
     // Perform Operation
     if is_mem {
         // if were updating memory write back to grabbed location the new value
@@ -1949,7 +1879,7 @@ pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
 }
 
 pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
-    let value = match target {
+    match target {
         StackTarget::AF => {
             let high: u16 = (cpu.registers.get_af() >> 8) & 0xFF as u16;
             // Cycle
@@ -2028,7 +1958,7 @@ pub fn op_reti(cpu: &mut CPU) -> u16 {
 }
 
 pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
-    let low: u8 = match target {
+    let low: u16 = match target {
         RestTarget::Zero => 0x00,
         RestTarget::One => 0x08,
         RestTarget::Two => 0x10,
@@ -2038,4 +1968,7 @@ pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
         RestTarget::Six => 0x30,
         RestTarget::Seven => 0x38,
     };
+
+    // Perform Operation & Implicit Return
+    goto_addr(cpu, 0x0000 | low, true, true)
 }

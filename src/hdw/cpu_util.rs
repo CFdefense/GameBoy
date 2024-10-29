@@ -21,7 +21,7 @@ pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
     reg_target
 }
 
-// Method to match Jump Condition
+// Method to match a Jump Condition
 pub fn match_jump(cpu: &mut CPU, test: JumpTest) -> bool {
     let jump_condition = match test {
         JumpTest::NotZero => !cpu.registers.f.zero,
@@ -34,7 +34,7 @@ pub fn match_jump(cpu: &mut CPU, test: JumpTest) -> bool {
     jump_condition
 }
 
-// Method to match a hl target to its register
+// Method to match a HL Target
 pub fn match_hl(cpu: &mut CPU, target: HLTarget) -> u8 {
     let reg_target = match target {
         HLTarget::A => cpu.registers.a,
@@ -49,7 +49,7 @@ pub fn match_hl(cpu: &mut CPU, target: HLTarget) -> u8 {
     reg_target
 }
 
-// Method to update relevant flags after INC instructions
+// Function to update flags after INC operation
 pub fn set_flags_after_inc(cpu: &mut CPU, result: u8) {
     // Zero Flag: Set if the result is zero
     cpu.registers.f.zero = result == 0;
@@ -62,7 +62,7 @@ pub fn set_flags_after_inc(cpu: &mut CPU, result: u8) {
     cpu.registers.f.half_carry = half_carry;
 }
 
-// Method to update relevant flags after DEC instructions
+// Function to update flags after DEC operation
 pub fn set_flags_after_dec(cpu: &mut CPU, result: u8, original_value: u8) {
     // Zero Flag: Set if the result is zero
     cpu.registers.f.zero = result == 0;
@@ -75,7 +75,7 @@ pub fn set_flags_after_dec(cpu: &mut CPU, result: u8, original_value: u8) {
     cpu.registers.f.half_carry = half_carry;
 }
 
-// Method to update relevant flags after ADC instructions
+// Function to update flags after ADC operation
 pub fn set_flags_after_adc(cpu: &mut CPU, result: u8, original_value: u8, immediate_operand: u8) {
     // Zero Flag: Set if the result is zero
     cpu.registers.f.zero = result == 0;
@@ -90,7 +90,7 @@ pub fn set_flags_after_adc(cpu: &mut CPU, result: u8, original_value: u8, immedi
     cpu.registers.f.carry = (result < original_value) || (result < immediate_operand);
 }
 
-// Method to update relevant flags after SUB instructions
+// Function to update flags after SUB operation
 pub fn set_flags_after_sub(cpu: &mut CPU, result: u8, original_value: u8, immediate_operand: u8) {
     // Zero Flag
     cpu.registers.f.zero = result == 0;
@@ -105,6 +105,7 @@ pub fn set_flags_after_sub(cpu: &mut CPU, result: u8, original_value: u8, immedi
     cpu.registers.f.carry = original_value < immediate_operand;
 }
 
+// Function to update flags after AND operation
 pub fn set_flags_after_and(cpu: &mut CPU, result: u8) {
     // Zero Flag: Set if result is zero, otherwise cleared
     cpu.registers.f.zero = result == 0;
@@ -119,6 +120,7 @@ pub fn set_flags_after_and(cpu: &mut CPU, result: u8) {
     cpu.registers.f.carry = false;
 }
 
+// Function to update flags after XOR and OR operation
 pub fn set_flags_after_xor_or(cpu: &mut CPU, result: u8) {
     // Zero Flag: Set if the result is zero, otherwise cleared
     cpu.registers.f.zero = result == 0;
@@ -133,6 +135,7 @@ pub fn set_flags_after_xor_or(cpu: &mut CPU, result: u8) {
     cpu.registers.f.carry = false;
 }
 
+// Function to update flags after CP operation
 pub fn set_flags_after_cp(cpu: &mut CPU, a: u8, b: u8) {
     // Calculate the result of A - B, but don't store it
     let result = a.wrapping_sub(b);
@@ -150,6 +153,7 @@ pub fn set_flags_after_cp(cpu: &mut CPU, a: u8, b: u8) {
     cpu.registers.f.carry = a < b;
 }
 
+// Function to update flags after BIT operation
 pub fn set_flags_after_bit(cpu: &mut CPU, bit: u8, target_register: u8) {
     // Set Flags
     cpu.registers.f.zero = (target_register & bit) == 0; // Z flag is set if bit 0 is 0
@@ -157,7 +161,7 @@ pub fn set_flags_after_bit(cpu: &mut CPU, bit: u8, target_register: u8) {
     cpu.registers.f.half_carry = true; // H flag is always set
 }
 
-// Jump Helper Function
+// Function to help streamline alot of jumping instructions
 pub fn goto_addr(cpu: &mut CPU, address: u16, jump: bool, push_pc: bool) -> u16 {
     if jump {
         if push_pc {

@@ -104,10 +104,7 @@ pub fn op_rlc(cpu: &mut CPU, target: HLTarget) -> u16 {
     reg_target = (reg_target << 1) | bit_7;
 
     // Update Flags
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.carry = bit_7 != 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, bit_7, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -124,10 +121,7 @@ pub fn op_rrc(cpu: &mut CPU, target: HLTarget) -> u16 {
     reg_target = (reg_target >> 1) | (bit_0 >> 7);
 
     // Update Flags
-    cpu.registers.f.carry = bit_0 != 0;
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, bit_0, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -147,10 +141,7 @@ pub fn op_rl(cpu: &mut CPU, target: HLTarget) -> u16 {
     reg_target = (reg_target << 1) | (prev_carry as u8);
 
     // Update Flags
-    cpu.registers.f.carry = bit_7 != 0;
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, bit_7, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -170,10 +161,7 @@ pub fn op_rr(cpu: &mut CPU, target: HLTarget) -> u16 {
     reg_target = (reg_target >> 1) | (prev_carry as u8) << 7;
 
     // Update Flags
-    cpu.registers.f.carry = bit_0 != 0;
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, bit_0, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -184,9 +172,7 @@ pub fn op_cpl(cpu: &mut CPU) -> u16 {
     cpu.registers.a = !cpu.registers.a;
 
     // Set flags
-    cpu.registers.f.zero = cpu.registers.a == 0; // might not need
-    cpu.registers.f.subtract = true;
-    cpu.registers.f.half_carry = true;
+    set_flags_after_cpl(cpu);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -218,12 +204,8 @@ pub fn op_daa(cpu: &mut CPU) -> u16 {
     // Apply the adjustment to the accumulator
     cpu.registers.a = cpu.registers.a.wrapping_add(adjustment);
 
-    // Clear H flag and set C flag if carry occurred
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.carry = carry;
-
-    // Set the zero flag if the result is 0
-    cpu.registers.f.zero = cpu.registers.a == 0;
+    // Update Flags
+    set_flags_after_daa(cpu, carry);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -236,8 +218,8 @@ pub fn op_rra(cpu: &mut CPU) -> u16 {
     // Rotate right: shift right by 1 and add carry to bit 7
     cpu.registers.a = (cpu.registers.a >> 1) | (cpu.registers.f.carry as u8) << 7;
 
-    // Set Carry Flag to the value of bit 0
-    cpu.registers.f.carry = bit_0 != 0;
+    // Update Flags
+    set_flags_after_no_pre_rl_rr(cpu, bit_0);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -250,8 +232,8 @@ pub fn op_rla(cpu: &mut CPU) -> u16 {
     // Rotate left: shift left by 1 and add carry to bit 0
     cpu.registers.a = (cpu.registers.a << 1) | (cpu.registers.f.carry as u8);
 
-    // Set Carry Flag to the value of bit 7
-    cpu.registers.f.carry = bit_7 != 0;
+    // Update Flags
+    set_flags_after_no_pre_rl_rr(cpu, bit_7);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -264,8 +246,8 @@ pub fn op_rrca(cpu: &mut CPU) -> u16 {
     // Rotate right: shift right by 1 and add bit 0 to bit 7
     cpu.registers.a = (cpu.registers.a >> 1) | (bit_0 << 7);
 
-    // Set Carry Flag to the value of bit 0
-    cpu.registers.f.carry = bit_0 != 0;
+    // Update Flags
+    set_flags_after_no_pre_rl_rr(cpu, bit_0);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -278,8 +260,8 @@ pub fn op_rlca(cpu: &mut CPU) -> u16 {
     // Rotate left: shift left by 1 and add bit 7 to bit 0
     cpu.registers.a = (cpu.registers.a << 1) | bit_7;
 
-    // Set Carry Flag to the value of bit 7
-    cpu.registers.f.carry = bit_7 != 0;
+    // Update Flags
+    set_flags_after_no_pre_rl_rr(cpu, bit_7);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -980,8 +962,10 @@ pub fn op_sub(cpu: &mut CPU, target: OPTarget) -> u16 {
     }
 }
 
+// [0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0xCE]
 pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
     match target {
+        // [0x88]
         OPTarget::B => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -992,6 +976,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, cpu.registers.b);
             cpu.pc.wrapping_add(1)
         }
+        // [0x89]
         OPTarget::C => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1001,6 +986,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, cpu.registers.c);
             cpu.pc.wrapping_add(1)
         }
+        // [0x8A]
         OPTarget::E => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1011,6 +997,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, cpu.registers.e);
             cpu.pc.wrapping_add(1)
         }
+        // [0x8B]
         OPTarget::D => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1022,6 +1009,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, cpu.registers.d);
             cpu.pc.wrapping_add(1)
         }
+        // [0x8C]
         OPTarget::H => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1033,6 +1021,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, cpu.registers.h);
             cpu.pc.wrapping_add(1)
         }
+        // [0x8D]
         OPTarget::L => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1044,6 +1033,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, cpu.registers.l);
             cpu.pc.wrapping_add(1)
         }
+        // [0x8E]
         OPTarget::HL => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1063,6 +1053,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             );
             cpu.pc.wrapping_add(1)
         }
+        // [0x8E]
         OPTarget::A => {
             // Store Original Value
             let original_value = cpu.registers.a;
@@ -1074,6 +1065,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
             set_flags_after_adc(cpu, cpu.registers.a, original_value, original_value);
             cpu.pc.wrapping_add(1)
         }
+        // [0xCE]
         OPTarget::D8 => {
             // Store Original Values
             let original_value = cpu.registers.a;
@@ -1096,79 +1088,71 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) -> u16 {
     }
 }
 
+// [0x09, 0x19, 0x29, 0x39,]
 pub fn op_add(cpu: &mut CPU, target: OPType) -> u16 {
     match target {
+        // [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]
         OPType::LoadA(target) => {
+            // Find Register Target
             let reg_target = match_hl(cpu, target);
+
             // Store the original value of A
             let original = cpu.registers.a;
 
-            // Update register A by adding the target value
+            // ADD
             cpu.registers.a = original.wrapping_add(reg_target);
 
-            // Set Flags
-            // Zero Flag: Set if the result is zero
-            cpu.registers.f.zero = cpu.registers.a == 0;
-
-            // Subtract Flag: Not set for ADD operations
-            cpu.registers.f.subtract = false;
-
-            // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
-            cpu.registers.f.half_carry = (original & 0x0F) + (reg_target & 0x0F) > 0x0F;
-
-            // Carry Flag: Set if the addition overflowed an 8-bit value
-            cpu.registers.f.carry = cpu.registers.a < original; // Check if an overflow occurred
+            // Set Flags [Z 0 H CY]
+            cpu.registers.f.zero = cpu.registers.a == 0; // Zero Flag: Set if the result is zero
+            cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
+            cpu.registers.f.half_carry = (original & 0x0F) + (reg_target & 0x0F) > 0x0F; // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
+            cpu.registers.f.carry = cpu.registers.a < original; // Carry Flag: Set if the addition overflowed an 8-bit value
 
             cpu.pc.wrapping_add(1)
         }
+        // [0x09, 0x19, 0x29, 0x39]
         OPType::LoadHL(target) => {
+            // Find Register Target
             let reg_target = match_n16(cpu, target);
+
+            // ADD
             cpu.registers
                 .set_hl(cpu.registers.get_hl().wrapping_add(reg_target));
 
-            // Set Flags
-
-            // Carry Flag: Check for carry from the addition
+            // Set Flags [- 0 H CY]
             cpu.registers.f.carry =
-                ((cpu.registers.get_hl() as u32) + (reg_target as u32)) > 0xFFFF;
-
-            // Half-Carry Flag: Check if there was a carry from bit 11 to bit 12
-            let half_carry = ((cpu.registers.get_hl() & 0x0FFF) + (reg_target & 0x0FFF)) > 0x0FFF;
-            cpu.registers.f.half_carry = half_carry;
-
-            // Subtract Flag: Not set for ADD operations
-            cpu.registers.f.subtract = false;
-
-            // Zero Flag: Not affected, but set to false
-            cpu.registers.f.zero = false;
+                ((cpu.registers.get_hl() as u32) + (reg_target as u32)) > 0xFFFF; // Carry Flag: Check for carry from the addition
+            cpu.registers.f.half_carry =
+                ((cpu.registers.get_hl() & 0x0FFF) + (reg_target & 0x0FFF)) > 0x0FFF; // Half-Carry Flag: Check if there was a carry from bit 11 to bit 12
+            cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
+            cpu.registers.f.zero = false; // Zero Flag: Not affected, but set to false
 
             cpu.pc.wrapping_add(1)
         }
+        // [0xE8]
         OPType::LoadSP => {
-            let immediate_operand: i8 = cpu.bus.read_byte(None, cpu.pc + 1) as i8;
+            // Find and Sign-extend the immediate operand to 16 bits
+            let signed_value = (cpu.bus.read_byte(None, cpu.pc + 1) as i8) as i16;
 
-            // Sign-extend the immediate operand to 16 bits
-            let signed_value = immediate_operand as i16;
-
+            // ADD
             cpu.sp = cpu.sp.wrapping_add(signed_value as u16);
 
-            // Set Flags
-            cpu.registers.f.zero = cpu.sp == 0;
-
-            // Carry Flag: Check if there's a carry out (would occur if SP > 0xFFFF)
-            cpu.registers.f.carry = (cpu.sp as i16) < (signed_value as i16);
-
-            // Half-Carry Flag: Check if there's a carry from bit 11 to bit 12 this check is done based on the lower 4 bits
-            let half_carry = ((cpu.sp & 0x0F) as i16 + (signed_value & 0x0F) as i16) > 0x0F;
-            cpu.registers.f.half_carry = half_carry;
-
-            cpu.registers.f.subtract = false;
+            // Set Flags [0 0 H CY]
+            cpu.registers.f.zero = cpu.sp == 0; // zero
+            cpu.registers.f.subtract = false; // subtract
+            cpu.registers.f.carry = (cpu.sp as i16) < (signed_value as i16); // Carry Flag: Check if there's a carry out (would occur if SP > 0xFFFF)
+            cpu.registers.f.half_carry =
+                ((cpu.sp & 0x0F) as i16 + (signed_value & 0x0F) as i16) > 0x0F; // Half-Carry Flag: Check if there's a carry from bit 11 to bit 12 this check is done based on the lower 4 bits
 
             cpu.pc.wrapping_add(2)
         }
+        // [0xC6]
         OPType::LoadD8 => {
+            // Get Immediate Operand and Store Original A Value
             let immediate_operand: u8 = cpu.bus.read_byte(None, cpu.pc + 1);
             let original = cpu.registers.a;
+
+            // ADD
             cpu.registers.a = cpu.registers.a.wrapping_add(immediate_operand);
 
             // Set Flags

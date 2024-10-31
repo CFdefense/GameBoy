@@ -191,13 +191,33 @@ pub fn set_flags_after_add_a(cpu: &mut CPU, reg_target: u8, original: u8, is_d8:
 }
 
 // ADD SP FLAGS [0xE8]
-pub fn set_flags_after_add_sp() {}
+pub fn set_flags_after_add_sp(cpu: &mut CPU, signed_value: i16) {
+    // [0 0 H CY]
+    cpu.registers.f.zero = cpu.sp == 0; // zero
+    cpu.registers.f.subtract = false; // subtract
+    cpu.registers.f.carry = (cpu.sp as i16) < (signed_value as i16); // Carry Flag: Check if there's a carry out (would occur if SP > 0xFFFF)
+    cpu.registers.f.half_carry = ((cpu.sp & 0x0F) as i16 + (signed_value & 0x0F) as i16) > 0x0F;
+    // Half-Carry Flag: Check if there's a carry from bit 11 to bit 12 this check is done based on the lower 4 bits
+}
 
 // ADD N16 FLAGS [0x09, 0x19, 0x29, 0x39]
-pub fn set_flags_after_add_n16() {}
+pub fn set_flags_after_add_n16(cpu: &mut CPU, reg_target: u16) {
+    // [- 0 H CY]
+    cpu.registers.f.carry = ((cpu.registers.get_hl() as u32) + (reg_target as u32)) > 0xFFFF; // Carry Flag: Check for carry from the addition
+    cpu.registers.f.half_carry =
+        ((cpu.registers.get_hl() & 0x0FFF) + (reg_target & 0x0FFF)) > 0x0FFF; // Half-Carry Flag: Check if there was a carry from bit 11 to bit 12
+    cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
+    cpu.registers.f.zero = false; // Zero Flag: Not affected, but set to false
+}
 
 // LD SP FLAGS [0xF8]
-pub fn set_flags_after_ld_sp() {}
+pub fn set_flags_after_ld_spe8(cpu: &mut CPU) {
+    cpu.registers.f.subtract = false;
+    cpu.registers.f.half_carry =
+        ((cpu.sp & 0x0F) + (cpu.bus.read_byte(None, cpu.pc + 1) as u16 & 0x0F)) > 0x0F;
+    cpu.registers.f.carry =
+        ((cpu.sp & 0xFF) + (cpu.bus.read_byte(None, cpu.pc + 1) as u16 & 0xFF)) > 0xFF;
+}
 
 // Function to help streamline alot of jumping instructions
 pub fn goto_addr(cpu: &mut CPU, address: u16, jump: bool, push_pc: bool) -> u16 {

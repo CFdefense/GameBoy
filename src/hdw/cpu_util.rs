@@ -148,6 +148,14 @@ pub fn set_flags_after_cpl(cpu: &mut CPU) {
     cpu.registers.f.half_carry = true;
 }
 
+// SWAP FLAGS [0x30. 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37]
+pub fn set_flags_after_swap(cpu: &mut CPU, reg_target: u8) {
+    // [Z 0 0 0]
+    cpu.registers.f.zero = reg_target == 0;
+    cpu.registers.f.carry = false;
+    cpu.registers.f.half_carry = false;
+    cpu.registers.f.subtract = false;
+}
 // DAA FLAGS [0x27]
 pub fn set_flags_after_daa(cpu: &mut CPU, carry: bool) {
     // [Z - 0 CY]
@@ -164,6 +172,32 @@ pub fn set_flags_after_no_pre_rl_rr(cpu: &mut CPU, bit: u8) {
     cpu.registers.f.half_carry = false; // reset
     cpu.registers.f.carry = bit != 0; // Set Carry Flag to the value of bit 0
 }
+
+// ADD A FLAGS [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]
+pub fn set_flags_after_add_a(cpu: &mut CPU, reg_target: u8, original: u8, is_d8: bool) {
+    // [Z 0 H CY]
+    if is_d8 {
+        cpu.registers.f.zero = cpu.registers.a == 0;
+        cpu.registers.f.subtract = false;
+        cpu.registers.f.half_carry = ((original & 0x0F) + (cpu.registers.a & 0x0F)) > 0x0F; // Half-Carry Flag: Set if carry from bit 3 to bit 4
+        cpu.registers.f.carry = (cpu.registers.a < original) || (cpu.registers.a < reg_target);
+        // ^^ Carry Flag: Set if carry out from the most significant bit
+    } else {
+        cpu.registers.f.zero = cpu.registers.a == 0; // Zero Flag: Set if the result is zero
+        cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
+        cpu.registers.f.half_carry = (original & 0x0F) + (reg_target & 0x0F) > 0x0F; // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
+        cpu.registers.f.carry = cpu.registers.a < original; // Carry Flag: Set if the addition overflowed an 8-bit value
+    }
+}
+
+// ADD SP FLAGS [0xE8]
+pub fn set_flags_after_add_sp() {}
+
+// ADD N16 FLAGS [0x09, 0x19, 0x29, 0x39]
+pub fn set_flags_after_add_n16() {}
+
+// LD SP FLAGS [0xF8]
+pub fn set_flags_after_ld_sp() {}
 
 // Function to help streamline alot of jumping instructions
 pub fn goto_addr(cpu: &mut CPU, address: u16, jump: bool, push_pc: bool) -> u16 {

@@ -19,10 +19,7 @@ pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
     reg_target = reg_target >> 1;
 
     // Update Flags
-    cpu.registers.f.carry = lsb != 0;
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, lsb, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -36,10 +33,7 @@ pub fn op_swap(cpu: &mut CPU, target: HLTarget) -> u16 {
     reg_target = (reg_target << 4) | (reg_target >> 4);
 
     // Upd Flags
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.carry = false;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_swap(cpu, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -64,10 +58,7 @@ pub fn op_sra(cpu: &mut CPU, target: HLTarget) -> u16 {
     }
 
     // Update Flags
-    cpu.registers.f.carry = lsb != 0;
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, lsb, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -78,16 +69,13 @@ pub fn op_sla(cpu: &mut CPU, target: HLTarget) -> u16 {
     let mut reg_target = match_hl(cpu, target);
 
     // Get Bit 7 For Carry
-    let bit_7 = (reg_target & 0x80) != 0;
+    let bit_7 = (reg_target >> 7) & 0x1;
 
     // Shift Left
     reg_target <<= 1;
 
     // Update Flag
-    cpu.registers.f.carry = bit_7;
-    cpu.registers.f.zero = reg_target == 0;
-    cpu.registers.f.half_carry = false;
-    cpu.registers.f.subtract = false;
+    set_flags_after_pref_op(cpu, bit_7, reg_target);
 
     // Implicit Return
     cpu.pc.wrapping_add(1)
@@ -1102,11 +1090,8 @@ pub fn op_add(cpu: &mut CPU, target: OPType) -> u16 {
             // ADD
             cpu.registers.a = original.wrapping_add(reg_target);
 
-            // Set Flags [Z 0 H CY]
-            cpu.registers.f.zero = cpu.registers.a == 0; // Zero Flag: Set if the result is zero
-            cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
-            cpu.registers.f.half_carry = (original & 0x0F) + (reg_target & 0x0F) > 0x0F; // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
-            cpu.registers.f.carry = cpu.registers.a < original; // Carry Flag: Set if the addition overflowed an 8-bit value
+            // Set Flags
+            set_flags_after_add_a(cpu, reg_target, original, false);
 
             cpu.pc.wrapping_add(1)
         }
@@ -1156,13 +1141,7 @@ pub fn op_add(cpu: &mut CPU, target: OPType) -> u16 {
             cpu.registers.a = cpu.registers.a.wrapping_add(immediate_operand);
 
             // Set Flags
-            cpu.registers.f.zero = cpu.registers.a == 0;
-            cpu.registers.f.subtract = false;
-            // Half-Carry Flag: Set if there was a carry from bit 3 to bit 4
-            cpu.registers.f.half_carry = ((original & 0x0F) + (cpu.registers.a & 0x0F)) > 0x0F;
-            // Carry Flag: Set if there was a carry out from the most significant bit
-            cpu.registers.f.carry =
-                (cpu.registers.a < original) || (cpu.registers.a < immediate_operand);
+            set_flags_after_add_a(cpu, immediate_operand, original, true);
 
             cpu.pc.wrapping_add(2)
         }
@@ -1676,46 +1655,56 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
     }
 }
 
+// [0x05, 0x0B, 0x0D, 0x15, 0x1B, 0x1D, 0x25, 0x2B, 0x2D, 0x35, 0x3B, 0x3D]
 pub fn op_dec(cpu: &mut CPU, target: AllRegisters) -> u16 {
     match target {
         // Increment 8-bit registers and Set Flags
+        // [0x3D]
         AllRegisters::A => {
             let original_value = cpu.registers.a;
             cpu.registers.a = cpu.registers.a.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.a, original_value);
         }
+        // [0x05]
         AllRegisters::B => {
             let original_value = cpu.registers.b;
             cpu.registers.b = cpu.registers.b.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.b, original_value);
         }
+        // [0x0D]
         AllRegisters::C => {
             let original_value = cpu.registers.c;
             cpu.registers.c = cpu.registers.c.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.c, original_value);
         }
+        // [0x15]
         AllRegisters::D => {
             let original_value = cpu.registers.d;
             cpu.registers.d = cpu.registers.d.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.d, original_value);
         }
+        // [0x1D]
         AllRegisters::E => {
             let original_value = cpu.registers.e;
             cpu.registers.e = cpu.registers.e.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.e, original_value);
         }
+        // [0x25]
         AllRegisters::H => {
             let original_value = cpu.registers.h;
             cpu.registers.h = cpu.registers.h.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.h, original_value);
         }
+        // [0x2D]
         AllRegisters::L => {
             let original_value = cpu.registers.l;
             cpu.registers.l = cpu.registers.l.wrapping_sub(1);
             set_flags_after_dec(cpu, cpu.registers.l, original_value);
         }
-        // Increment value at bus location HL
+
+        // [0x35]
         AllRegisters::HLMEM => {
+            // Increment value at bus location HL
             let hl_addr = cpu.registers.get_hl();
             let original_value = cpu.bus.read_byte(None, hl_addr);
             let value = cpu.bus.read_byte(None, hl_addr).wrapping_sub(1);
@@ -1723,18 +1712,22 @@ pub fn op_dec(cpu: &mut CPU, target: AllRegisters) -> u16 {
             set_flags_after_dec(cpu, value, original_value);
         }
         // 16-bit register increments (don't need to Set Flags for these)
+        // [0x0B]
         AllRegisters::BC => {
             let new_bc = cpu.registers.get_bc().wrapping_sub(1);
             cpu.registers.set_bc(new_bc);
         }
+        // [0x1B]
         AllRegisters::DE => {
             let new_de = cpu.registers.get_de().wrapping_sub(1);
             cpu.registers.set_de(new_de);
         }
+        // [0x2B]
         AllRegisters::HL => {
             let new_hl = cpu.registers.get_hl().wrapping_sub(1);
             cpu.registers.set_hl(new_hl);
         }
+        // [0x3B]
         AllRegisters::SP => {
             cpu.sp = cpu.sp.wrapping_sub(1);
         }
@@ -1742,57 +1735,70 @@ pub fn op_dec(cpu: &mut CPU, target: AllRegisters) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
+// [0x03, 0x04, 0x0C, 0x13, 0x14, 0x1C, 0x23, 0x24, 0x2C, 0x33, 0x34, 0x3C]
 pub fn op_inc(cpu: &mut CPU, target: AllRegisters) -> u16 {
     match target {
         // Increment 8-bit registers and Set Flags
+        // [0x3C]
         AllRegisters::A => {
             cpu.registers.a = cpu.registers.a.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.a);
         }
+        // [0x04]
         AllRegisters::B => {
             cpu.registers.b = cpu.registers.b.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.b);
         }
+        // [0x0C]
         AllRegisters::C => {
             cpu.registers.c = cpu.registers.c.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.c);
         }
+        // [0x14]
         AllRegisters::D => {
             cpu.registers.d = cpu.registers.d.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.d);
         }
+        // [0x1C]
         AllRegisters::E => {
             cpu.registers.e = cpu.registers.e.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.e);
         }
+        // [0x24]
         AllRegisters::H => {
             cpu.registers.h = cpu.registers.h.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.h);
         }
+        // [0x2C]
         AllRegisters::L => {
             cpu.registers.l = cpu.registers.l.wrapping_add(1);
             set_flags_after_inc(cpu, cpu.registers.l);
         }
-        // Increment value at bus location HL
+        // [0x34]
         AllRegisters::HLMEM => {
+            // Increment value at bus location HL
             let hl_addr = cpu.registers.get_hl();
             let value = cpu.bus.read_byte(None, hl_addr).wrapping_add(1);
             cpu.bus.write_byte(None, hl_addr, value);
             set_flags_after_inc(cpu, value);
         }
         // 16-bit register increments (don't need to Set Flags for these)
+        // [0x03]
         AllRegisters::BC => {
             let new_bc = cpu.registers.get_bc().wrapping_add(1);
             cpu.registers.set_bc(new_bc);
         }
+        // [0x13]
         AllRegisters::DE => {
             let new_de = cpu.registers.get_de().wrapping_add(1);
             cpu.registers.set_de(new_de);
         }
+        // [0x23]
         AllRegisters::HL => {
             let new_hl = cpu.registers.get_hl().wrapping_add(1);
             cpu.registers.set_hl(new_hl);
         }
+        // [0x33]
         AllRegisters::SP => {
             cpu.sp = cpu.sp.wrapping_add(1);
         }
@@ -1801,25 +1807,31 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) -> u16 {
 }
 
 // MAYBE CHANGE TO GOTO_ADDR IN FUTURE?
+// [0x18, 0x20, 0x28, 0x30, 0x38]
 pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     let jump_distance = cpu.bus.read_byte(None, cpu.pc + 1) as i8;
     match target {
+        // [0x20]
         JumpTest::NotZero => {
             if !cpu.registers.f.zero {
                 cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
             }
         }
+        // [0x30]
         JumpTest::NotCarry => {
             if !cpu.registers.f.carry {
                 cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
             }
         }
+        // [0x18]
         JumpTest::Always => cpu.pc = cpu.pc.wrapping_add(jump_distance as u16),
+        // [0x28]
         JumpTest::Zero => {
             if cpu.registers.f.zero {
                 cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
             }
         }
+        // [0x38]
         JumpTest::Carry => {
             if cpu.registers.f.carry {
                 cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
@@ -1832,6 +1844,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
+// [0xC1, 0xD1, 0xE1, 0xF1]
 pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
     // Pop Low and High Bytes
     let low: u16 = stack_pop(cpu) as u16;
@@ -1844,15 +1857,19 @@ pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
 
     // Perform Operation
     match target {
+        // [0xF1]
         StackTarget::AF => {
             cpu.registers.set_af(combined & 0xFFF0);
         }
+        // [0xC1]
         StackTarget::BC => {
             cpu.registers.set_bc(combined);
         }
+        // [0xD1]
         StackTarget::DE => {
             cpu.registers.set_de(combined);
         }
+        // [0xE1]
         StackTarget::HL => {
             cpu.registers.set_hl(combined);
         }
@@ -1862,8 +1879,10 @@ pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
+// [0xC5, 0xD5, 0xE5, 0xF5]
 pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
     match target {
+        // [0xF5]
         StackTarget::AF => {
             let high: u16 = (cpu.registers.get_af() >> 8) & 0xFF as u16;
             // Cycle
@@ -1875,6 +1894,7 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
 
             // Cycle
         }
+        // [0xC5]
         StackTarget::BC => {
             let high: u16 = (cpu.registers.get_bc() >> 8) & 0xFF as u16;
             // Cycle
@@ -1886,6 +1906,7 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
 
             // Cycle
         }
+        // [0xD5]
         StackTarget::DE => {
             let high: u16 = (cpu.registers.get_de() >> 8) & 0xFF as u16;
             // Cycle
@@ -1897,6 +1918,7 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
 
             // Cycle
         }
+        // [0xE5]
         StackTarget::HL => {
             let high: u16 = (cpu.registers.get_hl() >> 8) & 0xFF as u16;
             // Cycle
@@ -1912,6 +1934,7 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
+// [0xC0, 0xD0, 0xD8, 0xC8, 0xC9]
 pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
     // Maybe Cycle Here?? RESEARCH
 
@@ -1933,6 +1956,7 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
     }
 }
 
+// [0xD9]
 pub fn op_reti(cpu: &mut CPU) -> u16 {
     // Update Interrupt
     cpu.master_enabled = true;
@@ -1941,6 +1965,7 @@ pub fn op_reti(cpu: &mut CPU) -> u16 {
     op_ret(cpu, JumpTest::Always)
 }
 
+// [0xC7, 0xD7, 0xE7, 0xF7, 0xFC, 0xFD, 0xFE, 0xFF]
 pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
     let low: u16 = match target {
         RestTarget::Zero => 0x00,

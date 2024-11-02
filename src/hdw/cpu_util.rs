@@ -219,6 +219,14 @@ pub fn set_flags_after_ld_spe8(cpu: &mut CPU) {
         ((cpu.sp & 0xFF) + (cpu.bus.read_byte(None, cpu.pc + 1) as u16 & 0xFF)) > 0xFF;
 }
 
+pub fn set_int_flags(cpu: &mut CPU, value: u8) {
+    cpu.int_flags = value
+}
+
+pub fn get_int_flags(cpu: &mut CPU) -> u8 {
+    cpu.int_flags
+}
+
 // Function to help streamline alot of jumping instructions
 pub fn goto_addr(cpu: &mut CPU, address: u16, jump: bool, push_pc: bool) -> u16 {
     if jump {

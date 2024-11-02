@@ -1,5 +1,7 @@
+use crate::emu_cycles;
 use crate::hdw::bus::Bus;
 use crate::hdw::instructions::*;
+use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
 use crate::hdw::cpu_ops::*;
 use core::panic;
@@ -11,11 +13,17 @@ pub struct CPU {
     pub pc: u16,
     pub sp: u16,
     pub bus: Bus,
-    pub is_halted: bool,
-    pub master_enabled: bool,
+
     pub curr_opcode: u8,
     pub curr_instruction: Option<Instruction>,
+
+    pub is_halted: bool,
+    pub is_stepping: bool,
+
     pub ie_register: u8,
+    pub int_flags: u8,
+    pub enabling_ime: bool,
+    pub master_enabled: bool,
 }
 impl CPU {
     // Contructor
@@ -39,72 +47,96 @@ impl CPU {
             pc: 0x0100,
             sp: 0,
             bus: new_bus,
-            is_halted: false,
-            master_enabled: false,
 
             curr_opcode: 0,
             curr_instruction: None,
+
+            is_halted: false,
+            is_stepping: true,
+
+            int_flags: 0,
             ie_register: 0,
+            enabling_ime: false,
+            master_enabled: false,
         }
     }
 
     // Function to 'step' through instructions
     pub fn step(&mut self) {
-        // fetch next opcode from cartridge
-        self.fetch();
+        if !self.is_halted {
+            // fetch next opcode from cartridge
+            self.fetch();
 
-        // Decode current opcode
-        self.decode();
+            // Decode current opcode
+            self.decode();
 
-        // print information
-        // Convert `curr_instruction` to a string
-        let instruction_output = format!("{:#?}", self.curr_instruction);
+            // print information
+            // Convert `curr_instruction` to a string
+            let instruction_output = format!("{:#?}", self.curr_instruction);
 
-        // Define a regex to capture the instruction name within `Some(...)`
-        let re = Regex::new(r"Some\(\s*([A-Z]+)").unwrap();
+            // Define a regex to capture the instruction name within `Some(...)`
+            let re = Regex::new(r"Some\(\s*([A-Z]+)").unwrap();
 
-        // Use regex to capture the instruction name
-        let instruction_name = if let Some(cap) = re.captures(&instruction_output) {
-            cap.get(1).map_or("Unknown", |m| m.as_str())
+            // Use regex to capture the instruction name
+            let instruction_name = if let Some(cap) = re.captures(&instruction_output) {
+                cap.get(1).map_or("Unknown", |m| m.as_str())
+            } else {
+                "Unknown"
+            };
+
+            // Print information, including the extracted instruction name
+            print!(
+                "{:04X}:\t {} ({:02X} {:02X} {:02X})\nA:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} AF:{:04X} BC:{:04X} DE:{:04X} HL:{:04X}\nZ:{:02X} N:{:02X} H:{:02X} C:{:02X} \n\n",
+                self.pc,
+                instruction_name,
+                self.curr_opcode,
+                self.bus.read_byte(None, self.pc + 1),
+                self.bus.read_byte(None, self.pc + 2),
+                self.registers.a,
+                self.registers.b,
+                self.registers.c,
+                self.registers.d,
+                self.registers.e,
+                self.registers.h,
+                self.registers.l,
+                self.registers.get_af(),
+                self.registers.get_bc(),
+                self.registers.get_de(),
+                self.registers.get_hl(),
+                self.registers.f.zero as u8,
+                self.registers.f.subtract as u8,    
+                self.registers.f.half_carry as u8,
+                self.registers.f.carry as u8
+            );
+
+            // Execute the current instruction if it exists and reset it to none
+            if let Some(instruction) = self.curr_instruction.take() {
+                // Execute the current instruction
+                let next_pc = self.execute(instruction);
+
+                // Increment pc to returned pc
+                self.pc = next_pc;
+            } else {
+                panic!("Decode Error: No Instruction")
+            }
         } else {
-            "Unknown"
-        };
-
-        // Print information, including the extracted instruction name
-        print!(
-            "{:04X}:\t {} ({:02X} {:02X} {:02X})\nA:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} AF:{:04X} BC:{:04X} DE:{:04X} HL:{:04X}\nZ:{:02X} N:{:02X} H:{:02X} C:{:02X} \n\n",
-            self.pc,
-            instruction_name,
-            self.curr_opcode,
-            self.bus.read_byte(None, self.pc + 1),
-            self.bus.read_byte(None, self.pc + 2),
-            self.registers.a,
-            self.registers.b,
-            self.registers.c,
-            self.registers.d,
-            self.registers.e,
-            self.registers.h,
-            self.registers.l,
-            self.registers.get_af(),
-            self.registers.get_bc(),
-            self.registers.get_de(),
-            self.registers.get_hl(),
-            self.registers.f.zero as u8,
-            self.registers.f.subtract as u8,    
-            self.registers.f.half_carry as u8,
-            self.registers.f.carry as u8
-        );
-
-        // Execute the current instruction if it exists and reset it to none
-        if let Some(instruction) = self.curr_instruction.take() {
-            // Execute the current instruction
-            let next_pc = self.execute(instruction);
-
-            // Increment pc to returned pc
-            self.pc = next_pc;
-        } else {
-            panic!("Decode Error: No Instruction")
+            // is halted
+            emu_cycles(1);
+            
+            if self.int_flags != 0 {
+                self.is_halted = false;
+            }
         }
+
+        if self.master_enabled {
+            cpu_handle_interrupts(self);
+            self.enabling_ime = false;
+        }
+
+        if self.enabling_ime {
+            self.master_enabled = true;
+        }
+        
     }
 
     // Function to fetch next opcode

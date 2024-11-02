@@ -7,6 +7,7 @@ pub mod cpu;
 pub mod cpu_ops;
 pub mod cpu_util;
 pub mod instructions;
+pub mod interrupts;
 pub mod ram;
 pub mod registers;
 pub mod stack;

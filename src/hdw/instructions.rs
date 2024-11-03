@@ -293,9 +293,9 @@ impl Instruction {
             //RRA
             0x1F => Some(Instruction::RRA),
             //DAA
-            0x37 => Some(Instruction::DAA),
+            0x27 => Some(Instruction::DAA),
             //SCF
-            0x47 => Some(Instruction::SCF),
+            0x37 => Some(Instruction::SCF),
             //CPL
             0x2F => Some(Instruction::CPL),
             //CCF

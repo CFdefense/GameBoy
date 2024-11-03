@@ -1627,8 +1627,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 // [0x11]
                 LoadWordTarget::DE => match source {
                     LoadWordSource::N16 => {
-                        cpu.registers
-                            .set_de(cpu.bus.read_byte(None, word_value) as u16);
+                        cpu.registers.set_de(word_value as u16);
                         cpu.pc.wrapping_add(3)
                     }
                     _ => panic!("LD WORD BAD MATCH"),
@@ -2026,7 +2025,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
             panic!("BAD JR REQUEST");
         }
     }
-    cpu.pc.wrapping_add(1)
+    cpu.pc.wrapping_add(2)
 }
 
 // [0xC1, 0xD1, 0xE1, 0xF1]

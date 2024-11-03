@@ -1,11 +1,14 @@
 use crate::emu_cycles;
 use crate::hdw::bus::Bus;
+use crate::hdw::cpu_ops::*;
 use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
-use crate::hdw::cpu_ops::*;
 use core::panic;
 use regex::Regex;
+
+use std::thread;
+use std::time::Duration;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -86,27 +89,20 @@ impl CPU {
 
             // Print information, including the extracted instruction name
             print!(
-                "{:04X}:\t {} ({:02X} {:02X} {:02X})\nA:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} AF:{:04X} BC:{:04X} DE:{:04X} HL:{:04X}\nZ:{:02X} N:{:02X} H:{:02X} C:{:02X} \n\n",
+                "\n{:04X}:\t {}\t({:02X} {:02X} {:02X}) A:{:02X} F:{}{}{}{} BC:{:04X} DE:{:04X} HL:{:04X}",
                 self.pc,
                 instruction_name,
                 self.curr_opcode,
                 self.bus.read_byte(None, self.pc + 1),
                 self.bus.read_byte(None, self.pc + 2),
                 self.registers.a,
-                self.registers.b,
-                self.registers.c,
-                self.registers.d,
-                self.registers.e,
-                self.registers.h,
-                self.registers.l,
-                self.registers.get_af(),
+                if self.registers.f.zero { 'Z' } else { '-' },
+                if self.registers.f.subtract { 'N' } else { '-' },
+                if self.registers.f.half_carry { 'H' } else { '-' },
+                if self.registers.f.carry { 'C' } else { '-' }, 
                 self.registers.get_bc(),
                 self.registers.get_de(),
                 self.registers.get_hl(),
-                self.registers.f.zero as u8,
-                self.registers.f.subtract as u8,    
-                self.registers.f.half_carry as u8,
-                self.registers.f.carry as u8
             );
 
             // Execute the current instruction if it exists and reset it to none
@@ -122,7 +118,7 @@ impl CPU {
         } else {
             // is halted
             emu_cycles(1);
-            
+
             if self.int_flags != 0 {
                 self.is_halted = false;
             }
@@ -136,7 +132,6 @@ impl CPU {
         if self.enabling_ime {
             self.master_enabled = true;
         }
-        
     }
 
     // Function to fetch next opcode
@@ -147,7 +142,8 @@ impl CPU {
     // Function to decode current opcode
     fn decode(&mut self) {
         // Try to decode curr opcode
-        self.curr_instruction = Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
+        self.curr_instruction =
+            Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
 
         // Error handling
         if self.curr_instruction.is_none() {
@@ -175,7 +171,7 @@ impl CPU {
             }
             Instruction::RLCA => {
                 // Perform Operation & Implicit Return
-               op_rlca(self)
+                op_rlca(self)
             }
             Instruction::RRCA => {
                 // Perform Operation & Implicit Return
@@ -187,11 +183,11 @@ impl CPU {
             }
             Instruction::RRA => {
                 // Perform Operation & Implicit Return
-               op_rra(self)
+                op_rra(self)
             }
             Instruction::DAA => {
                 // Perform Operation & Implicit Return
-               op_daa(self)
+                op_daa(self)
             }
             Instruction::SCF => {
                 self.registers.f.carry = true;
@@ -199,7 +195,7 @@ impl CPU {
             }
             Instruction::CPL => {
                 // Perform Operation & Implicit Return
-               op_cpl(self)
+                op_cpl(self)
             }
             Instruction::CCF => {
                 self.registers.f.carry = !self.registers.f.carry;
@@ -207,7 +203,8 @@ impl CPU {
             }
             Instruction::JR(target) => {
                 // Perform Operation & Implicit Return
-                op_jr(self, target)
+                let next_pc = op_jr(self, target);
+                next_pc
             }
             Instruction::INC(target) => {
                 // Perform Operation & Implicit Return
@@ -217,10 +214,10 @@ impl CPU {
                 // Perform Operation & Implicit Return
                 op_dec(self, target)
             }
-            Instruction::LD(target) =>{
+            Instruction::LD(target) => {
                 // Perform Operation & Implicit Return
                 op_ld(self, target)
-            },
+            }
             Instruction::HALT => {
                 // Instruction For Halting CPU Cycle
                 self.is_halted = true;
@@ -229,11 +226,11 @@ impl CPU {
             Instruction::ADD(target) => {
                 // Perform Operation & Implicit Return
                 op_add(self, target)
-            },
+            }
             Instruction::ADC(target) => {
                 // Perform Operation & Implicit Return
                 op_adc(self, target)
-            },
+            }
             Instruction::SUB(target) => {
                 // Perform Operation & Implicit Return
                 op_sub(self, target)
@@ -257,14 +254,18 @@ impl CPU {
             Instruction::CP(target) => {
                 // Perform Operation & Implicit Return
                 op_cp(self, target)
-            },
+            }
             Instruction::RET(target) => {
                 // Perform Operation & Implicit Return
-                op_ret(self, target)
+                let next_pc = op_ret(self, target);
+                thread::sleep(Duration::from_secs(20));
+                next_pc
             }
             Instruction::RETI => {
                 // Perform Operation & Implicit Return
-                op_reti(self)
+                let next_pc = op_reti(self);
+                thread::sleep(Duration::from_secs(20));
+                next_pc
             }
             Instruction::POP(target) => {
                 // Perform Operation & Implicit Return
@@ -276,15 +277,19 @@ impl CPU {
             }
             Instruction::CALL(target) => {
                 // Perform Operation & Implicit Return
-                op_call(self, target)
+                let next_pc = op_call(self, target);
+                thread::sleep(Duration::from_secs(20));
+                next_pc
             }
             Instruction::PUSH(target) => {
                 // Perform Operation & Implicit Return
-               op_push(self, target)
+                op_push(self, target)
             }
             Instruction::RST(target) => {
                 // Perform Operation & Implicit Return
-                op_rst(self, target)
+                let next_pc = op_rst(self, target);
+                thread::sleep(Duration::from_secs(20));
+                next_pc
             }
             Instruction::DI => {
                 self.master_enabled = false;

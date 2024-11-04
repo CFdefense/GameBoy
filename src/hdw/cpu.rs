@@ -1,4 +1,4 @@
-use crate::emu_cycles;
+use crate::hdw::emu::emu_cycles;
 use crate::hdw::bus::Bus;
 use crate::hdw::cpu_ops::*;
 use crate::hdw::instructions::*;
@@ -65,7 +65,7 @@ impl CPU {
     }
 
     // Function to 'step' through instructions
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> bool {
         if !self.is_halted {
             // fetch next opcode from cartridge
             self.fetch();
@@ -89,7 +89,7 @@ impl CPU {
 
             // Print information, including the extracted instruction name
             print!(
-                "\n{:04X}:\t {}\t({:02X} {:02X} {:02X}) A:{:02X} F:{}{}{}{} BC:{:04X} DE:{:04X} HL:{:04X}",
+                "\n{:04X}:\t {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
                 self.pc,
                 instruction_name,
                 self.curr_opcode,
@@ -132,6 +132,8 @@ impl CPU {
         if self.enabling_ime {
             self.master_enabled = true;
         }
+
+        true
     }
 
     // Function to fetch next opcode
@@ -278,7 +280,7 @@ impl CPU {
             Instruction::CALL(target) => {
                 // Perform Operation & Implicit Return
                 let next_pc = op_call(self, target);
-                thread::sleep(Duration::from_secs(20));
+                //thread::sleep(Duration::from_secs(20));
                 next_pc
             }
             Instruction::PUSH(target) => {

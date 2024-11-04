@@ -9,10 +9,10 @@ use crate::hdw::cart::Cartridge;
 use crate::hdw::cpu::CPU;
 
 // Emulator context
-struct EmuContext {
+pub struct EmuContext {
     running: bool,
     paused: bool,
-    ticks: u64,
+    pub ticks: u64,
     cpu: CPU, // Add CPU instance to context
 }
 
@@ -20,34 +20,42 @@ struct EmuContext {
 impl EmuContext {
     fn new(bus: Bus) -> Self {
         EmuContext {
-            running: false,
+            running: true,
             paused: false,
             ticks: 0,
             cpu: CPU::new(bus), // Initialize CPU with a Bus
         }
     }
+
+    fn execute_cpu_step(&mut self) -> bool {
+        if !self.running || self.paused {
+            return true; // Indicate that the step did not execute
+        }
+
+        // Execute a CPU step
+        let result = self.cpu.step(self.ticks);
+
+        if !result {
+            println!("CPU Stopped");
+            self.running = false; // Stop the emulator
+        }
+
+        self.ticks += 1;
+        result
+    }
 }
 
 // CPU thread function
 fn cpu_run(ctx: Arc<Mutex<EmuContext>>) {
-    let mut ctx = ctx.lock().unwrap();
-    ctx.running = true;
-    println!("CPU thread started...");
+    loop {
+        let mut ctx_lock = ctx.lock().unwrap();
 
-    while ctx.running {
-        if ctx.paused {
-            thread::sleep(Duration::from_millis(10));
-            continue;
+        if !ctx_lock.running {
+            break;
         }
 
-        // Execute a CPU step and check if it succeeded
-        if !ctx.cpu.step() {
-            // Assuming `step` is a method in `CPU`
-            println!("CPU Stopped");
-            ctx.running = false; // Stop the emulator
-        }
-
-        ctx.ticks += 1;
+        // Execute a CPU step
+        ctx_lock.execute_cpu_step();
     }
 }
 

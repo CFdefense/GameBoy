@@ -27,7 +27,6 @@ pub struct CPU {
     pub int_flags: u8,
     pub enabling_ime: bool,
     pub master_enabled: bool,
-    operation_table: [Option<Instruction>; 256],
 }
 impl CPU {
     // Contructor
@@ -48,7 +47,6 @@ impl CPU {
                 h: 0,
                 l: 0,
             },
-            operation_table: Self::init_instruction_table(),
             pc: 0x0100,
             sp: 0,
             bus: new_bus,

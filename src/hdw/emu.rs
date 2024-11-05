@@ -94,7 +94,7 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
 
     // Main loop for UI
     while ctx.lock().unwrap().running {
-        thread::sleep(Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(1));
     }
 
     Ok(())

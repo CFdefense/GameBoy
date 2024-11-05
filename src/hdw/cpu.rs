@@ -1,6 +1,6 @@
-use crate::hdw::emu::emu_cycles;
 use crate::hdw::bus::Bus;
 use crate::hdw::cpu_ops::*;
+use crate::hdw::emu::emu_cycles;
 use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
@@ -65,7 +65,7 @@ impl CPU {
     }
 
     // Function to 'step' through instructions
-    pub fn step(&mut self) -> bool {
+    pub fn step(&mut self, ticks: u64) -> bool {
         if !self.is_halted {
             // fetch next opcode from cartridge
             self.fetch();
@@ -89,17 +89,18 @@ impl CPU {
 
             // Print information, including the extracted instruction name
             print!(
-                "\n{:04X}:\t {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+                "\n{:08X} - {:04X}: ({:02X}: {})\t[{:02X} {:02X}] A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+                ticks,
                 self.pc,
-                instruction_name,
                 self.curr_opcode,
+                instruction_name,
                 self.bus.read_byte(None, self.pc + 1),
                 self.bus.read_byte(None, self.pc + 2),
                 self.registers.a,
                 if self.registers.f.zero { 'Z' } else { '-' },
                 if self.registers.f.subtract { 'N' } else { '-' },
                 if self.registers.f.half_carry { 'H' } else { '-' },
-                if self.registers.f.carry { 'C' } else { '-' }, 
+                if self.registers.f.carry { 'C' } else { '-' },
                 self.registers.get_bc(),
                 self.registers.get_de(),
                 self.registers.get_hl(),

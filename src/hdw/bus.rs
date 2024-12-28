@@ -42,7 +42,8 @@ impl Bus {
     pub fn read_byte(&self, cpu: Option<&mut CPU>, address: u16) -> u8 {
         if address < 0x8000 {
             // ROM DATA
-            self.cart.read_byte(address)
+            let result = self.cart.read_byte(address);
+            result
         } else if address < 0xA000 {
             // Char/Map Data
             print!("MEM NOT IMPL\n");

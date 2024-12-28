@@ -79,6 +79,18 @@ impl Cartridge {
             .map_err(|e| format!("Failed to Read Rom Data {}", e))?;
 
         println!("Cartidge Loaded");
+
+        /* Print entire cartridge content in hex
+        println!("\nROM Data (Hex):");
+        for (i, byte) in self.rom_data.iter().enumerate() {
+            if i % 16 == 0 && i != 0 {
+                println!(); // Start a new line every 16 bytes
+            }
+            print!("{:02X} ", byte);
+        }
+        println!(); // Ensure the last line is properly ended
+        */
+
         // Load Header Information
         self.rom_header = CartridgeHeader {
             //entry_point: [0; 4],

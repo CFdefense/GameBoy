@@ -89,13 +89,15 @@ impl CPU {
 
             // Print information, including the extracted instruction name
             print!(
-                "\n{:08X} - {:04X}: ({:02X}: {})\t[{:02X} {:02X}] A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+                "\n{:08X} - {:04X}: ({:02X}: {})\t[{:02X} {:02X} {:02X} {:02X}] A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
                 ticks,
                 self.pc,
                 self.curr_opcode,
                 instruction_name,
-                self.bus.read_byte(None, self.pc + 1),
-                self.bus.read_byte(None, self.pc + 2),
+                self.curr_opcode,
+                self.bus.read_byte(None, self.pc.wrapping_add(1)),
+                self.bus.read_byte(None, self.pc.wrapping_add(2)),
+                self.bus.read_byte(None, self.pc.wrapping_add(3)),
                 self.registers.a,
                 if self.registers.f.zero { 'Z' } else { '-' },
                 if self.registers.f.subtract { 'N' } else { '-' },
@@ -134,6 +136,7 @@ impl CPU {
             self.master_enabled = true;
         }
 
+        thread::sleep(Duration::from_secs(1));
         true
     }
 
@@ -261,13 +264,13 @@ impl CPU {
             Instruction::RET(target) => {
                 // Perform Operation & Implicit Return
                 let next_pc = op_ret(self, target);
-                thread::sleep(Duration::from_secs(20));
+                //thread::sleep(Duration::from_secs(20));
                 next_pc
             }
             Instruction::RETI => {
                 // Perform Operation & Implicit Return
                 let next_pc = op_reti(self);
-                thread::sleep(Duration::from_secs(20));
+                //thread::sleep(Duration::from_secs(20));
                 next_pc
             }
             Instruction::POP(target) => {
@@ -291,7 +294,7 @@ impl CPU {
             Instruction::RST(target) => {
                 // Perform Operation & Implicit Return
                 let next_pc = op_rst(self, target);
-                thread::sleep(Duration::from_secs(20));
+                //thread::sleep(Duration::from_secs(20));
                 next_pc
             }
             Instruction::DI => {

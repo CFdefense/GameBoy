@@ -1,0 +1,7 @@
+TIME TO FINISH THIS!
+
+1. Review previous work
+
+2. Fix issues pertaining to the stack and jumping
+
+3. Continue Work

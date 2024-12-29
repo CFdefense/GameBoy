@@ -83,10 +83,9 @@ impl Cartridge {
         /* Print entire cartridge content in hex
         println!("\nROM Data (Hex):");
         for (i, byte) in self.rom_data.iter().enumerate() {
-            if i % 16 == 0 && i != 0 {
-                println!(); // Start a new line every 16 bytes
+            if *byte != 0 {
+                print!("{:02X} ", byte);
             }
-            print!("{:02X} ", byte);
         }
         println!(); // Ensure the last line is properly ended
         */

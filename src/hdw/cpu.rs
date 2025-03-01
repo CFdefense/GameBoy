@@ -136,7 +136,7 @@ impl CPU {
             self.master_enabled = true;
         }
 
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(1)); // SLEEEP HERE FOR EACH EMU
         true
     }
 

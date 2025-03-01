@@ -11,7 +11,7 @@ use crate::hdw::stack::*;
 // [0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F]
 pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Get LSB For Carry Flag
     let lsb = reg_target & 0x1;
@@ -22,14 +22,14 @@ pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flags
     set_flags_after_pref_op(cpu, lsb, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37]
 pub fn op_swap(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Swap the the nibbles
     reg_target = (reg_target << 4) | (reg_target >> 4);
@@ -37,14 +37,14 @@ pub fn op_swap(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Upd Flags
     set_flags_after_swap(cpu, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F]
 pub fn op_sra(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Get LSB For Carry
     let lsb = reg_target & 0x1;
@@ -63,14 +63,14 @@ pub fn op_sra(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flags
     set_flags_after_pref_op(cpu, lsb, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27]
 pub fn op_sla(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Get Bit 7 For Carry
     let bit_7 = (reg_target >> 7) & 0x1;
@@ -81,14 +81,14 @@ pub fn op_sla(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flag
     set_flags_after_pref_op(cpu, bit_7, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
 pub fn op_rlc(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Get Bit 7 For Carry
     let bit_7 = (reg_target >> 7) & 0x1;
@@ -99,14 +99,14 @@ pub fn op_rlc(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flags
     set_flags_after_pref_op(cpu, bit_7, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F]
 pub fn op_rrc(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Get Bit 0 For Carry
     let bit_0 = reg_target & 0x1;
@@ -117,14 +117,14 @@ pub fn op_rrc(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flags
     set_flags_after_pref_op(cpu, bit_0, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]
 pub fn op_rl(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Store Previous Carry
     let prev_carry = cpu.registers.f.carry;
@@ -138,14 +138,14 @@ pub fn op_rl(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flags
     set_flags_after_pref_op(cpu, bit_7, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
 // [0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F]
 pub fn op_rr(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
-    let mut reg_target = match_hl(cpu, target);
+    let mut reg_target = match_hl(cpu, &target);
 
     // Store Previous Carry
     let prev_carry = cpu.registers.f.carry;
@@ -159,7 +159,7 @@ pub fn op_rr(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Update Flags
     set_flags_after_pref_op(cpu, bit_0, reg_target);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
@@ -171,7 +171,7 @@ pub fn op_cpl(cpu: &mut CPU) -> u16 {
     // Set flags
     set_flags_after_cpl(cpu);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
@@ -205,7 +205,7 @@ pub fn op_daa(cpu: &mut CPU) -> u16 {
     // Update Flags
     set_flags_after_daa(cpu, carry);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
@@ -220,7 +220,7 @@ pub fn op_rra(cpu: &mut CPU) -> u16 {
     // Update Flags
     set_flags_after_no_pre_rl_rr(cpu, bit_0);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
@@ -235,7 +235,7 @@ pub fn op_rla(cpu: &mut CPU) -> u16 {
     // Update Flags
     set_flags_after_no_pre_rl_rr(cpu, bit_7);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
@@ -250,7 +250,7 @@ pub fn op_rrca(cpu: &mut CPU) -> u16 {
     // Update Flags
     set_flags_after_no_pre_rl_rr(cpu, bit_0);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 // [0x07]
@@ -264,7 +264,7 @@ pub fn op_rlca(cpu: &mut CPU) -> u16 {
     // Update Flags
     set_flags_after_no_pre_rl_rr(cpu, bit_7);
 
-    // Implicit Return
+    
     cpu.pc.wrapping_add(1)
 }
 
@@ -314,42 +314,42 @@ pub fn op_bit(cpu: &mut CPU, target: ByteTarget) -> u16 {
         // [0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47]
         ByteTarget::Zero(hl_target) => {
             bit = 0b00000010; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F]
         ByteTarget::One(hl_target) => {
             bit = 0b00000100; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57]
         ByteTarget::Two(hl_target) => {
             bit = 0b00001000; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F]
         ByteTarget::Three(hl_target) => {
             bit = 0b00010000; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67]
         ByteTarget::Four(hl_target) => {
             bit = 0b00100000; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F]
         ByteTarget::Five(hl_target) => {
             bit = 0b01000000; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77]
         ByteTarget::Six(hl_target) => {
             bit = 0b10000000; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
         // [0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F]
         ByteTarget::Seven(hl_target) => {
             bit = 0b00000000; // Byte to match
-            target_register = match_hl(cpu, hl_target); // find target
+            target_register = match_hl(cpu, &hl_target); // find target
         }
     }
 
@@ -368,8 +368,8 @@ pub fn op_bit(cpu: &mut CPU, target: ByteTarget) -> u16 {
 */
 pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
     let mask: u8;
-    let mut target_register: u8;
-    let mut is_mem: bool = false;
+    let target_register: u8;
+    let is_mem: bool;
     let found_target: HLTarget;
 
     match target {
@@ -415,24 +415,28 @@ pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
         }
     }
 
-    // Now see if found target is hl -> memory location
-    match found_target {
-        HLTarget::HL => {
-            is_mem = true;
-        }
-        _ => {}
-    }
+    is_mem = matches!(found_target, HLTarget::HL);
 
     // Get Target Register
-    target_register = match_hl(cpu, found_target);
+    target_register = match_hl(cpu, &found_target);
 
     // Perform Operation
     if is_mem {
-        // if were updating memory write back to grabbed location the new value
+        // if we're updating memory write back to grabbed location the new value
         cpu.bus
             .write_byte(None, cpu.registers.get_hl(), target_register & mask);
     } else {
-        target_register &= mask;
+        // Update the appropriate register based on found_target
+        match found_target {
+            HLTarget::A => cpu.registers.a &= mask,
+            HLTarget::B => cpu.registers.b &= mask,
+            HLTarget::C => cpu.registers.c &= mask,
+            HLTarget::D => cpu.registers.d &= mask,
+            HLTarget::E => cpu.registers.e &= mask,
+            HLTarget::H => cpu.registers.h &= mask,
+            HLTarget::L => cpu.registers.l &= mask,
+            HLTarget::HL => {} // Already handled in is_mem case
+        }
     }
 
     // Prefixed Return
@@ -447,8 +451,7 @@ pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
 */
 pub fn op_set(cpu: &mut CPU, target: ByteTarget) -> u16 {
     let mask: u8;
-    let mut target_register: u8;
-    let mut is_mem: bool = false;
+    let is_mem: bool;
     let found_target: HLTarget;
 
     match target {
@@ -493,25 +496,26 @@ pub fn op_set(cpu: &mut CPU, target: ByteTarget) -> u16 {
             found_target = hl_target;
         }
     }
-    // Determine if were using memory
-    match found_target {
-        // [0xC6, 0xD6, 0xE6, 0xF6]
-        HLTarget::HL => {
-            is_mem = true; // flag that were grabbing memory
-        }
-        _ => {}
-    }
 
-    // Find Target
-    target_register = match_hl(cpu, found_target);
+    // Determine if we're using memory
+    is_mem = matches!(found_target, HLTarget::HL);
 
-    // Perform Operation
     if is_mem {
-        // if were updating memory write back to grabbed location the new value
-        cpu.bus
-            .write_byte(None, cpu.registers.get_hl(), target_register & mask);
+        // If we're updating memory, read current value and set the bit
+        let value = cpu.bus.read_byte(None, cpu.registers.get_hl());
+        cpu.bus.write_byte(None, cpu.registers.get_hl(), value | mask);
     } else {
-        target_register &= mask;
+        // Update the appropriate register based on found_target
+        match found_target {
+            HLTarget::A => cpu.registers.a |= mask,
+            HLTarget::B => cpu.registers.b |= mask,
+            HLTarget::C => cpu.registers.c |= mask,
+            HLTarget::D => cpu.registers.d |= mask,
+            HLTarget::E => cpu.registers.e |= mask,
+            HLTarget::H => cpu.registers.h |= mask,
+            HLTarget::L => cpu.registers.l |= mask,
+            HLTarget::HL => {} // Already handled in is_mem case
+        }
     }
 
     // Prefixed Return
@@ -656,7 +660,7 @@ pub fn op_or(cpu: &mut CPU, target: OPTarget) -> u16 {
     // Set Flags
     set_flags_after_xor_or(cpu, cpu.registers.a);
 
-    // Implicit Return
+    
     result_pc
 }
 
@@ -731,7 +735,7 @@ pub fn op_xor(cpu: &mut CPU, target: OPTarget) -> u16 {
     // Set Flags
     set_flags_after_xor_or(cpu, cpu.registers.a);
 
-    // Implicit Return
+    
     result_pc
 }
 
@@ -806,7 +810,7 @@ pub fn op_and(cpu: &mut CPU, target: OPTarget) -> u16 {
     // Set Flags
     set_flags_after_and(cpu, cpu.registers.a);
 
-    // Implicit Return
+    
     result_pc
 }
 
@@ -1160,7 +1164,7 @@ pub fn op_add(cpu: &mut CPU, target: OPType) -> u16 {
         // [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87]
         OPType::LoadA(target) => {
             // Find Register Target
-            let reg_target = match_hl(cpu, target);
+            let reg_target = match_hl(cpu, &target);
 
             // Store the original value of A
             let original = cpu.registers.a;
@@ -1712,6 +1716,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 cpu.registers.set_hl(cpu.registers.get_hl().wrapping_add(1));
                 cpu.pc.wrapping_add(1)
             }
+            
         },
         // [0x06, 0x0E, 0x16, 0x1E, 0x26, 0x2E, 0x36, 0x3E]
         LoadType::D8StoreInReg(target) => match target {
@@ -2021,9 +2026,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
                 cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
             }
         }
-        JumpTest::HL => {
-            panic!("BAD JR REQUEST");
-        }
+        JumpTest::HL => panic!("Invalid JumpTest::HL {:?} in JR instruction", target),
     }
     cpu.pc.wrapping_add(2)
 }
@@ -2059,7 +2062,6 @@ pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
         }
     }
 
-    // Implicit Return
     cpu.pc.wrapping_add(1)
 }
 
@@ -2114,7 +2116,7 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
 
             // Cycle
         }
-    };
+    }
     cpu.pc.wrapping_add(1)
 }
 
@@ -2133,7 +2135,7 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
 
         cpu.pc = (high << 8) | low;
 
-        // Implicit Return
+        
         cpu.pc
     } else {
         cpu.pc.wrapping_add(3) // maybe not correct

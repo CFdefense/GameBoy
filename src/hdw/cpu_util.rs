@@ -34,7 +34,7 @@ pub fn match_jump(cpu: &mut CPU, test: JumpTest) -> bool {
 }
 
 // Method to match a HL Target
-pub fn match_hl(cpu: &mut CPU, target: HLTarget) -> u8 {
+pub fn match_hl(cpu: &mut CPU, target: &HLTarget) -> u8 {
     let reg_target = match target {
         HLTarget::A => cpu.registers.a,
         HLTarget::B => cpu.registers.b,

@@ -1,0 +1,3 @@
+Adding pc incrementing to fetch function
+
+need to properly handle the pc incrementing for the different instructions such as those with prefix or data to be read

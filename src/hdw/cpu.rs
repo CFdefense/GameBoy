@@ -7,8 +7,6 @@ use crate::hdw::registers::*;
 use core::panic;
 use regex::Regex;
 
-use std::thread;
-use std::time::Duration;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -89,15 +87,13 @@ impl CPU {
 
             // Print information, including the extracted instruction name
             print!(
-                "\n{:08X} - {:04X}: ({:02X}: {})\t[{:02X} {:02X} {:02X} {:02X}] A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+                "\n{:08X} - {:04X}: {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
                 ticks,
                 self.pc,
-                self.curr_opcode,
                 instruction_name,
                 self.curr_opcode,
                 self.bus.read_byte(None, self.pc.wrapping_add(1)),
                 self.bus.read_byte(None, self.pc.wrapping_add(2)),
-                self.bus.read_byte(None, self.pc.wrapping_add(3)),
                 self.registers.a,
                 if self.registers.f.zero { 'Z' } else { '-' },
                 if self.registers.f.subtract { 'N' } else { '-' },
@@ -136,20 +132,21 @@ impl CPU {
             self.master_enabled = true;
         }
 
-        thread::sleep(Duration::from_secs(1)); // SLEEEP HERE FOR EACH EMU
+        //thread::sleep(Duration::from_secs(1)); // SLEEEP HERE FOR EACH EMU
         true
     }
 
     // Function to fetch next opcode
     fn fetch(&mut self) {
+        // Increment PC
+        self.pc = self.pc.wrapping_add(1);
         self.curr_opcode = self.bus.read_byte(None, self.pc);
     }
 
     // Function to decode current opcode
     fn decode(&mut self) {
         // Try to decode curr opcode
-        self.curr_instruction =
-            Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
+        self.curr_instruction = Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
 
         // Error handling
         if self.curr_instruction.is_none() {

@@ -8,6 +8,8 @@ use crate::hdw::cpu_util::*;
 use crate::hdw::instructions::*;
 use crate::hdw::stack::*;
 
+use super::emu::emu_cycles;
+
 // [0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F]
 pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
     // Find Target Register
@@ -266,38 +268,6 @@ pub fn op_rlca(cpu: &mut CPU) -> u16 {
 
     
     cpu.pc.wrapping_add(1)
-}
-
-// [0xC2, 0xC3, 0xCA, 0xD2, 0xDA, 0xE9]
-pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> u16 {
-    // Match Jump
-    let jump = match_jump(cpu, target);
-
-    // Get Bytes
-    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
-    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
-
-    // Perform Operation & Implicit Return
-    goto_addr(
-        cpu,
-        (most_significant << 8) | least_significant,
-        jump,
-        false,
-    )
-}
-
-// [0xC4, 0xCC, 0xCD, 0xD4, 0xDC]
-pub fn op_call(cpu: &mut CPU, target: JumpTest) -> u16 {
-    // Jump to addr in bus or increment pc
-    // Match Jump
-    let jump = match_jump(cpu, target);
-
-    // Get Bytes
-    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
-    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
-
-    // Perform Operation & Implicit Return
-    goto_addr(cpu, (most_significant << 8) | least_significant, jump, true)
 }
 
 /*
@@ -1284,7 +1254,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 }
             },
             // [0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F]
-            HLTarget::C => match target {
+            HLTarget::C => match source {
                 // [0x48]
                 HLTarget::B => {
                     cpu.registers.c = cpu.registers.b;
@@ -1327,7 +1297,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 }
             },
             // [0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57]
-            HLTarget::D => match target {
+            HLTarget::D => match source {
                 // [0x50]
                 HLTarget::B => {
                     cpu.registers.d = cpu.registers.b;
@@ -1370,7 +1340,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 }
             },
             // [0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F]
-            HLTarget::E => match target {
+            HLTarget::E => match source {
                 // [0x58]
                 HLTarget::B => {
                     cpu.registers.e = cpu.registers.b;
@@ -1413,7 +1383,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 }
             },
             // [0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67]
-            HLTarget::H => match target {
+            HLTarget::H => match source {
                 // [0x60]
                 HLTarget::B => {
                     cpu.registers.h = cpu.registers.b;
@@ -1456,7 +1426,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 }
             },
             // [0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F]
-            HLTarget::L => match target {
+            HLTarget::L => match source {
                 // [0x68]
                 HLTarget::B => {
                     cpu.registers.l = cpu.registers.b;
@@ -1499,7 +1469,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 }
             },
             // [0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x77]
-            HLTarget::HL => match target {
+            HLTarget::HL => match source {
                 // [0x70]
                 HLTarget::B => {
                     cpu.bus
@@ -1545,7 +1515,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) -> u16 {
                 _ => panic!("Getting LD HL HL Should be HALT"),
             },
             // [0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F]
-            HLTarget::A => match target {
+            HLTarget::A => match source {
                 // [0x78]
                 HLTarget::B => {
                     cpu.registers.a = cpu.registers.b;
@@ -1995,49 +1965,48 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) -> u16 {
     cpu.pc.wrapping_add(1)
 }
 
-// MAYBE CHANGE TO GOTO_ADDR IN FUTURE?
+// [0xC2, 0xC3, 0xCA, 0xD2, 0xDA, 0xE9]
+pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> u16 {
+
+    // Get Bytes
+    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
+    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
+
+    // Perform Operation & Implicit Return
+    goto_addr(
+        cpu,
+        (most_significant << 8) | least_significant,
+        target,
+        false,
+    )
+}
+
+// [0xC4, 0xCC, 0xCD, 0xD4, 0xDC]
+pub fn op_call(cpu: &mut CPU, target: JumpTest) -> u16 {
+    // Jump to addr in bus or increment pc
+
+    // Get Bytes
+    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
+    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
+
+    // Perform Operation & Implicit Return
+    goto_addr(cpu, (most_significant << 8) | least_significant, target, true)
+}
+
 // [0x18, 0x20, 0x28, 0x30, 0x38]
 pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     let jump_distance = cpu.bus.read_byte(None, cpu.pc + 1) as i8;
-    match target {
-        // [0x20]
-        JumpTest::NotZero => {
-            if !cpu.registers.f.zero {
-                cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
-            }
-        }
-        // [0x30]
-        JumpTest::NotCarry => {
-            if !cpu.registers.f.carry {
-                cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
-            }
-        }
-        // [0x18]
-        JumpTest::Always => cpu.pc = cpu.pc.wrapping_add(jump_distance as u16),
-        // [0x28]
-        JumpTest::Zero => {
-            if cpu.registers.f.zero {
-                cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
-            }
-        }
-        // [0x38]
-        JumpTest::Carry => {
-            if cpu.registers.f.carry {
-                cpu.pc = cpu.pc.wrapping_add(jump_distance as u16)
-            }
-        }
-        JumpTest::HL => panic!("Invalid JumpTest::HL {:?} in JR instruction", target),
-    }
-    cpu.pc.wrapping_add(2)
+    println!("Jump Distance: {:02X}", jump_distance);
+    goto_addr(cpu, cpu.pc.wrapping_add(jump_distance as u16), target, false)
 }
 
 // [0xC1, 0xD1, 0xE1, 0xF1]
 pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
     // Pop Low and High Bytes
     let low: u16 = stack_pop(cpu) as u16;
-    //Cycle
+    emu_cycles(1);
     let high: u16 = stack_pop(cpu) as u16;
-    //Cycle
+    emu_cycles(1);
 
     // Combine Bytes
     let combined: u16 = (high << 8) | low;
@@ -2062,7 +2031,7 @@ pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
         }
     }
 
-    cpu.pc.wrapping_add(1)
+    cpu.pc
 }
 
 // [0xC5, 0xD5, 0xE5, 0xF5]
@@ -2071,50 +2040,50 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
         // [0xF5]
         StackTarget::AF => {
             let high: u16 = (cpu.registers.get_af() >> 8) & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_af() & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, low as u8);
 
-            // Cycle
+            emu_cycles(1);
         }
         // [0xC5]
         StackTarget::BC => {
             let high: u16 = (cpu.registers.get_bc() >> 8) & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_bc() & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, low as u8);
 
-            // Cycle
+            emu_cycles(1);
         }
         // [0xD5]
         StackTarget::DE => {
             let high: u16 = (cpu.registers.get_de() >> 8) & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_de() & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, low as u8);
 
-            // Cycle
+            emu_cycles(1);
         }
         // [0xE5]
         StackTarget::HL => {
             let high: u16 = (cpu.registers.get_hl() >> 8) & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_hl() & 0xFF as u16;
-            // Cycle
+            emu_cycles(1);
             stack_push(cpu, low as u8);
 
-            // Cycle
+            emu_cycles(1);
         }
     }
     cpu.pc.wrapping_add(1)
@@ -2122,24 +2091,33 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
 
 // [0xC0, 0xD0, 0xD8, 0xC8, 0xC9]
 pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
-    // Maybe Cycle Here?? RESEARCH
+    // Cycle if condition is not Always
+    if !matches!(target, JumpTest::Always) {
+        emu_cycles(1);
+    }
 
     // Get Condition
-    let jump = match_jump(cpu, target);
+    let jump = match_jump(cpu, &target);
 
     if jump {
         let low: u16 = stack_pop(cpu) as u16;
-        // Cycle
+        emu_cycles(1);
         let high: u16 = stack_pop(cpu) as u16;
-        // Cycle
+        emu_cycles(1);
 
-        cpu.pc = (high << 8) | low;
+        let n: u16 = (high << 8) | low;
 
-        
-        cpu.pc
-    } else {
-        cpu.pc.wrapping_add(3) // maybe not correct
-    }
+        cpu.pc = n;
+
+        emu_cycles(1);
+
+    };
+
+    // Get Bytes
+    let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
+    let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
+
+    goto_addr(cpu, (most_significant << 8) | least_significant, target, false)
 }
 
 // [0xD9]
@@ -2165,5 +2143,5 @@ pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
     };
 
     // Perform Operation & Implicit Return
-    goto_addr(cpu, 0x0000 | low, true, true)
+    goto_addr(cpu, 0x0000 | low, JumpTest::Always, true)
 }

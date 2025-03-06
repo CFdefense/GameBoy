@@ -8,6 +8,7 @@
 use super::stack::stack_push16;
 use crate::hdw::cpu::CPU;
 use crate::hdw::instructions::*;
+use super::emu::emu_cycles;
 
 // Method to match a N16 Target
 pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
@@ -21,7 +22,7 @@ pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
 }
 
 // Method to match a Jump Condition
-pub fn match_jump(cpu: &mut CPU, test: JumpTest) -> bool {
+pub fn match_jump(cpu: &mut CPU, test: &JumpTest) -> bool {
     let jump_condition = match test {
         JumpTest::NotZero => !cpu.registers.f.zero,
         JumpTest::NotCarry => !cpu.registers.f.carry,
@@ -228,19 +229,19 @@ pub fn get_int_flags(cpu: &mut CPU) -> u8 {
 }
 
 // Function to help streamline alot of jumping instructions
-pub fn goto_addr(cpu: &mut CPU, address: u16, jump: bool, push_pc: bool) -> u16 {
+pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool) -> u16 {
+
+    let jump = match_jump(cpu, &jump_test);
+
     if jump {
         if push_pc {
-            // cycle 2
+            emu_cycles(2);
             stack_push16(cpu, cpu.pc);
         }
         // combine and set pc to 2 byte addr in lil endian
         cpu.pc = address;
-
-        // Implicit Return
-        cpu.pc
-    } else {
-        // Implicit Return
-        cpu.pc.wrapping_add(3)
+        emu_cycles(1);
     }
+    println!("\n Going to - PC: {:04X}", cpu.pc);
+    cpu.pc
 }

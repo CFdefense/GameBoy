@@ -46,7 +46,7 @@ impl Bus {
             result
         } else if address < 0xA000 {
             // Char/Map Data
-            print!("MEM NOT IMPL\n");
+            print!("\nMEM NOT IMPL <A");
             0
         } else if address < 0xC000 {
             // Cartridge RAM
@@ -59,14 +59,14 @@ impl Bus {
             0
         } else if address < 0xFEA0 {
             // OAM
-            print!("MEM NOT IMPL\n");
+            print!("\nMEM NOT IMPL <FEA0");
             0
         } else if address < 0xFF00 {
             // Reserved Unusable
             0
         } else if address < 0xFF80 {
             // IO Registers
-            print!("MEM NOT IMPL\n");
+            print!("\nMEM NOT IMPL <FF80");
             0
         } else if address == 0xFFFF {
             // CPU ENABLE
@@ -89,7 +89,7 @@ impl Bus {
             self.cart.write_byte(address, value);
         } else if address < 0xA000 {
             // Char/Map Data
-            print!("MEM NOT IMPL\n")
+            print!("\nMEM NOT IMPL <A000");
         } else if address < 0xC000 {
             // EXT RAM
             self.cart.write_byte(address, value);
@@ -100,12 +100,12 @@ impl Bus {
             // Reserved ECHO RAM
         } else if address < 0xFEA0 {
             // OAM RAM
-            print!("MEM NOT IMPL\n")
+            print!("\nMEM NOT IMPL <FEA0");
         } else if address < 0xFF00 {
             // Reserved Unusuable
         } else if address < 0xFF80 {
             // IO Registers
-            print!("MEM NOT IMPL\n")
+            print!("\nMEM NOT IMPL <FF80");
         } else if address == 0xFFFF {
             // CPU ENABLE
             if let Some(cpu) = cpu {

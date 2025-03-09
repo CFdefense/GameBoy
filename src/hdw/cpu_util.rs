@@ -5,10 +5,11 @@
 
 
 */
+use super::emu::emu_cycles;
 use super::stack::stack_push16;
 use crate::hdw::cpu::CPU;
 use crate::hdw::instructions::*;
-use super::emu::emu_cycles;
+use regex::Regex;
 
 // Method to match a N16 Target
 pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
@@ -230,7 +231,6 @@ pub fn get_int_flags(cpu: &mut CPU) -> u8 {
 
 // Function to help streamline alot of jumping instructions
 pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool) -> u16 {
-
     let jump = match_jump(cpu, &jump_test);
 
     if jump {
@@ -244,4 +244,38 @@ pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool
     }
     println!("\n Going to - PC: {:04X}", cpu.pc);
     cpu.pc
+}
+
+// Function to print information about a current CPU Steo
+pub fn print_step_info(cpu: &mut CPU, ticks: u64) {
+    // Convert `curr_instruction` to a string
+    let instruction_output = format!("{:#?}", cpu.curr_instruction);
+
+    // Define a regex to capture the instruction name within `Some(...)`
+    let re = Regex::new(r"Some\(\s*([A-Z]+)").unwrap();
+
+    // Use regex to capture the instruction name
+    let instruction_name = if let Some(cap) = re.captures(&instruction_output) {
+        cap.get(1).map_or("Unknown", |m| m.as_str())
+    } else {
+        "Unknown"
+    };
+
+    print!(
+        "\n{:08X} - {:04X}: {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+        ticks,
+        cpu.pc,
+        instruction_name,
+        cpu.curr_opcode,
+        cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),
+        cpu.bus.read_byte(None, cpu.pc.wrapping_add(2)),
+        cpu.registers.a,
+        if cpu.registers.f.zero { 'Z' } else { '-' },
+        if cpu.registers.f.subtract { 'N' } else { '-' },
+        if cpu.registers.f.half_carry { 'H' } else { '-' },
+        if cpu.registers.f.carry { 'C' } else { '-' },
+        cpu.registers.get_bc(),
+        cpu.registers.get_de(),
+        cpu.registers.get_hl(),
+    );
 }

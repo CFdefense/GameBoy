@@ -5,8 +5,8 @@ use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
 use core::panic;
-use regex::Regex;
 
+use super::cpu_util::print_step_info;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -64,53 +64,16 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self, ticks: u64) -> bool {
+
+        // Check if CPU is halted
         if !self.is_halted {
-            // fetch next opcode from cartridge
-            self.fetch();
-
-            // Decode current opcode
-            self.decode();
-
-            // print information
-            // Convert `curr_instruction` to a string
-            let instruction_output = format!("{:#?}", self.curr_instruction);
-
-            // Define a regex to capture the instruction name within `Some(...)`
-            let re = Regex::new(r"Some\(\s*([A-Z]+)").unwrap();
-
-            // Use regex to capture the instruction name
-            let instruction_name = if let Some(cap) = re.captures(&instruction_output) {
-                cap.get(1).map_or("Unknown", |m| m.as_str())
-            } else {
-                "Unknown"
-            };
-
-            // Print information, including the extracted instruction name
-            print!(
-                "\n{:08X} - {:04X}: {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
-                ticks,
-                self.pc,
-                instruction_name,
-                self.curr_opcode,
-                self.bus.read_byte(None, self.pc.wrapping_add(1)),
-                self.bus.read_byte(None, self.pc.wrapping_add(2)),
-                self.registers.a,
-                if self.registers.f.zero { 'Z' } else { '-' },
-                if self.registers.f.subtract { 'N' } else { '-' },
-                if self.registers.f.half_carry { 'H' } else { '-' },
-                if self.registers.f.carry { 'C' } else { '-' },
-                self.registers.get_bc(),
-                self.registers.get_de(),
-                self.registers.get_hl(),
-            );
+            self.fetch(); // fetch next opcode from cartridge
+            self.decode(); // Decode current opcode
+            print_step_info(self, ticks); // print step info
 
             // Execute the current instruction if it exists and reset it to none
-            if let Some(instruction) = self.curr_instruction.take() {
-                // Execute the current instruction
-                let next_pc = self.execute(instruction);
-
-                // Increment pc to returned pc
-                self.pc = next_pc;
+            if let Some(instruction) = self.curr_instruction.take()  {
+                self.execute(instruction); // Execute the current instruction
             } else {
                 panic!("Decode Error: No Instruction")
             }
@@ -140,13 +103,16 @@ impl CPU {
     fn fetch(&mut self) {
         // Increment PC
         self.pc = self.pc.wrapping_add(1);
+
+        // Get Next Opcode
         self.curr_opcode = self.bus.read_byte(None, self.pc);
     }
 
     // Function to decode current opcode
     fn decode(&mut self) {
         // Try to decode curr opcode
-        self.curr_instruction = Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
+        self.curr_instruction =
+            Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
 
         // Error handling
         if self.curr_instruction.is_none() {
@@ -158,16 +124,16 @@ impl CPU {
     }
 
     // Function to execute an opcode by matching Instruction type and target then calling its method
-    fn execute(&mut self, instruction: Instruction) -> u16 {
-        // return while halted
+    fn execute(&mut self, instruction: Instruction) {
+        /* maybe dont need -> return while halted
         if self.is_halted {
             return self.pc;
         }
+        */
 
         match instruction {
             Instruction::NOP => {
-                // Do nothing -> increment pc
-                self.pc.wrapping_add(1)
+                // Do nothing
             }
             Instruction::STOP => {
                 panic!("STOP");
@@ -194,7 +160,6 @@ impl CPU {
             }
             Instruction::SCF => {
                 self.registers.f.carry = true;
-                self.pc.wrapping_add(1)
             }
             Instruction::CPL => {
                 // Perform Operation & Implicit Return
@@ -202,12 +167,10 @@ impl CPU {
             }
             Instruction::CCF => {
                 self.registers.f.carry = !self.registers.f.carry;
-                self.pc.wrapping_add(1)
             }
             Instruction::JR(target) => {
                 // Perform Operation & Implicit Return
-                let next_pc = op_jr(self, target);
-                next_pc
+                self.pc = op_jr(self, target);
             }
             Instruction::INC(target) => {
                 // Perform Operation & Implicit Return
@@ -224,7 +187,6 @@ impl CPU {
             Instruction::HALT => {
                 // Instruction For Halting CPU Cycle
                 self.is_halted = true;
-                self.pc.wrapping_add(1)
             }
             Instruction::ADD(target) => {
                 // Perform Operation & Implicit Return

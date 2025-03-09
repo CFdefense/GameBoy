@@ -94,8 +94,6 @@ impl CPU {
         if self.enabling_ime {
             self.master_enabled = true;
         }
-
-        //thread::sleep(Duration::from_secs(1)); // SLEEEP HERE FOR EACH EMU
         true
     }
 
@@ -130,185 +128,84 @@ impl CPU {
             return self.pc;
         }
         */
-
         match instruction {
-            Instruction::NOP => {
-                // Do nothing
-            }
-            Instruction::STOP => {
-                panic!("STOP");
-            }
-            Instruction::RLCA => {
-                // Perform Operation & Implicit Return
-                op_rlca(self)
-            }
-            Instruction::RRCA => {
-                // Perform Operation & Implicit Return
-                op_rrca(self)
-            }
-            Instruction::RLA => {
-                // Perform Operation & Implicit Return
-                op_rla(self)
-            }
-            Instruction::RRA => {
-                // Perform Operation & Implicit Return
-                op_rra(self)
-            }
-            Instruction::DAA => {
-                // Perform Operation & Implicit Return
-                op_daa(self)
-            }
-            Instruction::SCF => {
-                self.registers.f.carry = true;
-            }
-            Instruction::CPL => {
-                // Perform Operation & Implicit Return
-                op_cpl(self)
-            }
-            Instruction::CCF => {
-                self.registers.f.carry = !self.registers.f.carry;
-            }
-            Instruction::JR(target) => {
-                // Perform Operation & Implicit Return
-                self.pc = op_jr(self, target);
-            }
-            Instruction::INC(target) => {
-                // Perform Operation & Implicit Return
-                op_inc(self, target)
-            }
-            Instruction::DEC(target) => {
-                // Perform Operation & Implicit Return
-                op_dec(self, target)
-            }
-            Instruction::LD(target) => {
-                // Perform Operation & Implicit Return
-                op_ld(self, target)
-            }
-            Instruction::HALT => {
-                // Instruction For Halting CPU Cycle
-                self.is_halted = true;
-            }
-            Instruction::ADD(target) => {
-                // Perform Operation & Implicit Return
-                op_add(self, target)
-            }
-            Instruction::ADC(target) => {
-                // Perform Operation & Implicit Return
-                op_adc(self, target)
-            }
-            Instruction::SUB(target) => {
-                // Perform Operation & Implicit Return
-                op_sub(self, target)
-            }
-            Instruction::SBC(target) => {
-                // Perform Operation & Implicit Return
-                op_sbc(self, target)
-            }
-            Instruction::AND(target) => {
-                // Perform Operation & Implicit Return
-                op_and(self, target)
-            }
-            Instruction::XOR(target) => {
-                // Perform Operation & Implicit Return
-                op_xor(self, target)
-            }
-            Instruction::OR(target) => {
-                // Perform Operation & Implicit Return
-                op_or(self, target)
-            }
-            Instruction::CP(target) => {
-                // Perform Operation & Implicit Return
-                op_cp(self, target)
-            }
-            Instruction::RET(target) => {
-                // Perform Operation & Implicit Return
-                let next_pc = op_ret(self, target);
-                //thread::sleep(Duration::from_secs(20));
-                next_pc
-            }
-            Instruction::RETI => {
-                // Perform Operation & Implicit Return
-                let next_pc = op_reti(self);
-                //thread::sleep(Duration::from_secs(20));
-                next_pc
-            }
-            Instruction::POP(target) => {
-                // Perform Operation & Implicit Return
-                op_pop(self, target)
-            }
-            Instruction::JP(target) => {
-                // Perform Operation & Implicit Return
-                op_jp(self, target)
-            }
-            Instruction::CALL(target) => {
-                // Perform Operation & Implicit Return
-                let next_pc = op_call(self, target);
-                //thread::sleep(Duration::from_secs(20));
-                next_pc
-            }
-            Instruction::PUSH(target) => {
-                // Perform Operation & Implicit Return
-                op_push(self, target)
-            }
-            Instruction::RST(target) => {
-                // Perform Operation & Implicit Return
-                let next_pc = op_rst(self, target);
-                //thread::sleep(Duration::from_secs(20));
-                next_pc
-            }
-            Instruction::DI => {
-                self.master_enabled = false;
-                self.pc.wrapping_add(1) // unsure what to return here leaving this for now
-            }
-            Instruction::EI => {
-                self.master_enabled = true;
-                self.pc.wrapping_add(1) // unsure what to return here leavint his for now
-            }
+            Instruction::NOP => {/* Do Nothing */}
+            Instruction::STOP => {panic!("STOP");}
+            Instruction::RLCA => {op_rlca(self)}
+            Instruction::RRCA => {op_rrca(self)}
+            Instruction::RLA => {op_rla(self)}
+            Instruction::RRA => {op_rra(self)}
+            Instruction::DAA => {op_daa(self)}
+            Instruction::SCF => {self.registers.f.carry = true;}
+            Instruction::CPL => {op_cpl(self)}
+            Instruction::CCF => {self.registers.f.carry = !self.registers.f.carry;}
+            Instruction::JR(target) => {self.pc = op_jr(self, target);}
+            Instruction::INC(target) => {op_inc(self, target)}
+            Instruction::DEC(target) => {op_dec(self, target)}
+            Instruction::LD(target) => {op_ld(self, target)}
+            Instruction::HALT => {self.is_halted = true;}
+            Instruction::ADD(target) => {op_add(self, target)}
+            Instruction::ADC(target) => {op_adc(self, target)}
+            Instruction::SUB(target) => {op_sub(self, target)}
+            Instruction::SBC(target) => {op_sbc(self, target)}
+            Instruction::AND(target) => {op_and(self, target)}
+            Instruction::XOR(target) => {op_xor(self, target)}
+            Instruction::OR(target) => {op_or(self, target)}
+            Instruction::CP(target) => {op_cp(self, target)}
+            Instruction::RET(target) => {op_ret(self, target);}
+            Instruction::RETI => {op_reti(self);}
+            Instruction::POP(target) => {op_pop(self, target);}
+            Instruction::JP(target) => {op_jp(self, target);}
+            Instruction::CALL(target) => {op_call(self, target);}
+            Instruction::PUSH(target) => {op_push(self, target);}
+            Instruction::RST(target) => {op_rst(self, target);}
+            Instruction::DI => {self.master_enabled = false;}
+            Instruction::EI => {self.master_enabled = true;}
 
-            // PREFIXED INSTRUCTIONS
+            // PREFIXED INSTRUCTIONS: INC PC BY 1 AFTER INSTRUCTION DUE TO CB PREFIX
             Instruction::RLC(target) => {
-                // Perform Operation & Implicit Return
-                op_rlc(self, target)
+                op_rlc(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::RRC(target) => {
-                // Perform Operation & Implicit Return
-                op_rrc(self, target)
+                op_rrc(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::RL(target) => {
-                // Perform Operation & Implicit Return
-                op_rl(self, target)
+                op_rl(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::RR(target) => {
-                // Perform Operation & Implicit Return
-                op_rr(self, target)
+                op_rr(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::SLA(target) => {
-                // Perform Operation & Implicit Return
-                op_sla(self, target)
+                op_sla(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::SRA(target) => {
-                // Perform Operation & Implicit Return
-                op_sra(self, target)
+                op_sra(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::SWAP(target) => {
-                // Perform Operation & Implicit Return
-                op_swap(self, target)
+                op_swap(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::SRL(target) => {
-                // Perform Operation & Implicit Return
-                op_srl(self, target)
+                op_srl(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::BIT(target) => {
-                // Perform Operation & Implicit Return
-                op_bit(self, target)
+                op_bit(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::RES(target) => {
-                // Perform Operation & Implicit Return
-                op_res(self, target)
+                op_res(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::SET(target) => {
-                // Perform Operation & Implicit Return
-                op_set(self, target)
+                op_set(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
         }
     }
@@ -318,7 +215,7 @@ impl CPU {
         self.ie_register
     }
 
-    // IE Setter
+    // IE Setter                // Perform Operation & Implicit Return
     pub fn set_ie_register(&mut self, value: u8) {
         self.ie_register = value;
     }

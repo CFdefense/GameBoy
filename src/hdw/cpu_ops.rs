@@ -11,7 +11,7 @@ use crate::hdw::stack::*;
 use super::emu::emu_cycles;
 
 // [0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F]
-pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_srl(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -23,12 +23,10 @@ pub fn op_srl(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flags
     set_flags_after_pref_op(cpu, lsb, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37]
-pub fn op_swap(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_swap(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -37,12 +35,10 @@ pub fn op_swap(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Upd Flags
     set_flags_after_swap(cpu, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F]
-pub fn op_sra(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_sra(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -62,12 +58,10 @@ pub fn op_sra(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flags
     set_flags_after_pref_op(cpu, lsb, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27]
-pub fn op_sla(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_sla(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -79,12 +73,10 @@ pub fn op_sla(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flag
     set_flags_after_pref_op(cpu, bit_7, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
-pub fn op_rlc(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_rlc(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -96,12 +88,10 @@ pub fn op_rlc(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flags
     set_flags_after_pref_op(cpu, bit_7, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F]
-pub fn op_rrc(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_rrc(cpu: &mut CPU, target: HLTarget) {
     // Find target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -113,12 +103,10 @@ pub fn op_rrc(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flags
     set_flags_after_pref_op(cpu, bit_0, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]
-pub fn op_rl(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_rl(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -133,12 +121,10 @@ pub fn op_rl(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flags
     set_flags_after_pref_op(cpu, bit_7, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F]
-pub fn op_rr(cpu: &mut CPU, target: HLTarget) -> u16 {
+pub fn op_rr(cpu: &mut CPU, target: HLTarget) {
     // Find Target Register
     let mut reg_target = match_hl(cpu, &target);
 
@@ -153,8 +139,6 @@ pub fn op_rr(cpu: &mut CPU, target: HLTarget) -> u16 {
 
     // Update Flags
     set_flags_after_pref_op(cpu, bit_0, reg_target);
-
-    cpu.pc.wrapping_add(1)
 }
 
 // [0x2F]
@@ -251,7 +235,7 @@ pub fn op_rlca(cpu: &mut CPU) {
  0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F]
 
 */
-pub fn op_bit(cpu: &mut CPU, target: ByteTarget) -> u16 {
+pub fn op_bit(cpu: &mut CPU, target: ByteTarget) {
     let bit: u8;
     let target_register: u8;
     match target {
@@ -299,9 +283,6 @@ pub fn op_bit(cpu: &mut CPU, target: ByteTarget) -> u16 {
 
     // Set Flags
     set_flags_after_bit(cpu, bit, target_register);
-
-    // Prefixed Return
-    cpu.pc.wrapping_add(2)
 }
 
 /*
@@ -310,7 +291,7 @@ pub fn op_bit(cpu: &mut CPU, target: ByteTarget) -> u16 {
  0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF,
  0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF]
 */
-pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
+pub fn op_res(cpu: &mut CPU, target: ByteTarget) {
     let mask: u8;
     let target_register: u8;
     let is_mem: bool;
@@ -382,9 +363,6 @@ pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
             HLTarget::HL => {} // Already handled in is_mem case
         }
     }
-
-    // Prefixed Return
-    cpu.pc.wrapping_add(2)
 }
 
 /*
@@ -393,7 +371,7 @@ pub fn op_res(cpu: &mut CPU, target: ByteTarget) -> u16 {
  0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF
  0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF]
 */
-pub fn op_set(cpu: &mut CPU, target: ByteTarget) -> u16 {
+pub fn op_set(cpu: &mut CPU, target: ByteTarget) {
     let mask: u8;
     let is_mem: bool;
     let found_target: HLTarget;
@@ -462,9 +440,6 @@ pub fn op_set(cpu: &mut CPU, target: ByteTarget) -> u16 {
             HLTarget::HL => {} // Already handled in is_mem case
         }
     }
-
-    // Prefixed Return
-    cpu.pc.wrapping_add(2)
 }
 
 // [0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xFE]
@@ -480,13 +455,12 @@ pub fn op_cp(cpu: &mut CPU, target: OPTarget) {
         // [0xBE]
         OPTarget::HL => {
             set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.get_hl() as u8);
-
-            cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0xFE]
         OPTarget::D8 => {
             set_flags_after_cp(cpu, cpu.registers.a, cpu.bus.read_byte(None, cpu.pc + 1));
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
 }
@@ -504,14 +478,12 @@ pub fn op_or(cpu: &mut CPU, target: OPTarget) {
         // [0xB6]
         OPTarget::HL => {
             cpu.registers.a |= cpu.bus.read_byte(None, cpu.registers.get_hl());
-
-            cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0xF6]
         OPTarget::D8 => {
             cpu.registers.a = cpu.bus.read_byte(None, cpu.pc + 1);
-
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
     // Set Flags
@@ -531,14 +503,12 @@ pub fn op_xor(cpu: &mut CPU, target: OPTarget){
         // [0xAE]
         OPTarget::HL => {
             cpu.registers.a ^= cpu.bus.read_byte(None, cpu.registers.get_hl());
-
-            cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0xEE]
         OPTarget::D8 => {
             cpu.registers.a ^= cpu.bus.read_byte(None, cpu.pc + 1);
-
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
     // Set Flags
@@ -558,12 +528,12 @@ pub fn op_and(cpu: &mut CPU, target: OPTarget) {
         // [0xA6]
         OPTarget::HL => {
             cpu.registers.a &= cpu.bus.read_byte(None, cpu.registers.get_hl());
-            cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0xE6]
         OPTarget::D8 => {
             cpu.registers.a &= cpu.bus.read_byte(None, cpu.pc + 1);
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
     // Set Flags
@@ -614,7 +584,7 @@ pub fn op_sbc(cpu: &mut CPU, target: OPTarget) {
             set_flags_after_sub(cpu, cpu.registers.a, original_value, cpu.registers.d);
 
             // Increment the program counter
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
         // [0x9B]
         OPTarget::E => {
@@ -669,7 +639,7 @@ pub fn op_sbc(cpu: &mut CPU, target: OPTarget) {
                 cpu.registers.get_hl() as u8,
             );
 
-            cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0x9F]
         OPTarget::A => {
@@ -700,7 +670,7 @@ pub fn op_sbc(cpu: &mut CPU, target: OPTarget) {
                 cpu.bus.read_byte(None, cpu.pc + 1),
             );
 
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
 }
@@ -773,7 +743,7 @@ pub fn op_sub(cpu: &mut CPU, target: OPTarget) {
                 original_value,
                 cpu.bus.read_byte(None, cpu.registers.get_hl()),
             );
-            cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0x97]
         OPTarget::A => {
@@ -798,7 +768,7 @@ pub fn op_sub(cpu: &mut CPU, target: OPTarget) {
                 original_value,
                 cpu.bus.read_byte(None, cpu.pc + 1),
             );
-            cpu.pc.wrapping_add(1);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
 }
@@ -882,7 +852,7 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) {
                 original_value,
                 cpu.bus.read_byte(None, cpu.pc + 1),
             ); // Set Flags
-            cpu.pc.wrapping_add(1); // INC PC due to Byte Read
+            cpu.pc = cpu.pc.wrapping_add(1); // INC PC due to Byte Read
         }
     }
 }
@@ -927,7 +897,7 @@ pub fn op_add(cpu: &mut CPU, target: OPType) {
             // Set Flags
             set_flags_after_add_sp(cpu, signed_value);
 
-            cpu.pc.wrapping_add(1); // INC PC due to Byte Read
+            cpu.pc = cpu.pc.wrapping_add(1); // INC PC due to Byte Read
         }
         // [0xC6]
         OPType::LoadD8 => {
@@ -941,7 +911,7 @@ pub fn op_add(cpu: &mut CPU, target: OPType) {
             // Set Flags
             set_flags_after_add_a(cpu, immediate_operand, original, true);
 
-            cpu.pc.wrapping_add(1); // INC PC due to Byte Read
+            cpu.pc = cpu.pc.wrapping_add(1); // INC PC due to Byte Read
         }
     }
 }
@@ -1264,7 +1234,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 LoadWordTarget::BC => match source {
                     LoadWordSource::N16 => {
                         cpu.registers.set_bc(word_value as u16);
-                        cpu.pc.wrapping_add(2);
+                        cpu.pc = cpu.pc.wrapping_add(2);
                     }
                     _ => panic!("LD WORD BAD MATCH"),
                 },
@@ -1274,7 +1244,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                     LoadWordSource::N16 => {
                         cpu.registers.set_hl(word_value as u16);
 
-                        cpu.pc.wrapping_add(2);
+                        cpu.pc = cpu.pc.wrapping_add(2);
                     }
                     // [0xF8]
                     LoadWordSource::SPE8 => {
@@ -1286,7 +1256,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                         // Set Flags
                         set_flags_after_ld_spe8(cpu);
 
-                        cpu.pc.wrapping_add(1);
+                        cpu.pc = cpu.pc.wrapping_add(1);
                     }
                     _ => panic!("LD WORD BAD MATCH"),
                 },
@@ -1294,7 +1264,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 LoadWordTarget::DE => match source {
                     LoadWordSource::N16 => {
                         cpu.registers.set_de(word_value as u16);
-                        cpu.pc.wrapping_add(2);
+                        cpu.pc = cpu.pc.wrapping_add(2);
                     }
                     _ => panic!("LD WORD BAD MATCH"),
                 },
@@ -1305,7 +1275,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                             .write_byte(None, word_value, (cpu.sp & 0x00FF) as u8);
                         cpu.bus
                             .write_byte(None, word_value + 1, (cpu.sp >> 8) as u8);
-                        cpu.pc.wrapping_add(2);
+                        cpu.pc = cpu.pc.wrapping_add(2);
                     }
                     _ => panic!("LD WORD BAD MATCH"),
                 },
@@ -1318,7 +1288,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                     // [0x31]
                     LoadWordSource::N16 => {
                         cpu.sp = word_value;
-                        cpu.pc.wrapping_add(2);
+                        cpu.pc = cpu.pc.wrapping_add(2);
                     }
                     _ => panic!("LD WORD BAD MATCH"),
                 },
@@ -1375,32 +1345,32 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
             // [0x06]
             HLTarget::B => {
                 cpu.registers.b = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x0E]
             HLTarget::C => {
                 cpu.registers.c = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x16]
             HLTarget::D => {
                 cpu.registers.d = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x1E]
             HLTarget::E => {
                 cpu.registers.e = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x26]
             HLTarget::H => {
                 cpu.registers.h = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x2E]
             HLTarget::L => {
                 cpu.registers.l = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x36]
             HLTarget::HL => {
@@ -1409,12 +1379,12 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                     cpu.registers.get_hl(),
                     cpu.bus.read_byte(None, cpu.pc + 1),
                 );
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x3E]
             HLTarget::A => {
                 cpu.registers.a = cpu.bus.read_byte(None, cpu.pc + 1);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
         },
         // [0xE0, 0xF0]
@@ -1436,7 +1406,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
 
                 // Finally update register and INC PC due to Byte Read
                 cpu.registers.a = value;
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0xE0]
             LoadA8Target::A8 => {
@@ -1454,7 +1424,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                         .write_byte(Some(unsafe { &mut *cpu_ref }), address, value);
                 }
                 // INC PC due to Byte Read
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
         },
         // [0xEA, 0xFA]
@@ -1469,12 +1439,12 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 // [0xFA]
                 LoadA16Target::A => {
                     cpu.registers.a = cpu.bus.read_byte(None, address);
-                    cpu.pc.wrapping_add(2);
+                    cpu.pc = cpu.pc.wrapping_add(2);
                 }
                 // [0xEA]
                 LoadA16Target::A16 => {
                     cpu.bus.write_byte(None, address, cpu.registers.a);
-                    cpu.pc.wrapping_add(2);
+                    cpu.pc = cpu.pc.wrapping_add(2);
                 }
             }
         }
@@ -1484,12 +1454,12 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
             LoadACTarget::A => {
                 cpu.bus
                     .write_byte(None, 0xFF00 + cpu.registers.c as u16, cpu.registers.a);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0xE2]
             LoadACTarget::C => {
                 cpu.registers.a = cpu.bus.read_byte(None, 0xFF00 + cpu.registers.c as u16);
-                cpu.pc.wrapping_add(1);
+                cpu.pc = cpu.pc.wrapping_add(1);
             }
         },
     }
@@ -1645,18 +1615,18 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) {
 }
 
 // [0xC2, 0xC3, 0xCA, 0xD2, 0xDA, 0xE9]
-pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> u16 {
+pub fn op_jp(cpu: &mut CPU, target: JumpTest) {
     // Get Bytes
     let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
     let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
 
     // Perform Operation & Implicit Return
-    goto_addr(
+    cpu.pc = goto_addr(
         cpu,
         (most_significant << 8) | least_significant,
         target,
         false,
-    )
+    );
 }
 
 // [0xC4, 0xCC, 0xCD, 0xD4, 0xDC]
@@ -1689,7 +1659,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
 }
 
 // [0xC1, 0xD1, 0xE1, 0xF1]
-pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
+pub fn op_pop(cpu: &mut CPU, target: StackTarget) {
     // Pop Low and High Bytes
     let low: u16 = stack_pop(cpu) as u16;
     emu_cycles(1);
@@ -1718,12 +1688,10 @@ pub fn op_pop(cpu: &mut CPU, target: StackTarget) -> u16 {
             cpu.registers.set_hl(combined);
         }
     }
-
-    cpu.pc
 }
 
 // [0xC5, 0xD5, 0xE5, 0xF5]
-pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
+pub fn op_push(cpu: &mut CPU, target: StackTarget) {
     match target {
         // [0xF5]
         StackTarget::AF => {
@@ -1774,11 +1742,10 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) -> u16 {
             emu_cycles(1);
         }
     }
-    cpu.pc.wrapping_add(1)
 }
 
 // [0xC0, 0xD0, 0xD8, 0xC8, 0xC9]
-pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
+pub fn op_ret(cpu: &mut CPU, target: JumpTest) {
     // Cycle if condition is not Always
     if !matches!(target, JumpTest::Always) {
         emu_cycles(1);
@@ -1804,16 +1771,16 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> u16 {
     let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
     let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
 
-    goto_addr(
+    cpu.pc =goto_addr(
         cpu,
         (most_significant << 8) | least_significant,
         target,
         false,
-    )
+    );
 }
 
 // [0xD9]
-pub fn op_reti(cpu: &mut CPU) -> u16 {
+pub fn op_reti(cpu: &mut CPU) {
     // Update Interrupt
     cpu.master_enabled = true;
 
@@ -1822,7 +1789,7 @@ pub fn op_reti(cpu: &mut CPU) -> u16 {
 }
 
 // [0xC7, 0xD7, 0xE7, 0xF7, 0xFC, 0xFD, 0xFE, 0xFF]
-pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
+pub fn op_rst(cpu: &mut CPU, target: RestTarget) {
     let low: u16 = match target {
         RestTarget::Zero => 0x00,
         RestTarget::One => 0x08,
@@ -1835,5 +1802,5 @@ pub fn op_rst(cpu: &mut CPU, target: RestTarget) -> u16 {
     };
 
     // Perform Operation & Implicit Return
-    goto_addr(cpu, 0x0000 | low, JumpTest::Always, true)
+    cpu.pc = goto_addr(cpu, 0x0000 | low, JumpTest::Always, true);
 }

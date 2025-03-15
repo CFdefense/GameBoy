@@ -14,3 +14,4 @@ pub mod registers;
 pub mod stack;
 pub mod ui;
 pub mod io;
+pub mod debug;

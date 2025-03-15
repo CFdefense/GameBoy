@@ -25,10 +25,10 @@ pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
 // Method to match a Jump Condition
 pub fn match_jump(cpu: &mut CPU, test: &JumpTest) -> bool {
     let jump_condition = match test {
-        JumpTest::NotZero => cpu.registers.f.zero,
-        JumpTest::NotCarry => cpu.registers.f.carry,
-        JumpTest::Zero => cpu.registers.f.zero,
-        JumpTest::Carry => cpu.registers.f.carry,
+        JumpTest::NotZero => !cpu.registers.f.zero,
+        JumpTest::NotCarry => !cpu.registers.f.carry,
+        JumpTest::Zero => !cpu.registers.f.zero,
+        JumpTest::Carry => !cpu.registers.f.carry,
         JumpTest::Always => true,
         JumpTest::HL => panic!("HL BAD"),
     };
@@ -236,15 +236,12 @@ pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool
     if jump {
         if push_pc {
             emu_cycles(2);
-
-            print!("GOTO ADDR Pushing to pc");
             stack_push16(cpu, cpu.pc);
         }
         // combine and set pc to 2 byte addr in lil endian
         cpu.pc = address;
         emu_cycles(1);
     }
-    println!("\n Going to - PC: {:04X}", cpu.pc);
     cpu.pc
 }
 

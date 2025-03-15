@@ -7,6 +7,7 @@ use crate::hdw::registers::*;
 use core::panic;
 
 use super::cpu_util::print_step_info;
+use super::debug;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -32,21 +33,21 @@ impl CPU {
         CPU {
             registers: Registers {
                 a: 0x01,
-                b: 0,
-                c: 0,
-                d: 0,
-                e: 0,
+                b: 0x00,
+                c: 0x13,
+                d: 0x00,
+                e: 0xD8,
                 f: FlagsRegister {
-                    zero: false,
+                    zero: true,
                     subtract: false,
-                    half_carry: false,
-                    carry: false,
+                    half_carry: true,
+                    carry: true,
                 },
-                h: 0,
-                l: 0,
+                h: 0x01,
+                l: 0x4D,
             },
             pc: 0x0100,
-            sp: 0,
+            sp: 0xFFFE, 
             bus: new_bus,
 
             curr_opcode: 0,
@@ -72,6 +73,8 @@ impl CPU {
 
             // Execute the current instruction if it exists and reset it to none
             if let Some(instruction) = self.curr_instruction.take() {
+                debug::dbg_update(&mut self.bus);
+                debug::dbg_print();
                 self.execute(instruction); // Execute the current instruction
             } else {
                 panic!("Decode Error: No Instruction")
@@ -199,8 +202,13 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::AND(target) => {
+                let is_d8 = matches!(target, OPTarget::D8);
                 op_and(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                if is_d8 {
+                    self.pc = self.pc.wrapping_add(2);
+                } else {
+                    self.pc = self.pc.wrapping_add(1);
+                }
             }
             Instruction::XOR(target) => {
                 op_xor(self, target);
@@ -222,6 +230,7 @@ impl CPU {
             }
             Instruction::POP(target) => {
                 op_pop(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::JP(target) => {
                 op_jp(self, target);
@@ -231,6 +240,7 @@ impl CPU {
             }
             Instruction::PUSH(target) => {
                 op_push(self, target);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::RST(target) => {
                 op_rst(self, target);

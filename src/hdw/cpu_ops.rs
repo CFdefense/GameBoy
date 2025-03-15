@@ -469,7 +469,7 @@ pub fn op_cp(cpu: &mut CPU, target: OPTarget) {
         // [0xBE]
         OPTarget::HL => {
             set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.get_hl() as u8);
-            cpu.pc = cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
         // [0xFE]
         OPTarget::D8 => {
@@ -584,7 +584,7 @@ pub fn op_and(cpu: &mut CPU, target: OPTarget) {
         // [0xA6]
         OPTarget::HL => {
             cpu.registers.a &= cpu.bus.read_byte(None, cpu.registers.get_hl());
-            cpu.pc = cpu.pc.wrapping_add(2);
+            cpu.pc = cpu.pc.wrapping_add(1);
         }
         // [0xE6]
         OPTarget::D8 => {
@@ -1710,7 +1710,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     println!("Jump Distance: {:02X}", jump_distance);
     goto_addr(
         cpu,
-        cpu.pc.wrapping_add(2).wrapping_add(jump_distance as u16),
+        cpu.pc.wrapping_add(jump_distance as u16),
         target,
         false,
     )
@@ -1819,7 +1819,6 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) {
         emu_cycles(1);
 
         let n: u16 = (high << 8) | low;
-        print!("Jumps checks going to {:?}", n);
 
         cpu.pc = n;
 

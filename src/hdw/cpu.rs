@@ -64,7 +64,6 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self, ticks: u64) -> bool {
-
         // Check if CPU is halted
         if !self.is_halted {
             self.fetch(); // fetch next opcode from cartridge
@@ -72,7 +71,7 @@ impl CPU {
             print_step_info(self, ticks); // print step info
 
             // Execute the current instruction if it exists and reset it to none
-            if let Some(instruction) = self.curr_instruction.take()  {
+            if let Some(instruction) = self.curr_instruction.take() {
                 self.execute(instruction); // Execute the current instruction
             } else {
                 panic!("Decode Error: No Instruction")
@@ -99,9 +98,6 @@ impl CPU {
 
     // Function to fetch next opcode
     fn fetch(&mut self) {
-        // Increment PC
-        self.pc = self.pc.wrapping_add(1);
-
         // Get Next Opcode
         self.curr_opcode = self.bus.read_byte(None, self.pc);
     }
@@ -129,38 +125,123 @@ impl CPU {
         }
         */
         match instruction {
-            Instruction::NOP => {/* Do Nothing */}
-            Instruction::STOP => {panic!("STOP");}
-            Instruction::RLCA => {op_rlca(self)}
-            Instruction::RRCA => {op_rrca(self)}
-            Instruction::RLA => {op_rla(self)}
-            Instruction::RRA => {op_rra(self)}
-            Instruction::DAA => {op_daa(self)}
-            Instruction::SCF => {self.registers.f.carry = true;}
-            Instruction::CPL => {op_cpl(self)}
-            Instruction::CCF => {self.registers.f.carry = !self.registers.f.carry;}
-            Instruction::JR(target) => {self.pc = op_jr(self, target);}
-            Instruction::INC(target) => {op_inc(self, target)}
-            Instruction::DEC(target) => {op_dec(self, target)}
-            Instruction::LD(target) => {op_ld(self, target)}
-            Instruction::HALT => {self.is_halted = true;}
-            Instruction::ADD(target) => {op_add(self, target)}
-            Instruction::ADC(target) => {op_adc(self, target)}
-            Instruction::SUB(target) => {op_sub(self, target)}
-            Instruction::SBC(target) => {op_sbc(self, target)}
-            Instruction::AND(target) => {op_and(self, target)}
-            Instruction::XOR(target) => {op_xor(self, target)}
-            Instruction::OR(target) => {op_or(self, target)}
-            Instruction::CP(target) => {op_cp(self, target)}
-            Instruction::RET(target) => {op_ret(self, target);}
-            Instruction::RETI => {op_reti(self);}
-            Instruction::POP(target) => {op_pop(self, target);}
-            Instruction::JP(target) => {op_jp(self, target);}
-            Instruction::CALL(target) => {op_call(self, target);}
-            Instruction::PUSH(target) => {op_push(self, target);}
-            Instruction::RST(target) => {op_rst(self, target);}
-            Instruction::DI => {self.master_enabled = false;}
-            Instruction::EI => {self.master_enabled = true;}
+            Instruction::NOP => {
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::STOP => {
+                panic!("STOP");
+            }
+            Instruction::RLCA => {
+                op_rlca(self);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::RRCA => {
+                op_rrca(self);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::RLA => {
+                op_rla(self);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::RRA => {
+                op_rra(self);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::DAA => {
+                op_daa(self);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::SCF => {
+                self.registers.f.carry = true;
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::CPL => {
+                op_cpl(self);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::CCF => {
+                self.registers.f.carry = !self.registers.f.carry;
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::JR(target) => {
+                self.pc = op_jr(self, target);
+            }
+            Instruction::INC(target) => {
+                op_inc(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::DEC(target) => {
+                op_dec(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::LD(target) => {
+                op_ld(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::HALT => {
+                self.is_halted = true;
+            }
+            Instruction::ADD(target) => {
+                op_add(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::ADC(target) => {
+                op_adc(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::SUB(target) => {
+                op_sub(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::SBC(target) => {
+                op_sbc(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::AND(target) => {
+                op_and(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::XOR(target) => {
+                op_xor(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::OR(target) => {
+                op_or(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::CP(target) => {
+                op_cp(self, target);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::RET(target) => {
+                op_ret(self, target);
+            }
+            Instruction::RETI => {
+                op_reti(self);
+            }
+            Instruction::POP(target) => {
+                op_pop(self, target);
+            }
+            Instruction::JP(target) => {
+                op_jp(self, target);
+            }
+            Instruction::CALL(target) => {
+                op_call(self, target);
+            }
+            Instruction::PUSH(target) => {
+                op_push(self, target);
+            }
+            Instruction::RST(target) => {
+                op_rst(self, target);
+            }
+            Instruction::DI => {
+                self.master_enabled = false;
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::EI => {
+                self.master_enabled = true;
+                self.pc = self.pc.wrapping_add(1);
+            }
 
             // PREFIXED INSTRUCTIONS: INC PC BY 1 AFTER INSTRUCTION DUE TO CB PREFIX
             Instruction::RLC(target) => {

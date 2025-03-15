@@ -22,6 +22,7 @@
 use super::cart::Cartridge;
 use crate::hdw::cpu::CPU;
 use crate::hdw::ram::RAM;
+use crate::hdw::io::{io_read,io_write};
 
 pub struct Bus {
     cart: Cartridge,
@@ -66,8 +67,7 @@ impl Bus {
             0
         } else if address < 0xFF80 {
             // IO Registers
-            print!("\nMEM NOT IMPL <FF80");
-            0
+            return io_read(address);
         } else if address == 0xFFFF {
             // CPU ENABLE
             if let Some(cpu) = cpu {
@@ -105,7 +105,7 @@ impl Bus {
             // Reserved Unusuable
         } else if address < 0xFF80 {
             // IO Registers
-            print!("\nMEM NOT IMPL <FF80");
+            io_write(address, value);
         } else if address == 0xFFFF {
             // CPU ENABLE
             if let Some(cpu) = cpu {

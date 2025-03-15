@@ -445,13 +445,27 @@ pub fn op_set(cpu: &mut CPU, target: ByteTarget) {
 // [0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xFE]
 pub fn op_cp(cpu: &mut CPU, target: OPTarget) {
     match target {
-        OPTarget::B => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.b);} // [0xB8]
-        OPTarget::C => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.c);} // [0xB9]
-        OPTarget::D => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.d);} // [0xBA]
-        OPTarget::E => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.e);} // [0xBB]
-        OPTarget::H => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.h);} // [0xBC]
-        OPTarget::L => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.l);} // [0xBD]
-        OPTarget::A => {set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.a);} // [0xBF]
+        OPTarget::B => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.b);
+        } // [0xB8]
+        OPTarget::C => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.c);
+        } // [0xB9]
+        OPTarget::D => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.d);
+        } // [0xBA]
+        OPTarget::E => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.e);
+        } // [0xBB]
+        OPTarget::H => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.h);
+        } // [0xBC]
+        OPTarget::L => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.l);
+        } // [0xBD]
+        OPTarget::A => {
+            set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.a);
+        } // [0xBF]
         // [0xBE]
         OPTarget::HL => {
             set_flags_after_cp(cpu, cpu.registers.a, cpu.registers.get_hl() as u8);
@@ -468,13 +482,27 @@ pub fn op_cp(cpu: &mut CPU, target: OPTarget) {
 // [0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xF6]
 pub fn op_or(cpu: &mut CPU, target: OPTarget) {
     match target {
-        OPTarget::B => {cpu.registers.a |= cpu.registers.b;} // [0xB0]
-        OPTarget::C => {cpu.registers.a |= cpu.registers.c;} // [0xB1]
-        OPTarget::D => {cpu.registers.a |= cpu.registers.d;} // [0xB2]
-        OPTarget::E => {cpu.registers.a |= cpu.registers.e;} // [0xB3]
-        OPTarget::H => {cpu.registers.a |= cpu.registers.h;} // [0xB4]
-        OPTarget::L => {cpu.registers.a |= cpu.registers.l;} // [0xB5]
-        OPTarget::A => {cpu.registers.a |= cpu.registers.a;} // [0xB7]
+        OPTarget::B => {
+            cpu.registers.a |= cpu.registers.b;
+        } // [0xB0]
+        OPTarget::C => {
+            cpu.registers.a |= cpu.registers.c;
+        } // [0xB1]
+        OPTarget::D => {
+            cpu.registers.a |= cpu.registers.d;
+        } // [0xB2]
+        OPTarget::E => {
+            cpu.registers.a |= cpu.registers.e;
+        } // [0xB3]
+        OPTarget::H => {
+            cpu.registers.a |= cpu.registers.h;
+        } // [0xB4]
+        OPTarget::L => {
+            cpu.registers.a |= cpu.registers.l;
+        } // [0xB5]
+        OPTarget::A => {
+            cpu.registers.a |= cpu.registers.a;
+        } // [0xB7]
         // [0xB6]
         OPTarget::HL => {
             cpu.registers.a |= cpu.bus.read_byte(None, cpu.registers.get_hl());
@@ -491,15 +519,29 @@ pub fn op_or(cpu: &mut CPU, target: OPTarget) {
 }
 
 // [0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xEE]
-pub fn op_xor(cpu: &mut CPU, target: OPTarget){
+pub fn op_xor(cpu: &mut CPU, target: OPTarget) {
     match target {
-        OPTarget::B => {cpu.registers.a ^= cpu.registers.b;} // [0xA8]
-        OPTarget::C => {cpu.registers.a ^= cpu.registers.c;} // [0xA9]
-        OPTarget::D => {cpu.registers.a ^= cpu.registers.d;} // [0xAA]
-        OPTarget::E => {cpu.registers.a ^= cpu.registers.e;} // [0xAB]
-        OPTarget::H => {cpu.registers.a ^= cpu.registers.h;} // [0xAC]
-        OPTarget::L => {cpu.registers.a ^= cpu.registers.l;} // [0xAD]
-        OPTarget::A => {cpu.registers.a ^= cpu.registers.a;} // [0xAF]
+        OPTarget::B => {
+            cpu.registers.a ^= cpu.registers.b;
+        } // [0xA8]
+        OPTarget::C => {
+            cpu.registers.a ^= cpu.registers.c;
+        } // [0xA9]
+        OPTarget::D => {
+            cpu.registers.a ^= cpu.registers.d;
+        } // [0xAA]
+        OPTarget::E => {
+            cpu.registers.a ^= cpu.registers.e;
+        } // [0xAB]
+        OPTarget::H => {
+            cpu.registers.a ^= cpu.registers.h;
+        } // [0xAC]
+        OPTarget::L => {
+            cpu.registers.a ^= cpu.registers.l;
+        } // [0xAD]
+        OPTarget::A => {
+            cpu.registers.a ^= cpu.registers.a;
+        } // [0xAF]
         // [0xAE]
         OPTarget::HL => {
             cpu.registers.a ^= cpu.bus.read_byte(None, cpu.registers.get_hl());
@@ -518,13 +560,27 @@ pub fn op_xor(cpu: &mut CPU, target: OPTarget){
 // [0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xE6]
 pub fn op_and(cpu: &mut CPU, target: OPTarget) {
     match target {
-        OPTarget::B => {cpu.registers.a &= cpu.registers.b;} // [0xA0]
-        OPTarget::C => {cpu.registers.a &= cpu.registers.c;} // [0xA1]
-        OPTarget::D => {cpu.registers.a &= cpu.registers.d;} // [0xA2]
-        OPTarget::E => {cpu.registers.a &= cpu.registers.e;} // [0xA3]
-        OPTarget::H => {cpu.registers.a &= cpu.registers.h;} // [0xA4]
-        OPTarget::L => {cpu.registers.a &= cpu.registers.l;} // [0xA5]
-        OPTarget::A => {cpu.registers.a &= cpu.registers.a;} // [0xA7]
+        OPTarget::B => {
+            cpu.registers.a &= cpu.registers.b;
+        } // [0xA0]
+        OPTarget::C => {
+            cpu.registers.a &= cpu.registers.c;
+        } // [0xA1]
+        OPTarget::D => {
+            cpu.registers.a &= cpu.registers.d;
+        } // [0xA2]
+        OPTarget::E => {
+            cpu.registers.a &= cpu.registers.e;
+        } // [0xA3]
+        OPTarget::H => {
+            cpu.registers.a &= cpu.registers.h;
+        } // [0xA4]
+        OPTarget::L => {
+            cpu.registers.a &= cpu.registers.l;
+        } // [0xA5]
+        OPTarget::A => {
+            cpu.registers.a &= cpu.registers.a;
+        } // [0xA7]
         // [0xA6]
         OPTarget::HL => {
             cpu.registers.a &= cpu.bus.read_byte(None, cpu.registers.get_hl());
@@ -1637,6 +1693,8 @@ pub fn op_call(cpu: &mut CPU, target: JumpTest) -> u16 {
     let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
     let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
 
+    cpu.pc = cpu.pc.wrapping_add(3); // idk why but we need to do this
+
     // Perform Operation & Implicit Return
     goto_addr(
         cpu,
@@ -1652,7 +1710,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     println!("Jump Distance: {:02X}", jump_distance);
     goto_addr(
         cpu,
-        cpu.pc.wrapping_add(jump_distance as u16),
+        cpu.pc.wrapping_add(2).wrapping_add(jump_distance as u16),
         target,
         false,
     )
@@ -1761,17 +1819,20 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) {
         emu_cycles(1);
 
         let n: u16 = (high << 8) | low;
+        print!("Jumps checks going to {:?}", n);
 
         cpu.pc = n;
 
         emu_cycles(1);
+
+        return;
     };
 
     // Get Bytes
     let least_significant = cpu.bus.read_byte(None, cpu.pc + 1) as u16;
     let most_significant = cpu.bus.read_byte(None, cpu.pc + 2) as u16;
 
-    cpu.pc =goto_addr(
+    cpu.pc = goto_addr(
         cpu,
         (most_significant << 8) | least_significant,
         target,

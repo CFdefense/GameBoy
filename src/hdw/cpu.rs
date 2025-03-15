@@ -165,6 +165,7 @@ impl CPU {
             }
             Instruction::JR(target) => {
                 self.pc = op_jr(self, target);
+                self.pc = self.pc.wrapping_add(2); // skip operand of JR
             }
             Instruction::INC(target) => {
                 op_inc(self, target);
@@ -246,47 +247,47 @@ impl CPU {
             // PREFIXED INSTRUCTIONS: INC PC BY 1 AFTER INSTRUCTION DUE TO CB PREFIX
             Instruction::RLC(target) => {
                 op_rlc(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RRC(target) => {
                 op_rrc(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RL(target) => {
                 op_rl(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RR(target) => {
                 op_rr(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::SLA(target) => {
                 op_sla(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::SRA(target) => {
                 op_sra(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::SWAP(target) => {
                 op_swap(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::SRL(target) => {
                 op_srl(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::BIT(target) => {
                 op_bit(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RES(target) => {
                 op_res(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
             Instruction::SET(target) => {
                 op_set(self, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(2);
             }
         }
     }

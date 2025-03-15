@@ -7,69 +7,77 @@ use std::time::Duration;
 use crate::hdw::bus::Bus;
 use crate::hdw::cart::Cartridge;
 use crate::hdw::cpu::CPU;
+use crate::hdw::ui::{UI, ui_handle_events};
 
 // Emulator context
 pub struct EmuContext {
-    running: bool,
-    paused: bool,
+    pub running: bool,
+    pub paused: bool,
+    pub die: bool,
     pub ticks: u64,
-    cpu: CPU,
+    pub cpu: Option<Arc<Mutex<CPU>>>,
     debug_limit: Option<u32>,
     instruction_count: u32,
 }
 
-// Creating a static emulator context
 impl EmuContext {
-    fn new(bus: Bus, debug_limit: Option<u32>) -> Self {
+    fn new(debug_limit: Option<u32>) -> Self {
         EmuContext {
             running: true,
             paused: false,
+            die: false,
             ticks: 0,
-            cpu: CPU::new(bus),
+            cpu: None,
             debug_limit,
             instruction_count: 0,
         }
     }
 
-    fn execute_cpu_step(&mut self) -> bool {
-        if !self.running || self.paused {
-            return true;
-        }
-
-        // Execute a CPU step
-        let result = self.cpu.step(self.ticks);
-        
-        // Increment instruction count and check debug limit
-        self.instruction_count += 1;
-        if let Some(limit) = self.debug_limit {
-            if self.instruction_count >= limit {
-                println!("\nDebug limit of {} instructions reached. Stopping.", limit);
-                self.running = false;
-                return false;
-            }
-        }
-
-        if !result {
-            println!("CPU Stopped");
-            self.running = false;
-        }
-
-        self.ticks += 1;
-        result
+    pub fn set_running(&mut self, running: bool) {
+        self.running = running;
     }
 }
 
 // CPU thread function
-fn cpu_run(ctx: Arc<Mutex<EmuContext>>) {
-    loop {
-        let mut ctx_lock = ctx.lock().unwrap();
+fn cpu_run(cpu: Arc<Mutex<CPU>>, ctx: Arc<Mutex<EmuContext>>) {
+    while ctx.lock().unwrap().running {
+        if ctx.lock().unwrap().paused {
+            thread::sleep(Duration::from_millis(10));
+            continue;
+        }
 
-        if !ctx_lock.running {
-            break;
+        let ticks;
+        {
+            let mut ctx_lock = ctx.lock().unwrap();
+            ticks = ctx_lock.ticks;
         }
 
         // Execute a CPU step
-        ctx_lock.execute_cpu_step();
+        let result = {
+            let mut cpu_lock = cpu.lock().unwrap();
+            cpu_lock.step(ticks)
+        };
+
+        if !result {
+            println!("CPU Stopped");
+            ctx.lock().unwrap().running = false;
+            break;
+        }
+
+        // Update ticks and check debug limit
+        {
+            let mut ctx_lock = ctx.lock().unwrap();
+            ctx_lock.ticks += 1;
+            ctx_lock.instruction_count += 1;
+            
+            if let Some(limit) = ctx_lock.debug_limit {
+                if ctx_lock.instruction_count >= limit {
+                    println!("\nDebug limit of {} instructions reached. Stopping.", limit);
+                    ctx_lock.running = false;
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -112,20 +120,59 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     }
     println!("Cart loaded..");
 
-    // Initialize Bus and CTX with debug limit
+    // Initialize UI
+    let ui_result = UI::new();
+    if let Err(e) = &ui_result {
+        println!("Failed to initialize UI: {}", e);
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to initialize UI: {}", e),
+        ));
+    }
+    let mut ui = ui_result.unwrap();
+
+    // Initialize Bus and CPU
     let bus = Bus::new(cart);
-    let ctx = Arc::new(Mutex::new(EmuContext::new(bus, debug_limit)));
+    let cpu = Arc::new(Mutex::new(CPU::new(bus)));
+    
+    // Initialize context
+    let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit)));
+    
+    // Store CPU reference in context
+    ctx.lock().unwrap().cpu = Some(Arc::clone(&cpu));
 
     // Spawn a new thread for CPU execution
-    let cpu_ctx = Arc::clone(&ctx);
-    thread::spawn(move || {
-        cpu_run(cpu_ctx);
+    let cpu_thread_ctx = Arc::clone(&ctx);
+    let cpu_thread_cpu = Arc::clone(&cpu);
+    
+    let cpu_thread = thread::spawn(move || {
+        cpu_run(cpu_thread_cpu, cpu_thread_ctx);
     });
 
-    // Main loop for UI
-    while ctx.lock().unwrap().running {
-        thread::sleep(Duration::from_millis(1));
+    // Main loop for UI and event handling
+    while !ctx.lock().unwrap().die {
+        // Handle UI events
+        let mut cpu_lock = cpu.lock().unwrap();
+        let continue_running = ui.handle_events(&mut cpu_lock);
+        drop(cpu_lock);
+        
+        if !continue_running {
+            println!("UI requested shutdown");
+            ctx.lock().unwrap().die = true;
+            ctx.lock().unwrap().running = false;
+            break;
+        }
+        
+        thread::sleep(Duration::from_millis(10));
     }
+
+    // Wait for CPU thread to finish
+    if let Err(e) = cpu_thread.join() {
+        println!("Error joining CPU thread: {:?}", e);
+    }
+
+    // Make sure to properly signal the CPU thread to stop
+    ctx.lock().unwrap().running = false;
 
     Ok(())
 }

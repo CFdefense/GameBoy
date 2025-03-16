@@ -24,7 +24,7 @@ pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
 
 // Method to match a Jump Condition
 pub fn match_jump(cpu: &mut CPU, test: &JumpTest) -> bool {
-    let jump_condition = match test {
+    let jump_condition: bool = match test {
         JumpTest::NotZero => !cpu.registers.f.zero,
         JumpTest::NotCarry => !cpu.registers.f.carry,
         JumpTest::Zero => !cpu.registers.f.zero,

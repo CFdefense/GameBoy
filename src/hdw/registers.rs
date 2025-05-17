@@ -89,3 +89,12 @@ impl std::convert::From<u8> for FlagsRegister {
         }
     }
 }
+
+impl FlagsRegister {
+    pub fn as_byte(&self) -> u8 {
+        (self.zero as u8) << 7 |
+        (self.subtract as u8) << 6 |
+        (self.half_carry as u8) << 5 |
+        (self.carry as u8) << 4
+    }
+}

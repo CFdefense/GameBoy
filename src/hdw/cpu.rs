@@ -6,7 +6,7 @@ use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
 use core::panic;
 
-use super::cpu_util::print_step_info;
+use super::cpu_util::{print_step_info, log_cpu_state};
 use super::debug;
 
 // Our CPU to Call and Control
@@ -69,7 +69,8 @@ impl CPU {
         if !self.is_halted {
             self.fetch(); // fetch next opcode from cartridge
             self.decode(); // Decode current opcode
-            print_step_info(self, ticks); // print step info
+            print_step_info(self, ticks);
+            log_cpu_state(self); // print step info
 
             // Execute the current instruction if it exists and reset it to none
             if let Some(instruction) = self.curr_instruction.take() {

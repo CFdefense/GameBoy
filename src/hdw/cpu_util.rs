@@ -10,6 +10,8 @@ use super::stack::stack_push16;
 use crate::hdw::cpu::CPU;
 use crate::hdw::instructions::*;
 use regex::Regex;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 // Method to match a N16 Target
 pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
@@ -27,8 +29,8 @@ pub fn match_jump(cpu: &mut CPU, test: &JumpTest) -> bool {
     let jump_condition: bool = match test {
         JumpTest::NotZero => !cpu.registers.f.zero,
         JumpTest::NotCarry => !cpu.registers.f.carry,
-        JumpTest::Zero => !cpu.registers.f.zero,
-        JumpTest::Carry => !cpu.registers.f.carry,
+        JumpTest::Zero => cpu.registers.f.zero,
+        JumpTest::Carry => cpu.registers.f.carry,
         JumpTest::Always => true,
         JumpTest::HL => panic!("HL BAD"),
     };
@@ -107,14 +109,10 @@ pub fn set_flags_after_xor_or(cpu: &mut CPU, result: u8) {
 
 // CP FLAGS [0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xFE]
 pub fn set_flags_after_cp(cpu: &mut CPU, a: u8, b: u8) {
-    // Calculate the result of A - B, but don't store it
-    let result = a.wrapping_sub(b);
-
-    // [Z 1 H CY]
-    cpu.registers.f.zero = result == 0; // Zero Flag: Set if A == B
-    cpu.registers.f.subtract = true; // Subtract Flag: Always set because this is a subtraction
-    cpu.registers.f.half_carry = (a & 0xF) < (b & 0xF); // Half-Carry Flag: Set if there was a borrow from bit 4
-    cpu.registers.f.carry = a < b; // Carry Flag: Set if there was a borrow from bit 8 (A < B)
+    cpu.registers.f.zero = a == b;
+    cpu.registers.f.subtract = true; // N is always set for CP
+    cpu.registers.f.half_carry = (a & 0x0F) < (b & 0x0F); // Set if borrow from bit 4
+    cpu.registers.f.carry = a < b;       // Set if borrow (A < value)
 }
 
 /* BIT FLAGS
@@ -181,9 +179,8 @@ pub fn set_flags_after_add_a(cpu: &mut CPU, reg_target: u8, original: u8, is_d8:
     if is_d8 {
         cpu.registers.f.zero = cpu.registers.a == 0;
         cpu.registers.f.subtract = false;
-        cpu.registers.f.half_carry = ((original & 0x0F) + (cpu.registers.a & 0x0F)) > 0x0F; // Half-Carry Flag: Set if carry from bit 3 to bit 4
+        cpu.registers.f.half_carry = ((original & 0x0F) + (reg_target & 0x0F)) > 0x0F; // Half-Carry Flag: Set if carry from bit 3 to bit 4
         cpu.registers.f.carry = (cpu.registers.a < original) || (cpu.registers.a < reg_target);
-        // ^^ Carry Flag: Set if carry out from the most significant bit
     } else {
         cpu.registers.f.zero = cpu.registers.a == 0; // Zero Flag: Set if the result is zero
         cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
@@ -277,4 +274,36 @@ pub fn print_step_info(cpu: &mut CPU, ticks: u64) {
         cpu.registers.get_de(),
         cpu.registers.get_hl(),
     );
+}
+
+pub fn log_cpu_state(cpu: &mut CPU) {
+    let pcmem = [
+        cpu.bus.read_byte(None, cpu.pc),
+        cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),
+        cpu.bus.read_byte(None, cpu.pc.wrapping_add(2)),
+        cpu.bus.read_byte(None, cpu.pc.wrapping_add(3)),
+    ];
+    
+    let log_line = format!(
+        "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+        cpu.registers.a,
+        cpu.registers.f.as_byte(),
+        cpu.registers.b,
+        cpu.registers.c,
+        cpu.registers.d,
+        cpu.registers.e,
+        cpu.registers.h,
+        cpu.registers.l,
+        cpu.sp,
+        cpu.pc,
+        pcmem[0], pcmem[1], pcmem[2], pcmem[3]
+    );
+
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("cpu_log.txt")
+    {
+        let _ = file.write_all(log_line.as_bytes());
+    }
 }

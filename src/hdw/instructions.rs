@@ -403,19 +403,26 @@ impl Instruction {
             0x29 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::HL))),
             0x39 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::SP))),
             // ADC
-            0x88..=0x8F | 0xCE => Some(Instruction::ADC(Self::op_target_helper(byte))),
+            0x88..=0x8F => Some(Instruction::ADC(Self::op_target_helper(byte))),
+            0xCE => Some(Instruction::ADC(OPTarget::D8)),
             // SUB
-            0x90..=0x97 | 0xD6 => Some(Instruction::SUB(Self::op_target_helper(byte))),
+            0x90..=0x97 => Some(Instruction::SUB(Self::op_target_helper(byte))),
+            0xD6 => Some(Instruction::SUB(OPTarget::D8)),
             // SBC
-            0x98..=0x9F | 0xDE => Some(Instruction::SBC(Self::op_target_helper(byte))),
+            0x98..=0x9F => Some(Instruction::SBC(Self::op_target_helper(byte))),
+            0xDE => Some(Instruction::SBC(OPTarget::D8)),
             // AND
-            0xA0..=0xA7 | 0xE6 => Some(Instruction::AND(Self::op_target_helper(byte))),
+            0xA0..=0xA7 => Some(Instruction::AND(Self::op_target_helper(byte))),
+            0xE6 => Some(Instruction::AND(OPTarget::D8)),
             // XOR
-            0xA8..=0xAF | 0xEE => Some(Instruction::XOR(Self::op_target_helper(byte))),
+            0xA8..=0xAF => Some(Instruction::XOR(Self::op_target_helper(byte))),
+            0xEE => Some(Instruction::XOR(OPTarget::D8)),
             // OR
-            0xB0..=0xB7 | 0xF6 => Some(Instruction::OR(Self::op_target_helper(byte))),
+            0xB0..=0xB7 => Some(Instruction::OR(Self::op_target_helper(byte))),
+            0xF6 => Some(Instruction::OR(OPTarget::D8)),
             // CP
-            0xB8..=0xBF | 0xFE => Some(Instruction::CP(Self::op_target_helper(byte))),
+            0xB8..=0xBF => Some(Instruction::CP(Self::op_target_helper(byte))),
+            0xFE => Some(Instruction::CP(OPTarget::D8)),
             // RET
             0xC0 => Some(Instruction::RET(JumpTest::NotZero)),
             0xC8 => Some(Instruction::RET(JumpTest::Zero)),
@@ -461,7 +468,7 @@ impl Instruction {
             // EI
             0xFB => Some(Instruction::EI),
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xCB | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
-                panic!("NULL INSTRUCTION READ")
+                panic!("NULL INSTRUCTION READ: {:02X}", byte)
             }
             _ => panic!("NOT AN INSTRUCTION"),
         }

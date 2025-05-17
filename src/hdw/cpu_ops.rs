@@ -12,133 +12,167 @@ use super::emu::emu_cycles;
 
 // [0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F]
 pub fn op_srl(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let lsb = original_value & 0x1;
+    let result = original_value >> 1;
 
-    // Get LSB For Carry Flag
-    let lsb = reg_target & 0x1;
-
-    // Shift Right
-    reg_target = reg_target >> 1;
+    // Write the result back to the target register or memory
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
     // Update Flags
-    set_flags_after_pref_op(cpu, lsb, reg_target);
+    set_flags_after_pref_op(cpu, lsb, result);
 }
 
 // [0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37]
 pub fn op_swap(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let result = (original_value << 4) | (original_value >> 4);
 
-    // Swap the the nibbles
-    reg_target = (reg_target << 4) | (reg_target >> 4);
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
-    // Upd Flags
-    set_flags_after_swap(cpu, reg_target);
+    set_flags_after_swap(cpu, result);
 }
 
 // [0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F]
 pub fn op_sra(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let lsb = original_value & 0x1;
+    let sign_bit = original_value & 0x80; // Preserve original sign bit
+    let mut result = original_value >> 1;
+    result |= sign_bit; // Ensure original sign bit is kept
 
-    // Get LSB For Carry
-    let lsb = reg_target & 0x1;
-
-    // Preserve Sign Bit
-    let sign_bit = (reg_target & 0x80) != 0;
-
-    // Shift Right
-    reg_target >>= 1;
-
-    // Put Sign Bit Back
-    if sign_bit {
-        reg_target |= 0x80;
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
     }
 
-    // Update Flags
-    set_flags_after_pref_op(cpu, lsb, reg_target);
+    set_flags_after_pref_op(cpu, lsb, result);
 }
 
 // [0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27]
 pub fn op_sla(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let bit_7 = (original_value >> 7) & 0x1; // MSB for carry
+    let result = original_value << 1;
 
-    // Get Bit 7 For Carry
-    let bit_7 = (reg_target >> 7) & 0x1;
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
-    // Shift Left
-    reg_target <<= 1;
-
-    // Update Flag
-    set_flags_after_pref_op(cpu, bit_7, reg_target);
+    set_flags_after_pref_op(cpu, bit_7, result);
 }
 
 // [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
 pub fn op_rlc(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let bit_7 = (original_value >> 7) & 0x1; // MSB for carry and for rotating to bit 0
+    let result = (original_value << 1) | bit_7;
 
-    // Get Bit 7 For Carry
-    let bit_7 = (reg_target >> 7) & 0x1;
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
-    // Rotate Left With Carry
-    reg_target = (reg_target << 1) | bit_7;
-
-    // Update Flags
-    set_flags_after_pref_op(cpu, bit_7, reg_target);
+    set_flags_after_pref_op(cpu, bit_7, result);
 }
 
 // [0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F]
 pub fn op_rrc(cpu: &mut CPU, target: HLTarget) {
-    // Find target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let bit_0 = original_value & 0x1; // LSB for carry and for rotating to bit 7
+    let result = (original_value >> 1) | (bit_0 << 7); // Corrected: bit_0 << 7
 
-    // Get Bit 0 For Carry
-    let bit_0 = reg_target & 0x1;
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
-    // Rotate Right and Append bit 0
-    reg_target = (reg_target >> 1) | (bit_0 >> 7);
-
-    // Update Flags
-    set_flags_after_pref_op(cpu, bit_0, reg_target);
+    set_flags_after_pref_op(cpu, bit_0, result);
 }
 
 // [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]
 pub fn op_rl(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let prev_carry = cpu.registers.f.carry as u8;
+    let new_carry_val = (original_value >> 7) & 0x1; // MSB of original value becomes new carry
+    let result = (original_value << 1) | prev_carry; // Old carry goes into LSB
 
-    // Store Previous Carry
-    let prev_carry = cpu.registers.f.carry;
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
-    // Store Bit 7 For Carry
-    let bit_7 = (reg_target >> 7) & 0x1;
-
-    // Rotate Left and Append
-    reg_target = (reg_target << 1) | (prev_carry as u8);
-
-    // Update Flags
-    set_flags_after_pref_op(cpu, bit_7, reg_target);
+    set_flags_after_pref_op(cpu, new_carry_val, result);
 }
 
 // [0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F]
 pub fn op_rr(cpu: &mut CPU, target: HLTarget) {
-    // Find Target Register
-    let mut reg_target = match_hl(cpu, &target);
+    let original_value = match_hl(cpu, &target);
+    let prev_carry = cpu.registers.f.carry as u8;
+    let new_carry_val = original_value & 0x1; // LSB of original value becomes new carry
+    let result = (original_value >> 1) | (prev_carry << 7); // Old carry goes into MSB
 
-    // Store Previous Carry
-    let prev_carry = cpu.registers.f.carry;
+    match target {
+        HLTarget::A => cpu.registers.a = result,
+        HLTarget::B => cpu.registers.b = result,
+        HLTarget::C => cpu.registers.c = result,
+        HLTarget::D => cpu.registers.d = result,
+        HLTarget::E => cpu.registers.e = result,
+        HLTarget::H => cpu.registers.h = result,
+        HLTarget::L => cpu.registers.l = result,
+        HLTarget::HL => cpu.bus.write_byte(None, cpu.registers.get_hl(), result),
+    }
 
-    // Store Bit 0
-    let bit_0 = reg_target & 0x1;
-
-    // Rotate Right and append bit 0
-    reg_target = (reg_target >> 1) | (prev_carry as u8) << 7;
-
-    // Update Flags
-    set_flags_after_pref_op(cpu, bit_0, reg_target);
+    set_flags_after_pref_op(cpu, new_carry_val, result);
 }
 
 // [0x2F]
@@ -545,7 +579,6 @@ pub fn op_xor(cpu: &mut CPU, target: OPTarget) {
         // [0xAE]
         OPTarget::HL => {
             cpu.registers.a ^= cpu.bus.read_byte(None, cpu.registers.get_hl());
-            cpu.pc = cpu.pc.wrapping_add(2);
         }
         // [0xEE]
         OPTarget::D8 => {
@@ -589,7 +622,6 @@ pub fn op_and(cpu: &mut CPU, target: OPTarget) {
         // [0xE6]
         OPTarget::D8 => {
             cpu.registers.a &= cpu.bus.read_byte(None, cpu.pc + 1);
-            cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
     // Set Flags
@@ -891,23 +923,22 @@ pub fn op_adc(cpu: &mut CPU, target: OPTarget) {
         // [0x8E]
         OPTarget::A => {
             let original_value = cpu.registers.a; // Store Original Value
-            cpu.registers.a = cpu.registers.a.wrapping_add(cpu.registers.f.carry as u8); // ADC
+            // Corrected: A = A_orig + A_orig + Carry
+            cpu.registers.a = original_value.wrapping_add(original_value).wrapping_add(cpu.registers.f.carry as u8);
             set_flags_after_adc(cpu, cpu.registers.a, original_value, original_value);
-            // Set Flags
         }
         // [0xCE]
         OPTarget::D8 => {
-            let original_value = cpu.registers.a; // Store Original Values
-            cpu.registers.a = cpu
-                .bus
-                .read_byte(None, cpu.pc + 1)
-                .wrapping_add(cpu.registers.f.carry as u8); // ADC
+            let original_value = cpu.registers.a; // Store Original Value
+            let d8_value = cpu.bus.read_byte(None, cpu.pc + 1);
+            // Corrected: A = A_orig + d8 + Carry
+            cpu.registers.a = original_value.wrapping_add(d8_value).wrapping_add(cpu.registers.f.carry as u8);
             set_flags_after_adc(
                 cpu,
-                cpu.registers.a,
-                original_value,
-                cpu.bus.read_byte(None, cpu.pc + 1),
-            ); // Set Flags
+                cpu.registers.a, // The final result in A
+                original_value,  // A before the operation
+                d8_value        // The immediate operand d8
+            ); 
             cpu.pc = cpu.pc.wrapping_add(1); // INC PC due to Byte Read
         }
     }
@@ -1707,7 +1738,7 @@ pub fn op_call(cpu: &mut CPU, target: JumpTest) -> u16 {
 // [0x18, 0x20, 0x28, 0x30, 0x38]
 pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
     let jump_distance = cpu.bus.read_byte(None, cpu.pc + 1) as i8;
-    println!("Jump Distance: {:02X}", jump_distance);
+    //println!("Jump Distance: {:02X}", jump_distance);
     goto_addr(
         cpu,
         cpu.pc.wrapping_add(jump_distance as u16),

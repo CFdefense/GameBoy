@@ -40,11 +40,10 @@ impl Bus {
     }
 
     // Function to return a byte at an address
-    pub fn read_byte(&self, cpu: Option<&mut CPU>, address: u16) -> u8 {
+    pub fn read_byte(&self, cpu: Option<&CPU>, address: u16) -> u8 {
         if address < 0x8000 {
             // ROM DATA
-            let result = self.cart.read_byte(address);
-            result
+            self.cart.read_byte(address)
         } else if address < 0xA000 {
             // Char/Map Data
             print!("\nMEM NOT IMPL <A");
@@ -67,13 +66,26 @@ impl Bus {
             0
         } else if address < 0xFF80 {
             // IO Registers
-            return io_read(address);
+            if address == 0xFF0F {
+                // Interrupt Flag Register
+                if let Some(cpu) = cpu {
+                    cpu.int_flags
+                } else {
+                    panic!("BUS: Attempted to read interrupt flag register without CPU reference")
+                }
+            } else if address == 0xFF44 {
+                // LCD Y-Coordinate (LY)
+                // For now, always return 0x90 (144) to indicate VBlank
+                0x90
+            } else {
+                io_read(address)
+            }
         } else if address == 0xFFFF {
-            // CPU ENABLE
+            // Interrupt Enable Register
             if let Some(cpu) = cpu {
                 cpu.get_ie_register()
             } else {
-                panic!("BUS: FOUND CPU REF BUT NO CPU PASSED")
+                panic!("BUS: Attempted to read IE register without CPU reference")
             }
         } else {
             // HRAM (Zero Page)
@@ -83,7 +95,6 @@ impl Bus {
 
     // Function to write byte to correct place
     pub fn write_byte(&mut self, cpu: Option<&mut CPU>, address: u16, value: u8) {
-        // Need to filter destination of byte and write to there
         if address < 0x8000 {
             // ROM DATA
             self.cart.write_byte(address, value);
@@ -105,13 +116,25 @@ impl Bus {
             // Reserved Unusuable
         } else if address < 0xFF80 {
             // IO Registers
-            io_write(address, value);
+            if address == 0xFF0F {
+                // Interrupt Flag Register
+                if let Some(cpu) = cpu {
+                    cpu.int_flags = value;
+                } else {
+                    panic!("BUS: Attempted to write interrupt flag register without CPU reference");
+                }
+            } else if address == 0xFF44 {
+                // LCD Y-Coordinate (LY)
+                // This is a read-only register, writes are ignored
+            } else {
+                io_write(address, value);
+            }
         } else if address == 0xFFFF {
-            // CPU ENABLE
+            // Interrupt Enable Register
             if let Some(cpu) = cpu {
                 cpu.set_ie_register(value);
             } else {
-                panic!("BUS: FOUND CPU REF BUT NO CPU PASSED");
+                panic!("BUS: Attempted to write IE register without CPU reference");
             }
         } else {
             // HRAM

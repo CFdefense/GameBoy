@@ -1,5 +1,3 @@
-use sdl2::sys::Time;
-
 use crate::hdw::bus::Bus;
 use crate::hdw::cpu_ops::*;
 use crate::hdw::instructions::*;
@@ -8,10 +6,12 @@ use crate::hdw::registers::*;
 use crate::hdw::timer::Timer;
 use core::panic;
 
-use super::cpu_util::{print_step_info, log_cpu_state, update_cycles_for_current_instruction};
+use std::sync::{Arc, Mutex};
+use crate::hdw::emu::EmuContext;
+
+use super::cpu_util::{print_step_info, log_cpu_state};
 use super::debug;
-use super::interrupts;
-use crate::hdw::emu;
+use super::emu::emu_cycles;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -70,65 +70,57 @@ impl CPU {
     }
 
     // Function to 'step' through instructions
-    pub fn step(&mut self, ticks: u64) -> bool {
+    pub fn step(&mut self, ctx: Arc<Mutex<EmuContext>>) -> bool {
         // If IME was set to be enabled on the previous cycle (due to EI), actually enable it now.
         if self.enabling_ime {
             self.master_enabled = true;
-            self.enabling_ime = false; // Clear the flag as it has served its purpose
+            self.enabling_ime = false;
         }
 
-        // Check if CPU is halted
         if !self.is_halted {
-            self.fetch(); // fetch next opcode from cartridge
-            self.decode(); // Decode current opcode
-
-            // Debugging - print, log and display debug msgs from SERIAL
-            print_step_info(self, ticks);
-            log_cpu_state(self);
+            self.fetch();
+            self.decode();
+            
+            print_step_info(self, &ctx);
+            log_cpu_state(self, &ctx);
             debug::dbg_update(&mut self.bus);
             debug::dbg_print();
 
-            // Update cycles for the decoded instruction BEFORE execution
-            // This handles the base cycles for the instruction.
-            // Conditional additional cycles will be handled in execute/op_... functions.
-            update_cycles_for_current_instruction(self);
+            let instruction_to_execute = self.curr_instruction.take();
 
-            // Execute the current instruction if it exists and reset it to none
-            if let Some(instruction) = self.curr_instruction.take() {
-                self.execute(instruction); // Execute the current instruction
+            if let Some(instruction) = instruction_to_execute {
+                self.execute(instruction); // Execute might modify PC and flagg
+
             } else {
                 panic!("Decode Error: No Instruction")
             }
         } else {
             // is halted
             // A halted CPU still consumes 1 M-cycle (4 T-cycles) per "step" 
-            // while waiting for an interrupt.
-            emu::emu_cycles(self, 1); 
+            emu_cycles(self, 1);
 
-            if (self.int_flags & self.ie_register) != 0 { // Only unhalt if a *relevant* interrupt is pending
+            if (self.int_flags & self.ie_register) != 0 {
                 self.is_halted = false;
             }
         }
 
-        // Handle interrupts AFTER the current instruction has finished and IME is processed.
         if self.master_enabled {
-            // cpu_handle_interrupts will internally disable master_enabled if an interrupt is taken.
-            cpu_handle_interrupts(self); 
+            cpu_handle_interrupts(self);
         }
         true
     }
 
     // Function to fetch next opcode
     fn fetch(&mut self) {
-        // Get Next Opcode
         self.curr_opcode = self.bus.read_byte(None, self.pc);
+        emu_cycles(self, 1);
     }
 
     // Function to decode current opcode
     fn decode(&mut self) {
         // Try to decode curr opcode
         self.curr_instruction =
-            Instruction::decode_from_opcode(self.curr_opcode, &self.bus, self.pc);
+            Instruction::decode_from_opcode(self.curr_opcode, self.pc, self);
 
         // Error handling
         if self.curr_instruction.is_none() {

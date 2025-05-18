@@ -6,7 +6,7 @@ use core::panic;
     As well as all implementations of Instruction operations such as decoding and matching bytes to instructions
 
 */
-use super::bus::Bus;
+use super::{cpu::CPU, emu::{self, emu_cycles}};
 
 // Target For All Instructions
 #[derive(Debug)]
@@ -228,21 +228,25 @@ pub enum LoadType {
 
 impl Instruction {
     // Function to take opcode from cpu and match it to a corresponding Instruction
-    pub fn decode_from_opcode(opcode: u8, cart: &Bus, pc: u16) -> Option<Instruction> {
+    pub fn decode_from_opcode(opcode: u8, pc: u16, cpu: &mut CPU) -> Option<Instruction> {
         let prefixed = opcode == 0xCB;
+
+        if prefixed {
+            emu_cycles(cpu, 1);
+        }
 
         // determine if instruction is a PREFIX
         let instruction_opcode = if prefixed {
-            cart.read_byte(None, pc + 1)
+            cpu.bus.read_byte(None, pc + 1)
         } else {
             opcode
         };
 
         // Use enum to translate opcode and store next pc addr
         let instruction = if prefixed {
-            Instruction::from_prefixed_byte(instruction_opcode)
+            Instruction::from_prefixed_byte(instruction_opcode, cpu)
         } else {
-            Instruction::from_byte_not_prefixed(instruction_opcode)
+            Instruction::from_byte_not_prefixed(instruction_opcode, cpu)
         };
 
         // Implicit Return
@@ -250,35 +254,79 @@ impl Instruction {
     }
 
     // Match Instruction to Prefixed Instruction Set
-    fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
+    fn from_prefixed_byte(byte: u8, cpu: &mut CPU) -> Option<Instruction> {
         match byte {
             // RLC
-            0x00..=0x07 => Some(Instruction::RLC(Self::hl_target_helper(byte))),
+            0x00..=0x07 => {
+                if byte == 0x06 {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::RLC(Self::hl_target_helper(byte)))},
             // RRC
-            0x08..=0x0F => Some(Instruction::RRC(Self::hl_target_helper(byte))),
+            0x08..=0x0F => {
+                if byte == 0x0E {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::RRC(Self::hl_target_helper(byte)))},
             // RL
-            0x10..=0x17 => Some(Instruction::RL(Self::hl_target_helper(byte))),
+            0x10..=0x17 => {
+                if byte == 0x16 {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::RL(Self::hl_target_helper(byte)))},
             // RR
-            0x18..=0x1F => Some(Instruction::RR(Self::hl_target_helper(byte))),
+            0x18..=0x1F => {
+                if byte == 0x1E {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::RR(Self::hl_target_helper(byte)))},
             // SLA
-            0x20..=0x27 => Some(Instruction::SLA(Self::hl_target_helper(byte))),
+            0x20..=0x27 => {
+                if byte == 0x26 {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::SLA(Self::hl_target_helper(byte)))},
             // SRA
-            0x28..=0x2F => Some(Instruction::SRA(Self::hl_target_helper(byte))),
+            0x28..=0x2F => {
+                if byte == 0x2E {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::SRA(Self::hl_target_helper(byte)))},
             // SWAP
-            0x30..=0x37 => Some(Instruction::SWAP(Self::hl_target_helper(byte))),
+            0x30..=0x37 => {
+                if byte == 0x36 {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::SWAP(Self::hl_target_helper(byte)))},
             // SRL
-            0x38..=0x3F => Some(Instruction::SRL(Self::hl_target_helper(byte))),
+            0x38..=0x3F => {
+                if byte == 0x3E {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::SRL(Self::hl_target_helper(byte)))},
             // BIT
-            0x40..=0x7F => Some(Instruction::BIT(Self::byte_target_helper(byte))),
+            0x40..=0x7F => {
+                if byte == 0x46 || byte == 0x4E || byte == 0x56 || byte == 0x5E || byte == 0x66 || byte == 0x6E || byte == 0x7E {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::BIT(Self::byte_target_helper(byte)))},
             //RES
-            0x080..=0xBF => Some(Instruction::RES(Self::byte_target_helper(byte))),
+            0x080..=0xBF => {
+                if byte == 0x86 || byte == 0x8E || byte == 0x96 || byte == 0x9E || byte == 0xA6 || byte == 0xAE || byte == 0xB6 || byte == 0xBE {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::RES(Self::byte_target_helper(byte)))},
             //SET
-            0x0C0..=0xFF => Some(Instruction::SET(Self::byte_target_helper(byte))),
+            0x0C0..=0xFF => {
+                if byte == 0xC6 || byte == 0xCE || byte == 0xD6 || byte == 0xDE || byte == 0xE6 || byte == 0xEE || byte == 0xF6 || byte == 0xFE {
+                    emu_cycles(cpu, 2);
+                }
+                Some(Instruction::SET(Self::byte_target_helper(byte)))},
         }
     }
 
     // Match Instruction to Non Prefixed Instruction Set
-    fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
+    fn from_byte_not_prefixed(byte: u8, cpu: &mut CPU) -> Option<Instruction> {
         match byte {
             //NOP
             0x00 => Some(Instruction::NOP),
@@ -301,11 +349,21 @@ impl Instruction {
             //CCF
             0x3F => Some(Instruction::CCF),
             //JR
-            0x18 => Some(Instruction::JR(JumpTest::Always)),
-            0x20 => Some(Instruction::JR(JumpTest::NotZero)),
-            0x28 => Some(Instruction::JR(JumpTest::Zero)),
-            0x30 => Some(Instruction::JR(JumpTest::NotCarry)),
-            0x38 => Some(Instruction::JR(JumpTest::Carry)),
+            0x18 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::JR(JumpTest::Always))},
+            0x20 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::JR(JumpTest::NotZero))},
+            0x28 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::JR(JumpTest::Zero))},
+            0x30 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::JR(JumpTest::NotCarry))},
+            0x38 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::JR(JumpTest::Carry))},
             // INC
             0x03 => Some(Instruction::INC(AllRegisters::BC)),
             0x13 => Some(Instruction::INC(AllRegisters::DE)),
@@ -333,30 +391,42 @@ impl Instruction {
             0x2D => Some(Instruction::DEC(AllRegisters::L)),
             0x3D => Some(Instruction::DEC(AllRegisters::A)),
             // LD Word w Word
-            0x01 => Some(Instruction::LD(LoadType::Word(
+            0x01 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::BC,
                 LoadWordSource::N16,
-            ))),
-            0x11 => Some(Instruction::LD(LoadType::Word(
+            )))},
+            0x11 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::DE,
                 LoadWordSource::N16,
-            ))),
-            0x21 => Some(Instruction::LD(LoadType::Word(
+            )))},
+            0x21 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::HL,
                 LoadWordSource::N16,
-            ))),
-            0x31 => Some(Instruction::LD(LoadType::Word(
+            )))},
+            0x31 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::SP,
                 LoadWordSource::N16,
-            ))),
-            0x08 => Some(Instruction::LD(LoadType::Word(
+            )))},
+            0x08 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::N16,
                 LoadWordSource::SP,
-            ))),
-            0xF8 => Some(Instruction::LD(LoadType::Word(
+            )))},
+            0xF8 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::HL,
                 LoadWordSource::SPE8,
-            ))),
+            )))},
             0xF9 => Some(Instruction::LD(LoadType::Word(
                 LoadWordTarget::SP,
                 LoadWordSource::HL,
@@ -367,62 +437,148 @@ impl Instruction {
             0x22 => Some(Instruction::LD(LoadType::AStoreInN16(LoadN16::HLINC))),
             0x32 => Some(Instruction::LD(LoadType::AStoreInN16(LoadN16::HLDEC))),
             // LD Reg From D8
-            0x06 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::B))),
-            0x16 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::D))),
-            0x26 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::H))),
-            0x36 => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::HL))),
-            0x0E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::C))),
-            0x1E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::E))),
-            0x2E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::L))),
-            0x3E => Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::A))),
+            0x06 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::B)))},
+            0x16 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::D)))},
+            0x26 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::H)))},
+            0x36 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::HL)))},
+            0x0E => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::C)))},
+            0x1E => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::E)))},
+            0x2E => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::L)))},
+            0x3E => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::D8StoreInReg(HLTarget::A)))},
             // LD A From N16
-            0x0A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::BC))),
-            0x1A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::DE))),
-            0x2A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLINC))),
-            0x3A => Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC))),
+            0x0A => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::BC)))},
+            0x1A => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::DE)))},
+            0x2A => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLINC)))},
+            0x3A => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC)))},
             // LD Register to Register + HALT
-            0x40..=0x7F => Self::load_register_helper(byte),
+            0x40..=0x7F => {
+                if byte == 0x46 || byte == 0x4E || byte == 0x56 || byte == 0x5E || byte == 0x66 || byte == 0x6E || byte == 0x7E {
+                    emu_cycles(cpu, 1);
+                }
+                Self::load_register_helper(byte)},
             // LD A and a8
-            0xE0 => Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A8))),
-            0xF0 => Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A))),
+            0xE0 => {
+                emu_cycles(cpu,1);
+                Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A8)))},
+            0xF0 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::AWithA8(LoadA8Target::A)))},
             // LD A and C
             0xE2 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::C))),
-            0xF2 => Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::A))),
+            0xF2 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::A)))},
             // LD A and a16
             0xEA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A16))),
-            0xFA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A))),
+            0xFA => {
+                emu_cycles(cpu, 3);
+                Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A)))},
             // ADD Register to A
-            0x80..=0x87 => Some(Instruction::ADD(OPType::LoadA(Self::hl_target_helper(
+            0x80..=0x87 => {
+                if byte == 0x86 {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::ADD(OPType::LoadA(Self::hl_target_helper(
                 byte,
-            )))),
-            0xC6 => Some(Instruction::ADD(OPType::LoadD8)), // ADD D8
-            0xE8 => Some(Instruction::ADD(OPType::LoadSP)), // ADD s8 SP
+            ))))},
+            0xC6 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::ADD(OPType::LoadD8))}, // ADD D8
+            0xE8 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::ADD(OPType::LoadSP))}, // ADD s8 SP
             // ADD N16 Register to N16 Register
             0x09 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::BC))),
             0x19 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::DE))),
             0x29 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::HL))),
             0x39 => Some(Instruction::ADD(OPType::LoadHL(AddN16Target::SP))),
             // ADC
-            0x88..=0x8F => Some(Instruction::ADC(Self::op_target_helper(byte))),
-            0xCE => Some(Instruction::ADC(OPTarget::D8)),
+            0x88..=0x8F => {
+                if byte == 0x8E {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::ADC(Self::op_target_helper(byte)))},
+            0xCE => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::ADC(OPTarget::D8))},
             // SUB
-            0x90..=0x97 => Some(Instruction::SUB(Self::op_target_helper(byte))),
-            0xD6 => Some(Instruction::SUB(OPTarget::D8)),
+            0x90..=0x97 => {
+                if byte == 0x96 {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::SUB(Self::op_target_helper(byte)))},
+            0xD6 => {
+                emu_cycles(cpu, 1);                
+                Some(Instruction::SUB(OPTarget::D8))},
             // SBC
-            0x98..=0x9F => Some(Instruction::SBC(Self::op_target_helper(byte))),
-            0xDE => Some(Instruction::SBC(OPTarget::D8)),
+            0x98..=0x9F => {
+                if byte == 0x9E {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::SBC(Self::op_target_helper(byte)))},
+            0xDE => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::SBC(OPTarget::D8))},
             // AND
-            0xA0..=0xA7 => Some(Instruction::AND(Self::op_target_helper(byte))),
-            0xE6 => Some(Instruction::AND(OPTarget::D8)),
+            0xA0..=0xA7 => {
+                if byte == 0xA6 {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::AND(Self::op_target_helper(byte)))},
+            0xE6 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::AND(OPTarget::D8))},
             // XOR
-            0xA8..=0xAF => Some(Instruction::XOR(Self::op_target_helper(byte))),
-            0xEE => Some(Instruction::XOR(OPTarget::D8)),
+            0xA8..=0xAF => {
+                if byte == 0xAE {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::XOR(Self::op_target_helper(byte)))},
+            0xEE => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::XOR(OPTarget::D8))},
             // OR
-            0xB0..=0xB7 => Some(Instruction::OR(Self::op_target_helper(byte))),
-            0xF6 => Some(Instruction::OR(OPTarget::D8)),
+            0xB0..=0xB7 => {
+                if byte == 0xB6 {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::OR(Self::op_target_helper(byte)))},
+            0xF6 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::OR(OPTarget::D8))},
             // CP
-            0xB8..=0xBF => Some(Instruction::CP(Self::op_target_helper(byte))),
-            0xFE => Some(Instruction::CP(OPTarget::D8)),
+            0xB8..=0xBF => {
+                if byte == 0xBE {
+                    emu_cycles(cpu, 1);
+                }
+                Some(Instruction::CP(Self::op_target_helper(byte)))},
+            0xFE => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::CP(OPTarget::D8))},
             // RET
             0xC0 => Some(Instruction::RET(JumpTest::NotZero)),
             0xC8 => Some(Instruction::RET(JumpTest::Zero)),
@@ -437,18 +593,38 @@ impl Instruction {
             0xE1 => Some(Instruction::POP(StackTarget::HL)),
             0xF1 => Some(Instruction::POP(StackTarget::AF)),
             // JP
-            0xC2 => Some(Instruction::JP(JumpTest::NotZero)),
-            0xCA => Some(Instruction::JP(JumpTest::Zero)),
-            0xD2 => Some(Instruction::JP(JumpTest::NotCarry)),
-            0xDA => Some(Instruction::JP(JumpTest::Carry)),
-            0xC3 => Some(Instruction::JP(JumpTest::Always)),
+            0xC2 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::JP(JumpTest::NotZero))},
+            0xCA => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::JP(JumpTest::Zero))},
+            0xD2 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::JP(JumpTest::NotCarry))},
+            0xDA => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::JP(JumpTest::Carry))},
+            0xC3 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::JP(JumpTest::Always))},
             0xE9 => Some(Instruction::JP(JumpTest::HL)),
             // CALL
-            0xC4 => Some(Instruction::CALL(JumpTest::NotZero)),
-            0xCC => Some(Instruction::CALL(JumpTest::Zero)),
-            0xD4 => Some(Instruction::CALL(JumpTest::NotCarry)),
-            0xDC => Some(Instruction::CALL(JumpTest::Carry)),
-            0xCD => Some(Instruction::CALL(JumpTest::Always)),
+            0xC4 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::CALL(JumpTest::NotZero))},
+            0xCC => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::CALL(JumpTest::Zero))},
+            0xD4 => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::CALL(JumpTest::NotCarry))},
+            0xDC => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::CALL(JumpTest::Carry))},
+            0xCD => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::CALL(JumpTest::Always))},
             // PUSH
             0xC5 => Some(Instruction::PUSH(StackTarget::BC)),
             0xD5 => Some(Instruction::PUSH(StackTarget::DE)),

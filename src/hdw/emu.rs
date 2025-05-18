@@ -61,17 +61,11 @@ fn cpu_run(cpu: Arc<Mutex<CPU>>, ctx: Arc<Mutex<EmuContext>>) {
             thread::sleep(Duration::from_millis(10));
             continue;
         }
-
-        let ticks;
-        {
-            let ctx_lock = ctx.lock().unwrap();
-            ticks = ctx_lock.ticks;
-        }
-
+        
         // Execute a CPU step
         let result = {
             let mut cpu_lock = cpu.lock().unwrap();
-            cpu_lock.step(ticks)
+            cpu_lock.step(Arc::clone(&ctx)) // Pass a clone of the Arc to step
         };
 
         if !result {
@@ -80,7 +74,7 @@ fn cpu_run(cpu: Arc<Mutex<CPU>>, ctx: Arc<Mutex<EmuContext>>) {
             break;
         }
 
-        // Update ticks and check debug limit
+        // Update instruction count and check debug limit
         {
             let mut ctx_lock = ctx.lock().unwrap();
             ctx_lock.instruction_count += 1;

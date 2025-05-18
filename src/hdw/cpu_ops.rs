@@ -7,7 +7,7 @@ use crate::hdw::cpu::*;
 use crate::hdw::cpu_util::*;
 use crate::hdw::instructions::*;
 use crate::hdw::stack::*;
-
+use crate::hdw::emu::*;
 // [0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F]
 pub fn op_srl(cpu: &mut CPU, target: HLTarget) {
     let original_value = match_hl(cpu, &target);
@@ -1269,32 +1269,36 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
             }
         }
         // [0x0A, 0x1A, 0x2A, 0x3A]
-        LoadType::AStoreInN16(target) => match target {
-            // [0x0A]
-            LoadN16::BC => {
-                cpu.bus
-                    .write_byte(None, cpu.registers.get_bc(), cpu.registers.a);
+        LoadType::AStoreInN16(target) => {
+            emu_cycles(cpu, 1);
+            match target {
+                // [0x0A]
+                LoadN16::BC => {
+                    cpu.bus
+                        .write_byte(None, cpu.registers.get_bc(), cpu.registers.a);
+                }
+                // [0x1A]
+                LoadN16::DE => {
+                    cpu.bus
+                        .write_byte(None, cpu.registers.get_de(), cpu.registers.a);
+                }
+                // [0x2A]
+                LoadN16::HLINC => {
+                    cpu.bus
+                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
+                    cpu.registers.set_hl(cpu.registers.get_hl().wrapping_add(1));
+                }
+                // [0x3A]
+                LoadN16::HLDEC => {
+                    cpu.bus
+                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
+                    cpu.registers.set_hl(cpu.registers.get_hl().wrapping_sub(1));
+                }
             }
-            // [0x1A]
-            LoadN16::DE => {
-                cpu.bus
-                    .write_byte(None, cpu.registers.get_de(), cpu.registers.a);
-            }
-            // [0x2A]
-            LoadN16::HLINC => {
-                cpu.bus
-                    .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
-                cpu.registers.set_hl(cpu.registers.get_hl().wrapping_add(1));
-            }
-            // [0x3A]
-            LoadN16::HLDEC => {
-                cpu.bus
-                    .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
-                cpu.registers.set_hl(cpu.registers.get_hl().wrapping_sub(1));
-            }
-        },
+        }
         // [0x02, 0x12, 0x22, 0x32]
         LoadType::N16StoreInA(source) => match source {
+            
             // [0x02]
             LoadN16::BC => {
                 cpu.registers.a = cpu.bus.read_byte(None, cpu.registers.get_bc());
@@ -1591,6 +1595,7 @@ pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> bool {
     if matches!(target, JumpTest::HL) {
         // For JP HL (0xE9), jump to the address in HL
         cpu.pc = cpu.registers.get_hl();
+        emu_cycles(cpu, 1); // cycle here?
         true // Jump occurred
     } else {
         // For JP nn (0xC3) or JP cc, nn
@@ -1600,6 +1605,7 @@ pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> bool {
 
         if match_jump(cpu, &target) { // Check condition (Always is true)
             cpu.pc = nn_address;
+            emu_cycles(cpu, 1); // cycle here?
             true // Jump occurred
         } else {
             // Condition false for JP cc, nn. PC will be advanced by 3 in execute loop.

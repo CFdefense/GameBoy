@@ -12,7 +12,6 @@ use crate::hdw::instructions::*;
 use regex::Regex;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::fs;
 
 // Method to match a N16 Target
 pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
@@ -295,9 +294,6 @@ pub fn print_step_info(cpu: &mut CPU, ticks: u64) {
 }
 
 pub fn log_cpu_state(cpu: &mut CPU) {
-    // Attempt to delete the log file if it exists, ignore error if it doesn't
-    let _ = fs::remove_file("cpu_log.txt");
-
     let pcmem = [
         cpu.bus.read_byte(None, cpu.pc),
         cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),

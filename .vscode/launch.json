@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Run 02-interrupts.gb",
+            "cargo": {
+                "args": [
+                    "run",
+                    "--package",
+                    "GameBoy",
+                    "--bin",
+                    "GameBoy"
+                ],
+                "filter": {
+                    "name": "GameBoy",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "src/roms/02-interrupts.gb"
+            ],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -1,11 +1,11 @@
 Test Progress
 01 - PASS
-02 - PASS
+02 - FAIL X - handle_interrupt triggered by EI resets pc
 03 - PASS
-04 - FAIL X
+04 - PASS
 05 - PASS
-06 - FAIL X
-07 - FAIL X
+06 - PASS
+07 - PASS
 08 - PASS
 09 - PASS
 10 - PASS

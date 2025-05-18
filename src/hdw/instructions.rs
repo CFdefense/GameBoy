@@ -310,7 +310,6 @@ impl Instruction {
             0x03 => Some(Instruction::INC(AllRegisters::BC)),
             0x13 => Some(Instruction::INC(AllRegisters::DE)),
             0x23 => Some(Instruction::INC(AllRegisters::HL)),
-            0x43 => Some(Instruction::INC(AllRegisters::SP)),
             0x04 => Some(Instruction::INC(AllRegisters::B)),
             0x14 => Some(Instruction::INC(AllRegisters::D)),
             0x24 => Some(Instruction::INC(AllRegisters::H)),

@@ -1389,7 +1389,9 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
             LoadA8Target::A8 => {
                 // First read all values we need
                 let address = 0xFF00 + cpu.bus.read_byte(None, cpu.pc + 1) as u16;
+                println!("address is {:04X}", address);
                 let value = cpu.registers.a;
+                println!("value is {:042}", value);
 
                 // Create a temporary mutable reference for the write operation
                 {
@@ -1778,6 +1780,11 @@ pub fn op_rst(cpu: &mut CPU, target: RestTarget) {
         RestTarget::Seven => 0x38,
     };
 
-    // Perform Operation & Implicit Return
+    // Advance PC to point to the instruction AFTER the 1-byte RST instruction.
+    // This is the address that should be pushed onto the stack for a standard RST.
+    cpu.pc = cpu.pc.wrapping_add(1);
+
+    // Now call goto_addr. It will push the current (advanced) cpu.pc
+    // and then set cpu.pc to the RST vector address (0x00XX).
     cpu.pc = goto_addr(cpu, 0x0000 | low, JumpTest::Always, true);
 }

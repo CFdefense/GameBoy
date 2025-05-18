@@ -7,3 +7,4 @@ edition = "2021"
 lazy_static = "1.4"
 regex = "1.7"
 sdl2 = { version = "0.35", features = ["ttf"] }
+once_cell = "1.18"

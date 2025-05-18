@@ -25,6 +25,12 @@ pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
                 0
             }
         },
+        0xFF04..=0xFF07 => {
+            timer.read(address)
+        },
+        0xFF0F => {
+            return cpu_get_interrupt_flags()
+        }
         _ => {
             println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
             0
@@ -67,6 +73,12 @@ pub fn io_write(cpu: Option<&mut crate::hdw::cpu::CPU>, address: u16, value: u8)
                 println!("Failed to lock SERIAL_DATA for writing to SC");
             }
         },
+        0xFF04..=0xFF07 => {
+            timer.write(address, value)
+        },
+        0xFF0F => {
+            return cpu_set_interrupt_flags(value)
+        }
         _ => {
             println!("IO WRITE NOT IMPLEMENTED for address: {:04X}", address);
         }

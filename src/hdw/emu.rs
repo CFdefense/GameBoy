@@ -7,7 +7,13 @@ use std::time::Duration;
 use crate::hdw::bus::Bus;
 use crate::hdw::cart::Cartridge;
 use crate::hdw::cpu::CPU;
+use crate::hdw::timer::Timer;
 use crate::hdw::ui::{UI, ui_handle_events};
+
+use once_cell::sync::OnceCell;
+
+// Global static EmuContext holder
+static EMU_CONTEXT: OnceCell<Arc<Mutex<EmuContext>>> = OnceCell::new();
 
 // Emulator context
 pub struct EmuContext {
@@ -18,6 +24,7 @@ pub struct EmuContext {
     pub cpu: Option<Arc<Mutex<CPU>>>,
     debug_limit: Option<u32>,
     instruction_count: u32,
+    timer: Timer,
 }
 
 impl EmuContext {
@@ -30,12 +37,21 @@ impl EmuContext {
             cpu: None,
             debug_limit,
             instruction_count: 0,
+            timer: Timer::new(),
         }
     }
 
     pub fn set_running(&mut self, running: bool) {
         self.running = running;
     }
+}
+
+// Function to initialize the global EmuContext reference.
+// This should be called once from emu_run after ctx is created and configured.
+pub fn init_global_emu_context(ctx: Arc<Mutex<EmuContext>>) {
+    // Attempt to set the context. If it's already set, .set() will return an Err.
+    // We are choosing to do nothing if it's already initialized.
+    let _ = EMU_CONTEXT.set(ctx); 
 }
 
 // CPU thread function
@@ -48,7 +64,7 @@ fn cpu_run(cpu: Arc<Mutex<CPU>>, ctx: Arc<Mutex<EmuContext>>) {
 
         let ticks;
         {
-            let mut ctx_lock = ctx.lock().unwrap();
+            let ctx_lock = ctx.lock().unwrap();
             ticks = ctx_lock.ticks;
         }
 
@@ -67,7 +83,6 @@ fn cpu_run(cpu: Arc<Mutex<CPU>>, ctx: Arc<Mutex<EmuContext>>) {
         // Update ticks and check debug limit
         {
             let mut ctx_lock = ctx.lock().unwrap();
-            ctx_lock.ticks += 1;
             ctx_lock.instruction_count += 1;
             
             if let Some(limit) = ctx_lock.debug_limit {
@@ -141,6 +156,9 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     // Store CPU reference in context
     ctx.lock().unwrap().cpu = Some(Arc::clone(&cpu));
 
+    // Initialize the global context reference
+    init_global_emu_context(Arc::clone(&ctx));
+
     // Spawn a new thread for CPU execution
     let cpu_thread_ctx = Arc::clone(&ctx);
     let cpu_thread_cpu = Arc::clone(&cpu);
@@ -177,6 +195,22 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     Ok(())
 }
 
-pub fn emu_cycles(cpu_cycles: u8) {
-    // TODO...
+// Function to increment EmuContext ticks based on CPU M-cycles.
+// Each M-cycle is typically 4 T-cycles (clock ticks).
+pub fn emu_cycles(cpu_m_cycles: u8) {
+    if let Some(ctx_arc) = EMU_CONTEXT.get() {
+        let t_cycles_to_add = cpu_m_cycles as u64 * 4; // Calculate total T-cycles to add
+        if let Ok(mut emu_ctx_lock) = ctx_arc.lock() {
+            emu_ctx_lock.ticks += t_cycles_to_add;
+        } else {
+            // Failed to lock, this is a potential issue if it happens often
+            eprintln!("emu_cycles: Failed to lock EmuContext.");
+        }
+    } else {
+        // This means init_global_emu_context was not called before emu_cycles.
+        // This is a programming error.
+        eprintln!("emu_cycles: Global EmuContext not initialized. Call init_global_emu_context first.");
+        // Depending on desired robustness, you might panic here.
+        // panic!("emu_cycles: Global EmuContext not initialized."); 
+    }
 }

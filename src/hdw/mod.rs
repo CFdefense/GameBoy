@@ -15,3 +15,4 @@ pub mod stack;
 pub mod ui;
 pub mod io;
 pub mod debug;
+pub mod timer;

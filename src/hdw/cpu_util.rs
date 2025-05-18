@@ -190,16 +190,6 @@ pub fn set_flags_after_add_a(cpu: &mut CPU, reg_target: u8, original: u8, is_d8:
     }
 }
 
-// ADD SP FLAGS [0xE8]
-pub fn set_flags_after_add_sp(cpu: &mut CPU, signed_value: i16) {
-    // [0 0 H CY]
-    cpu.registers.f.zero = cpu.sp == 0; // zero
-    cpu.registers.f.subtract = false; // subtract
-    cpu.registers.f.carry = (cpu.sp as i16) < (signed_value as i16); // Carry Flag: Check if there's a carry out (would occur if SP > 0xFFFF)
-    cpu.registers.f.half_carry = ((cpu.sp & 0x0F) as i16 + (signed_value & 0x0F) as i16) > 0x0F;
-    // Half-Carry Flag: Check if there's a carry from bit 11 to bit 12 this check is done based on the lower 4 bits
-}
-
 // ADD N16 FLAGS [0x09, 0x19, 0x29, 0x39]
 pub fn set_flags_after_add_n16(cpu: &mut CPU, operand1: u16, operand2: u16) {
     // Z flag is not affected

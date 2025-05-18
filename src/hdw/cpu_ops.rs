@@ -1389,10 +1389,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
             LoadA8Target::A8 => {
                 // First read all values we need
                 let address = 0xFF00 + cpu.bus.read_byte(None, cpu.pc + 1) as u16;
-                println!("address is {:04X}", address);
                 let value = cpu.registers.a;
-                println!("value is {:042}", value);
-
                 // Create a temporary mutable reference for the write operation
                 {
                     let cpu_ref = cpu as *mut CPU;

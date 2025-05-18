@@ -1,17 +1,22 @@
+use sdl2::sys::Time;
+
 use crate::hdw::bus::Bus;
 use crate::hdw::cpu_ops::*;
 use crate::hdw::emu::emu_cycles;
 use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
+use crate::hdw::timer::Timer;
 use core::panic;
 
 use super::cpu_util::{print_step_info, log_cpu_state};
 use super::debug;
+use super::interrupts;
 
 // Our CPU to Call and Control
 pub struct CPU {
     pub registers: Registers,
+    pub timer: Timer,
     pub pc: u16,
     pub sp: u16,
     pub bus: Bus,
@@ -29,7 +34,7 @@ pub struct CPU {
 }
 impl CPU {
     // Contructor
-    pub fn new(new_bus: Bus) -> Self {
+    pub fn new(new_bus: Bus, new_timer: Timer) -> Self {
         CPU {
             registers: Registers {
                 a: 0x01,
@@ -46,6 +51,7 @@ impl CPU {
                 h: 0x01,
                 l: 0x4D,
             },
+            timer: new_timer, // Maybe need to set div to 0xABCC
             pc: 0x0100,
             sp: 0xFFFE, 
             bus: new_bus,
@@ -69,13 +75,15 @@ impl CPU {
         if !self.is_halted {
             self.fetch(); // fetch next opcode from cartridge
             self.decode(); // Decode current opcode
+
+            // Debugging - print, log and display debug msgs from SERIAL
             print_step_info(self, ticks);
-            log_cpu_state(self); // print step info
+            log_cpu_state(self);
+            debug::dbg_update(&mut self.bus);
+            debug::dbg_print();
 
             // Execute the current instruction if it exists and reset it to none
             if let Some(instruction) = self.curr_instruction.take() {
-                debug::dbg_update(&mut self.bus);
-                debug::dbg_print();
                 self.execute(instruction); // Execute the current instruction
             } else {
                 panic!("Decode Error: No Instruction")
@@ -322,5 +330,8 @@ impl CPU {
     pub fn set_ie_register(&mut self, value: u8) {
         self.ie_register = value;
     }
-    // CPU ENDS HERE
+    
+    pub fn cpu_request_interrupt(&mut self, interrupt: Interrupts) {
+        self.int_flags |= interrupt as u8;
+    }
 }

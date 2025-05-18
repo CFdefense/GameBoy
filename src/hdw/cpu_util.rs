@@ -10,6 +10,7 @@ use super::stack::stack_push16;
 use crate::hdw::cpu::CPU;
 use crate::hdw::instructions::*;
 use regex::Regex;
+use core::panic;
 use std::fs::OpenOptions;
 use std::io::Write;
 
@@ -225,11 +226,30 @@ pub fn set_flags_after_sbc(cpu: &mut CPU, result: u8, original_a: u8, operand: u
     cpu.registers.f.carry = ((original_a as i16) - (operand as i16) - carry_in as i16) < 0;
 }
 
+// Function to set flags after ADD SP, r8 instruction
+// [0xE8]
+pub fn set_flags_after_add_sp_r8(cpu: &mut CPU, original_sp: u16, r8_signed: i8) {
+    // Z:0 N:0 H:from LSB C:from LSB
+    cpu.registers.f.zero = false;
+    cpu.registers.f.subtract = false;
+
+    let r8_unsigned = r8_signed as u8;
+    let sp_low_byte = original_sp as u8;
+
+    // Half Carry: Check for carry from bit 3 to bit 4 of (SP_low_byte + r8_unsigned)
+    // This is equivalent to ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F
+    cpu.registers.f.half_carry = ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F;
+
+    // Carry: Check for carry from bit 7 to bit 8 of (SP_low_byte + r8_unsigned)
+    // This is equivalent to (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF
+    cpu.registers.f.carry = (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF;
+}
+
 pub fn set_int_flags(cpu: &mut CPU, value: u8) {
     cpu.int_flags = value
 }
 
-pub fn get_int_flags(cpu: &mut CPU) -> u8 {
+pub fn get_int_flags(cpu: &CPU) -> u8 {
     cpu.int_flags
 }
 
@@ -239,12 +259,12 @@ pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool
 
     if jump {
         if push_pc {
-            emu_cycles(2);
+            emu_cycles(cpu, 2);
             stack_push16(cpu, cpu.pc);
         }
         // combine and set pc to 2 byte addr in lil endian
         cpu.pc = address;
-        emu_cycles(1);
+        emu_cycles(cpu, 1);
     }
     cpu.pc
 }
@@ -315,21 +335,159 @@ pub fn log_cpu_state(cpu: &mut CPU) {
     }
 }
 
-// Function to set flags after ADD SP, r8 instruction
-// [0xE8]
-pub fn set_flags_after_add_sp_r8(cpu: &mut CPU, original_sp: u16, r8_signed: i8) {
-    // Z:0 N:0 H:from LSB C:from LSB
-    cpu.registers.f.zero = false;
-    cpu.registers.f.subtract = false;
+// Note: For conditional jumps/calls/rets, this returns the "condition not met" cycles.
+// The instruction execution logic (in cpu_ops.rs) should add extra cycles if the condition is met.
+fn get_instruction_m_cycles(instruction: &Instruction, _cpu: &CPU) -> u8 { // _cpu might be needed for complex conditions
+    match instruction {
+        Instruction::NOP => 1,
+        Instruction::STOP => 1, // Special handling might be needed for STOP's long duration in low power. Base is 1.
 
-    let r8_unsigned = r8_signed as u8;
-    let sp_low_byte = original_sp as u8;
+        // LD r, r'
+        Instruction::LD(LoadType::RegInReg(HLTarget::HL, _)) => 2, // LD (HL), r
+        Instruction::LD(LoadType::RegInReg(_, HLTarget::HL)) => 2, // LD r, (HL)
+        Instruction::LD(LoadType::RegInReg(_, _)) => 1,            // LD r, r'
 
-    // Half Carry: Check for carry from bit 3 to bit 4 of (SP_low_byte + r8_unsigned)
-    // This is equivalent to ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F
-    cpu.registers.f.half_carry = ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F;
+        // LD r, n (d8)
+        Instruction::LD(LoadType::D8StoreInReg(HLTarget::HL)) => 3, // LD (HL), d8
+        Instruction::LD(LoadType::D8StoreInReg(_)) => 2,            // LD r, d8
 
-    // Carry: Check for carry from bit 7 to bit 8 of (SP_low_byte + r8_unsigned)
-    // This is equivalent to (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF
-    cpu.registers.f.carry = (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF;
+        // LD A, (rr) / LD (rr), A
+        Instruction::LD(LoadType::N16StoreInA(LoadN16::BC)) |
+        Instruction::LD(LoadType::N16StoreInA(LoadN16::DE)) => 2,
+        Instruction::LD(LoadType::AStoreInN16(LoadN16::BC)) |
+        Instruction::LD(LoadType::AStoreInN16(LoadN16::DE)) => 2,
+
+        // LD A, (nn) / LD (nn), A
+        Instruction::LD(LoadType::AWithA16(_)) => 4,
+
+        // LD A, (C) / LD (C), A
+        Instruction::LD(LoadType::AWithAC(_)) => 2,
+        
+        // LD A, (HL+/-) / LD (HL+/-), A
+        Instruction::LD(LoadType::N16StoreInA(LoadN16::HLINC)) |
+        Instruction::LD(LoadType::N16StoreInA(LoadN16::HLDEC)) => 2,
+        Instruction::LD(LoadType::AStoreInN16(LoadN16::HLINC)) |
+        Instruction::LD(LoadType::AStoreInN16(LoadN16::HLDEC)) => 2,
+
+        // LD rr, nn (d16)
+        Instruction::LD(LoadType::Word(LoadWordTarget::BC, LoadWordSource::N16)) |
+        Instruction::LD(LoadType::Word(LoadWordTarget::DE, LoadWordSource::N16)) |
+        Instruction::LD(LoadType::Word(LoadWordTarget::HL, LoadWordSource::N16)) |
+        Instruction::LD(LoadType::Word(LoadWordTarget::SP, LoadWordSource::N16)) => 3,
+
+        Instruction::LD(LoadType::Word(LoadWordTarget::N16, LoadWordSource::SP)) => 5, // LD (nn), SP
+        Instruction::LD(LoadType::Word(LoadWordTarget::SP, LoadWordSource::HL)) => 2,   // LD SP, HL
+        Instruction::LD(LoadType::Word(LoadWordTarget::HL, LoadWordSource::SPE8)) => 3, // LD HL, SP+e8
+
+        // PUSH & POP
+        Instruction::PUSH(_) => 4,
+        Instruction::POP(_) => 3,
+
+        // ALU 8-bit ops (r, (HL), d8)
+        Instruction::ADD(OPType::LoadA(HLTarget::HL)) |
+        Instruction::ADC(OPTarget::HL) |
+        Instruction::SUB(OPTarget::HL) |
+        Instruction::SBC(OPTarget::HL) |
+        Instruction::AND(OPTarget::HL) |
+        Instruction::XOR(OPTarget::HL) |
+        Instruction::OR(OPTarget::HL) |
+        Instruction::CP(OPTarget::HL) => 2, // op A, (HL)
+
+        Instruction::ADD(OPType::LoadD8) |
+        Instruction::ADC(OPTarget::D8) |
+        Instruction::SUB(OPTarget::D8) |
+        Instruction::SBC(OPTarget::D8) |
+        Instruction::AND(OPTarget::D8) |
+        Instruction::XOR(OPTarget::D8) |
+        Instruction::OR(OPTarget::D8) |
+        Instruction::CP(OPTarget::D8) => 2, // op A, d8
+
+        Instruction::ADD(OPType::LoadA(_)) | // Catches ADD A,r
+        Instruction::ADC(_) | Instruction::SUB(_) | Instruction::SBC(_) |
+        Instruction::AND(_) | Instruction::XOR(_) | Instruction::OR(_)  | Instruction::CP(_) => 1, // op A, r
+
+        // INC/DEC r
+        Instruction::INC(r) if !matches!(r, AllRegisters::HLMEM | AllRegisters::BC | AllRegisters::DE | AllRegisters::HL | AllRegisters::SP) => 1,
+        Instruction::DEC(r) if !matches!(r, AllRegisters::HLMEM | AllRegisters::BC | AllRegisters::DE | AllRegisters::HL | AllRegisters::SP) => 1,
+        
+        Instruction::INC(AllRegisters::HLMEM) | Instruction::DEC(AllRegisters::HLMEM) => 3, // INC/DEC (HL)
+        
+        Instruction::INC(AllRegisters::BC) | Instruction::INC(AllRegisters::DE) |
+        Instruction::INC(AllRegisters::HL) | Instruction::INC(AllRegisters::SP) => 2, // INC rr
+        Instruction::DEC(AllRegisters::BC) | Instruction::DEC(AllRegisters::DE) |
+        Instruction::DEC(AllRegisters::HL) | Instruction::DEC(AllRegisters::SP) => 2, // DEC rr
+
+        // ADD HL, rr & ADD SP, e8
+        Instruction::ADD(OPType::LoadHL(_)) => 2,
+        Instruction::ADD(OPType::LoadSP) => 4,
+
+        // Rotates/Shifts (non-CB)
+        Instruction::RLCA | Instruction::RRCA | Instruction::RLA | Instruction::RRA => 1,
+
+        // Misc
+        Instruction::DAA | Instruction::CPL | Instruction::SCF | Instruction::CCF => 1,
+        Instruction::HALT => 1,
+        Instruction::DI | Instruction::EI => 1,
+
+        // Jumps, Calls, Returns (base cycles for "condition not met" or unconditional)
+        Instruction::JP(JumpTest::Always) => 4,
+        Instruction::JP(JumpTest::HL) => 1,
+        Instruction::JP(_) => 3, // JP cc, nn (not taken: 3; taken: 4)
+
+        Instruction::JR(JumpTest::Always) => 3,
+        Instruction::JR(_) => 2, // JR cc, e8 (not taken: 2; taken: 3)
+
+        Instruction::CALL(JumpTest::Always) => 6,
+        Instruction::CALL(_) => 3, // CALL cc, nn (not taken: 3; taken: 6)
+
+        Instruction::RET(JumpTest::Always) => 4,
+        Instruction::RET(_) => 2, // RET cc (not taken: 2; taken: 5)
+        
+        Instruction::RETI => 4,
+        Instruction::RST(_) => 4,
+
+        // CB Prefixed
+        Instruction::RLC(HLTarget::HL) | Instruction::RRC(HLTarget::HL) | Instruction::RL(HLTarget::HL) |
+        Instruction::RR(HLTarget::HL) | Instruction::SLA(HLTarget::HL) | Instruction::SRA(HLTarget::HL) |
+        Instruction::SWAP(HLTarget::HL) | Instruction::SRL(HLTarget::HL) => 4, // op (HL)
+        Instruction::RLC(_) | Instruction::RRC(_) | Instruction::RL(_) | Instruction::RR(_) |
+        Instruction::SLA(_) | Instruction::SRA(_) | Instruction::SWAP(_) | Instruction::SRL(_) => 2, // op r
+
+        Instruction::BIT(ByteTarget::Zero(HLTarget::HL)) | Instruction::BIT(ByteTarget::One(HLTarget::HL)) |
+        Instruction::BIT(ByteTarget::Two(HLTarget::HL)) | Instruction::BIT(ByteTarget::Three(HLTarget::HL)) |
+        Instruction::BIT(ByteTarget::Four(HLTarget::HL)) | Instruction::BIT(ByteTarget::Five(HLTarget::HL)) |
+        Instruction::BIT(ByteTarget::Six(HLTarget::HL)) | Instruction::BIT(ByteTarget::Seven(HLTarget::HL)) => 3, // BIT b, (HL)
+        Instruction::BIT(_) => 2, // BIT b, r
+
+        Instruction::RES(ByteTarget::Zero(HLTarget::HL)) | Instruction::RES(ByteTarget::One(HLTarget::HL)) |
+        Instruction::RES(ByteTarget::Two(HLTarget::HL)) | Instruction::RES(ByteTarget::Three(HLTarget::HL)) |
+        Instruction::RES(ByteTarget::Four(HLTarget::HL)) | Instruction::RES(ByteTarget::Five(HLTarget::HL)) |
+        Instruction::RES(ByteTarget::Six(HLTarget::HL)) | Instruction::RES(ByteTarget::Seven(HLTarget::HL)) => 4, // RES b, (HL)
+        Instruction::SET(ByteTarget::Zero(HLTarget::HL)) | Instruction::SET(ByteTarget::One(HLTarget::HL)) |
+        Instruction::SET(ByteTarget::Two(HLTarget::HL)) | Instruction::SET(ByteTarget::Three(HLTarget::HL)) |
+        Instruction::SET(ByteTarget::Four(HLTarget::HL)) | Instruction::SET(ByteTarget::Five(HLTarget::HL)) |
+        Instruction::SET(ByteTarget::Six(HLTarget::HL)) | Instruction::SET(ByteTarget::Seven(HLTarget::HL)) => 4, // SET b, (HL)
+        Instruction::RES(_) | Instruction::SET(_) => 2, // RES/SET b, r
+        
+        // LD A,(FF00+n) / LD (FF00+n),A
+        Instruction::LD(LoadType::AWithA8(_)) => 3,
+
+        // Default for any instruction not explicitly listed.
+        _ => {
+            println!("Warning: Unhandled instruction in get_instruction_m_cycles: {:?}", instruction);
+            1 // Default to 1 M-cycle to prevent emulator from stalling if an instruction is missed.
+        }
+    }
+}
+
+// NEW FUNCTION: To be called from CPU::step to update cycles
+pub fn update_cycles_for_current_instruction(cpu: &mut CPU) {
+    if let Some(ref instruction) = cpu.curr_instruction {
+        let m_cycles = get_instruction_m_cycles(instruction, cpu);
+        if m_cycles > 0 {
+            emu_cycles(cpu, m_cycles);
+        }
+    } else {
+        panic!("DECODE FAILED CANNOT UPDATE CYCLES")
+    }
 }

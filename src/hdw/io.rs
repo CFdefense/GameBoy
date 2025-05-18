@@ -2,6 +2,8 @@
 use std::sync::Mutex;
 use std::io::{self, Write};
 
+use crate::hdw::cpu_util::{get_int_flags, set_int_flags};
+
 // Thread-safe serial data using a Mutex
 lazy_static::lazy_static! {
     static ref SERIAL_DATA: Mutex<[u8; 2]> = Mutex::new([0; 2]);
@@ -26,10 +28,10 @@ pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
             }
         },
         0xFF04..=0xFF07 => {
-            timer.read(address)
+            cpu.unwrap().timer.timer_read(address)
         },
         0xFF0F => {
-            return cpu_get_interrupt_flags()
+            return get_int_flags(cpu.unwrap())
         }
         _ => {
             println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
@@ -74,10 +76,10 @@ pub fn io_write(cpu: Option<&mut crate::hdw::cpu::CPU>, address: u16, value: u8)
             }
         },
         0xFF04..=0xFF07 => {
-            timer.write(address, value)
+            cpu.unwrap().timer.timer_write(address, value)
         },
         0xFF0F => {
-            return cpu_set_interrupt_flags(value)
+            set_int_flags(cpu.unwrap(), value);
         }
         _ => {
             println!("IO WRITE NOT IMPLEMENTED for address: {:04X}", address);

@@ -1,6 +1,7 @@
 use core::panic;
 
-use crate::hdw::interrupts::{request_interrupt, Interrupts};
+use crate::hdw::cpu::CPU;
+use crate::hdw::interrupts::Interrupts;
 
 pub struct Timer {
     div: u16, // divider register R/W
@@ -19,7 +20,7 @@ impl Timer {
         }
     }
 
-    pub fn timer_tick(&mut self) {
+    pub fn timer_tick(&mut self, cpu: &mut CPU) {
         let prev_div: u16 = self.div;
         let mut timer_update: bool = false;
 
@@ -36,13 +37,14 @@ impl Timer {
             }
         }
 
-        if timer_update && self.tac & (1 << 2) == 1 {
+        // Check if timer is enabled (TAC bit 2) AND if a TIMA increment is due from DIV logic
+        if timer_update && (self.tac & (1 << 2)) != 0 {
             self.tima = self.tima.wrapping_add(1);
 
-            if self.tima == 0xFF {
+            // If TIMA overflows (becomes 00 after increment from FF), reload TMA and request interrupt.
+            if self.tima == 0x00 {
                 self.tima = self.tma;
-
-                request_interrupt(Interrupts::TIMER);
+                cpu.cpu_request_interrupt(Interrupts::TIMER);
             }
         }
     }

@@ -8,8 +8,6 @@ use crate::hdw::cpu_util::*;
 use crate::hdw::instructions::*;
 use crate::hdw::stack::*;
 
-use super::emu::emu_cycles;
-
 // [0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F]
 pub fn op_srl(cpu: &mut CPU, target: HLTarget) {
     let original_value = match_hl(cpu, &target);
@@ -866,7 +864,6 @@ pub fn op_add(cpu: &mut CPU, target: OPType) {
             let value_to_add = match_n16(cpu, add_n16_target_enum_val);
             cpu.registers.set_hl(original_hl.wrapping_add(value_to_add));
             set_flags_after_add_n16(cpu, original_hl, value_to_add);
-            // emu_cycles(1); // Cycle counting
         }
         // [0xE8] // ADD SP, e8
         OPType::LoadSP => {
@@ -1390,6 +1387,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 // First read all values we need
                 let address = 0xFF00 + cpu.bus.read_byte(None, cpu.pc + 1) as u16;
                 let value = cpu.registers.a;
+                
                 // Create a temporary mutable reference for the write operation
                 {
                     let cpu_ref = cpu as *mut CPU;
@@ -1593,7 +1591,6 @@ pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> bool {
     if matches!(target, JumpTest::HL) {
         // For JP HL (0xE9), jump to the address in HL
         cpu.pc = cpu.registers.get_hl();
-        emu_cycles(1); // JP (HL) takes 1 M-cycle (4 T-states)
         true // Jump occurred
     } else {
         // For JP nn (0xC3) or JP cc, nn
@@ -1603,12 +1600,9 @@ pub fn op_jp(cpu: &mut CPU, target: JumpTest) -> bool {
 
         if match_jump(cpu, &target) { // Check condition (Always is true)
             cpu.pc = nn_address;
-            // Cycles for JP nn (4) or JP cc,nn taken (4) are usually handled by execute or central system
-            // emu_cycles(4); 
             true // Jump occurred
         } else {
             // Condition false for JP cc, nn. PC will be advanced by 3 in execute loop.
-            // emu_cycles(3); // JP cc,nn not taken (3 cycles)
             false // Jump did NOT occur
         }
     }
@@ -1649,9 +1643,7 @@ pub fn op_jr(cpu: &mut CPU, target: JumpTest) -> u16 {
 pub fn op_pop(cpu: &mut CPU, target: StackTarget) {
     // Pop Low and High Bytes
     let low: u16 = stack_pop(cpu) as u16;
-    emu_cycles(1);
     let high: u16 = stack_pop(cpu) as u16;
-    emu_cycles(1);
 
     // Combine Bytes
     let combined: u16 = (high << 8) | low;
@@ -1683,50 +1675,33 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) {
         // [0xF5]
         StackTarget::AF => {
             let high: u16 = (cpu.registers.get_af() >> 8) & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_af() & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, low as u8);
-
-            emu_cycles(1);
         }
         // [0xC5]
         StackTarget::BC => {
             let high: u16 = (cpu.registers.get_bc() >> 8) & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, high as u8);
-
             let low: u16 = cpu.registers.get_bc() & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, low as u8);
-
-            emu_cycles(1);
         }
         // [0xD5]
         StackTarget::DE => {
             let high: u16 = (cpu.registers.get_de() >> 8) & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_de() & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, low as u8);
-
-            emu_cycles(1);
         }
         // [0xE5]
         StackTarget::HL => {
             let high: u16 = (cpu.registers.get_hl() >> 8) & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, high as u8);
 
             let low: u16 = cpu.registers.get_hl() & 0xFF as u16;
-            emu_cycles(1);
             stack_push(cpu, low as u8);
-
-            emu_cycles(1);
         }
     }
 }
@@ -1735,20 +1710,16 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) {
 pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> bool {
     // Cycle if condition is not Always
     if !matches!(target, JumpTest::Always) {
-        emu_cycles(1);
     }
 
     let jump = match_jump(cpu, &target);
 
     if jump {
         let low: u16 = stack_pop(cpu) as u16;
-        emu_cycles(1);
         let high: u16 = stack_pop(cpu) as u16;
-        emu_cycles(1);
 
         let n: u16 = (high << 8) | low;
         cpu.pc = n;
-        emu_cycles(1);
         return true; // Return happened
     }
     // If we reach here, the condition was false, no return happened

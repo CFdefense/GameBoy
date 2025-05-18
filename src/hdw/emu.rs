@@ -148,7 +148,8 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
 
     // Initialize Bus and CPU
     let bus = Bus::new(cart);
-    let cpu = Arc::new(Mutex::new(CPU::new(bus)));
+    let timer = Timer::new();
+    let cpu = Arc::new(Mutex::new(CPU::new(bus, timer)));
     
     // Initialize context
     let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit)));
@@ -197,20 +198,20 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
 
 // Function to increment EmuContext ticks based on CPU M-cycles.
 // Each M-cycle is typically 4 T-cycles (clock ticks).
-pub fn emu_cycles(cpu_m_cycles: u8) {
+// CPU reference is passed directly to avoid double-locking issues.
+pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
     if let Some(ctx_arc) = EMU_CONTEXT.get() {
         let t_cycles_to_add = cpu_m_cycles as u64 * 4; // Calculate total T-cycles to add
         if let Ok(mut emu_ctx_lock) = ctx_arc.lock() {
-            emu_ctx_lock.ticks += t_cycles_to_add;
+            for _ in 0..t_cycles_to_add {
+                emu_ctx_lock.ticks += 1;
+                // Call timer_tick with the passed CPU reference
+                emu_ctx_lock.timer.timer_tick(cpu);
+            }
         } else {
-            // Failed to lock, this is a potential issue if it happens often
             eprintln!("emu_cycles: Failed to lock EmuContext.");
         }
     } else {
-        // This means init_global_emu_context was not called before emu_cycles.
-        // This is a programming error.
-        eprintln!("emu_cycles: Global EmuContext not initialized. Call init_global_emu_context first.");
-        // Depending on desired robustness, you might panic here.
-        // panic!("emu_cycles: Global EmuContext not initialized."); 
+        panic!("emu_cycles: Global EmuContext not initialized. Call init_global_emu_context first.");
     }
 }

@@ -2,16 +2,16 @@ use sdl2::sys::Time;
 
 use crate::hdw::bus::Bus;
 use crate::hdw::cpu_ops::*;
-use crate::hdw::emu::emu_cycles;
 use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
 use crate::hdw::timer::Timer;
 use core::panic;
 
-use super::cpu_util::{print_step_info, log_cpu_state};
+use super::cpu_util::{print_step_info, log_cpu_state, update_cycles_for_current_instruction};
 use super::debug;
 use super::interrupts;
+use crate::hdw::emu;
 
 // Our CPU to Call and Control
 pub struct CPU {
@@ -71,6 +71,12 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self, ticks: u64) -> bool {
+        // If IME was set to be enabled on the previous cycle (due to EI), actually enable it now.
+        if self.enabling_ime {
+            self.master_enabled = true;
+            self.enabling_ime = false; // Clear the flag as it has served its purpose
+        }
+
         // Check if CPU is halted
         if !self.is_halted {
             self.fetch(); // fetch next opcode from cartridge
@@ -82,6 +88,11 @@ impl CPU {
             debug::dbg_update(&mut self.bus);
             debug::dbg_print();
 
+            // Update cycles for the decoded instruction BEFORE execution
+            // This handles the base cycles for the instruction.
+            // Conditional additional cycles will be handled in execute/op_... functions.
+            update_cycles_for_current_instruction(self);
+
             // Execute the current instruction if it exists and reset it to none
             if let Some(instruction) = self.curr_instruction.take() {
                 self.execute(instruction); // Execute the current instruction
@@ -90,20 +101,19 @@ impl CPU {
             }
         } else {
             // is halted
-            emu_cycles(1);
+            // A halted CPU still consumes 1 M-cycle (4 T-cycles) per "step" 
+            // while waiting for an interrupt.
+            emu::emu_cycles(self, 1); 
 
-            if self.int_flags != 0 {
+            if (self.int_flags & self.ie_register) != 0 { // Only unhalt if a *relevant* interrupt is pending
                 self.is_halted = false;
             }
         }
 
+        // Handle interrupts AFTER the current instruction has finished and IME is processed.
         if self.master_enabled {
-            cpu_handle_interrupts(self);
-            self.enabling_ime = false;
-        }
-
-        if self.enabling_ime {
-            self.master_enabled = true;
+            // cpu_handle_interrupts will internally disable master_enabled if an interrupt is taken.
+            cpu_handle_interrupts(self); 
         }
         true
     }
@@ -266,10 +276,13 @@ impl CPU {
             }
             Instruction::DI => {
                 self.master_enabled = false;
+                self.enabling_ime = false; // DI also cancels a pending EI
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::EI => {
-                self.master_enabled = true;
+                // EI enables interrupts AFTER the instruction FOLLOWING EI.
+                // So, we set a flag to enable IME on the next cycle.
+                self.enabling_ime = true; 
                 self.pc = self.pc.wrapping_add(1);
             }
 

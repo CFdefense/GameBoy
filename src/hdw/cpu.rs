@@ -156,7 +156,10 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::SCF => {
-                self.registers.f.carry = true;
+                self.registers.f.carry = true;     // C = 1
+                self.registers.f.subtract = false; // N = 0
+                self.registers.f.half_carry = false; // H = 0
+                // Z flag is not affected
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::CPL => {
@@ -164,7 +167,10 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::CCF => {
-                self.registers.f.carry = !self.registers.f.carry;
+                self.registers.f.carry = !self.registers.f.carry; // C = !C
+                self.registers.f.subtract = false;             // N = 0
+                self.registers.f.half_carry = false;             // H = 0
+                // Z flag is not affected
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::JR(target) => {
@@ -224,7 +230,9 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::RET(target) => {
-                op_ret(self, target);
+                if !op_ret(self, target) {
+                    self.pc = self.pc.wrapping_add(1);
+                }
             }
             Instruction::RETI => {
                 op_reti(self);
@@ -234,7 +242,9 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::JP(target) => {
-                op_jp(self, target);
+                if !op_jp(self, target) {
+                    self.pc = self.pc.wrapping_add(3);
+                }
             }
             Instruction::CALL(target) => {
                 op_call(self, target);

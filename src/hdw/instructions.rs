@@ -314,6 +314,7 @@ impl Instruction {
             0x04 => Some(Instruction::INC(AllRegisters::B)),
             0x14 => Some(Instruction::INC(AllRegisters::D)),
             0x24 => Some(Instruction::INC(AllRegisters::H)),
+            0x33 => Some(Instruction::INC(AllRegisters::SP)),
             0x34 => Some(Instruction::INC(AllRegisters::HLMEM)),
             0x0C => Some(Instruction::INC(AllRegisters::C)),
             0x1C => Some(Instruction::INC(AllRegisters::E)),
@@ -323,7 +324,7 @@ impl Instruction {
             0x0B => Some(Instruction::DEC(AllRegisters::BC)),
             0x1B => Some(Instruction::DEC(AllRegisters::DE)),
             0x2B => Some(Instruction::DEC(AllRegisters::HL)),
-            0x4B => Some(Instruction::DEC(AllRegisters::SP)),
+            0x3B => Some(Instruction::DEC(AllRegisters::SP)),
             0x05 => Some(Instruction::DEC(AllRegisters::B)),
             0x15 => Some(Instruction::DEC(AllRegisters::D)),
             0x25 => Some(Instruction::DEC(AllRegisters::H)),
@@ -470,7 +471,7 @@ impl Instruction {
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xCB | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
                 panic!("NULL INSTRUCTION READ: {:02X}", byte)
             }
-            _ => panic!("NOT AN INSTRUCTION"),
+            _ => panic!("NOT AN INSTRUCTION: {:02X}", byte),
         }
     }
 

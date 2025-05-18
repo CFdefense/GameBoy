@@ -78,7 +78,7 @@ impl Bus {
                 // For now, always return 0x90 (144) to indicate VBlank
                 0x90
             } else {
-                io_read(address)
+                io_read(cpu, address)
             }
         } else if address == 0xFFFF {
             // Interrupt Enable Register
@@ -127,7 +127,7 @@ impl Bus {
                 // LCD Y-Coordinate (LY)
                 // This is a read-only register, writes are ignored
             } else {
-                io_write(address, value);
+                io_write(cpu, address, value);
             }
         } else if address == 0xFFFF {
             // Interrupt Enable Register

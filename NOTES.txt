@@ -1,3 +1,12 @@
-Check 01 test run 50000 find C363 JR not working properly
-
-28 Jump if not zero having issues
+Test Progress
+01 - PASS
+02 - PASS
+03 - PASS
+04 - FAIL X
+05 - PASS
+06 - FAIL X
+07 - FAIL X
+08 - PASS
+09 - PASS
+10 - PASS
+11 - PASS

@@ -12,6 +12,7 @@ use crate::hdw::instructions::*;
 use regex::Regex;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::fs;
 
 // Method to match a N16 Target
 pub fn match_n16(cpu: &mut CPU, target: AddN16Target) -> u16 {
@@ -71,12 +72,13 @@ pub fn set_flags_after_dec(cpu: &mut CPU, result: u8, original_value: u8) {
 
 // ADC FLAGS [0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0xCE]
 pub fn set_flags_after_adc(cpu: &mut CPU, result: u8, original_value: u8, immediate_operand: u8) {
+    let carry_in = cpu.registers.f.carry as u8; // Capture carry_in *before* it's recalculated
+
     // [Z 0 H CY]
-    cpu.registers.f.zero = result == 0; // Zero Flag: Set if the result is zero
-    cpu.registers.f.subtract = false; // Subtract Flag: SET (ADC is not a subtraction)
-    cpu.registers.f.half_carry = ((original_value & 0x0F) + (immediate_operand & 0x0F)) > 0x0F; // Half-Carry Flag: Set if there was a carry from bit 4 to bit 3
-    cpu.registers.f.carry = (result < original_value) || (result < immediate_operand);
-    // ^^ Carry Flag: Set if there was a carry from the 8th bit
+    cpu.registers.f.zero = result == 0;
+    cpu.registers.f.subtract = false;
+    cpu.registers.f.half_carry = ((original_value & 0x0F) + (immediate_operand & 0x0F) + carry_in) > 0x0F;
+    cpu.registers.f.carry = ((original_value as u16) + (immediate_operand as u16) + (carry_in as u16)) > 0xFF;
 }
 
 // SUB SBC FLAGS [0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0xD6, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F, 0xDE]
@@ -200,22 +202,38 @@ pub fn set_flags_after_add_sp(cpu: &mut CPU, signed_value: i16) {
 }
 
 // ADD N16 FLAGS [0x09, 0x19, 0x29, 0x39]
-pub fn set_flags_after_add_n16(cpu: &mut CPU, reg_target: u16) {
-    // [- 0 H CY]
-    cpu.registers.f.carry = ((cpu.registers.get_hl() as u32) + (reg_target as u32)) > 0xFFFF; // Carry Flag: Check for carry from the addition
-    cpu.registers.f.half_carry =
-        ((cpu.registers.get_hl() & 0x0FFF) + (reg_target & 0x0FFF)) > 0x0FFF; // Half-Carry Flag: Check if there was a carry from bit 11 to bit 12
-    cpu.registers.f.subtract = false; // Subtract Flag: Not set for ADD operations
-    cpu.registers.f.zero = false; // Zero Flag: Not affected, but set to false
+pub fn set_flags_after_add_n16(cpu: &mut CPU, operand1: u16, operand2: u16) {
+    // Z flag is not affected
+    // N flag is reset
+    cpu.registers.f.subtract = false;
+    // H flag: Set if carry from bit 11 to bit 12
+    cpu.registers.f.half_carry = ((operand1 & 0x0FFF) + (operand2 & 0x0FFF)) > 0x0FFF;
+    // C flag: Set if carry from bit 15
+    cpu.registers.f.carry = ((operand1 as u32) + (operand2 as u32)) > 0xFFFF;
 }
 
 // LD SP FLAGS [0xF8]
-pub fn set_flags_after_ld_spe8(cpu: &mut CPU) {
-    cpu.registers.f.subtract = false;
-    cpu.registers.f.half_carry =
-        ((cpu.sp & 0x0F) + (cpu.bus.read_byte(None, cpu.pc + 1) as u16 & 0x0F)) > 0x0F;
-    cpu.registers.f.carry =
-        ((cpu.sp & 0xFF) + (cpu.bus.read_byte(None, cpu.pc + 1) as u16 & 0xFF)) > 0xFF;
+pub fn set_flags_after_ld_spe8(cpu: &mut CPU, original_sp: u16, r8_signed: i8) {
+    cpu.registers.f.zero = false;       // Z is always 0
+    cpu.registers.f.subtract = false;    // N is always 0
+
+    let r8_unsigned = r8_signed as u8;
+    let sp_low_byte = original_sp as u8;
+
+    // Half Carry: Check for carry from bit 3 to bit 4 of (SP_low_byte + r8_unsigned)
+    cpu.registers.f.half_carry = ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F;
+    // Carry: Check for carry from bit 7 to bit 8 of (SP_low_byte + r8_unsigned)
+    cpu.registers.f.carry = (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF;
+}
+
+// ADDED FOR SBC
+pub fn set_flags_after_sbc(cpu: &mut CPU, result: u8, original_a: u8, operand: u8, carry_in: u8) {
+    cpu.registers.f.zero = result == 0;
+    cpu.registers.f.subtract = true;
+    // Half-carry: set if borrow from bit 4
+    cpu.registers.f.half_carry = ((original_a & 0x0F) as i16 - (operand & 0x0F) as i16 - carry_in as i16) < 0;
+    // Carry: set if borrow from bit 8
+    cpu.registers.f.carry = ((original_a as i16) - (operand as i16) - carry_in as i16) < 0;
 }
 
 pub fn set_int_flags(cpu: &mut CPU, value: u8) {
@@ -277,6 +295,9 @@ pub fn print_step_info(cpu: &mut CPU, ticks: u64) {
 }
 
 pub fn log_cpu_state(cpu: &mut CPU) {
+    // Attempt to delete the log file if it exists, ignore error if it doesn't
+    let _ = fs::remove_file("cpu_log.txt");
+
     let pcmem = [
         cpu.bus.read_byte(None, cpu.pc),
         cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),
@@ -306,4 +327,23 @@ pub fn log_cpu_state(cpu: &mut CPU) {
     {
         let _ = file.write_all(log_line.as_bytes());
     }
+}
+
+// Function to set flags after ADD SP, r8 instruction
+// [0xE8]
+pub fn set_flags_after_add_sp_r8(cpu: &mut CPU, original_sp: u16, r8_signed: i8) {
+    // Z:0 N:0 H:from LSB C:from LSB
+    cpu.registers.f.zero = false;
+    cpu.registers.f.subtract = false;
+
+    let r8_unsigned = r8_signed as u8;
+    let sp_low_byte = original_sp as u8;
+
+    // Half Carry: Check for carry from bit 3 to bit 4 of (SP_low_byte + r8_unsigned)
+    // This is equivalent to ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F
+    cpu.registers.f.half_carry = ((sp_low_byte & 0x0F) + (r8_unsigned & 0x0F)) > 0x0F;
+
+    // Carry: Check for carry from bit 7 to bit 8 of (SP_low_byte + r8_unsigned)
+    // This is equivalent to (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF
+    cpu.registers.f.carry = (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF;
 }

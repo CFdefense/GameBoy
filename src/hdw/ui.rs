@@ -7,11 +7,6 @@ use sdl2::ttf::Sdl2TtfContext;
 use sdl2::video::{Window, WindowContext};
 use sdl2::VideoSubsystem;
 use sdl2::EventPump;
-use std::sync::{Arc, Mutex};
-
-use crate::hdw::emu::EmuContext;
-
-use super::cpu;
 
 pub const SCREEN_WIDTH: u32 = 1024;
 pub const SCREEN_HEIGHT: u32 = 768;

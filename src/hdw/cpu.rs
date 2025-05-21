@@ -34,7 +34,8 @@ pub struct CPU {
 }
 impl CPU {
     // Contructor
-    pub fn new(new_bus: Bus, new_timer: Timer) -> Self {
+    pub fn new(new_bus: Bus, mut new_timer: Timer) -> Self {
+        new_timer.div = 0xABCC;
         CPU {
             registers: Registers {
                 a: 0x01,

@@ -1261,6 +1261,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                     }
                     // [0x31]
                     LoadWordSource::N16 => {
+                        //emu_cycles(cpu, 2); // 2 cycle for the LD
                         cpu.sp = word_value;
                         cpu.pc = cpu.pc.wrapping_add(2);
                     }
@@ -1385,6 +1386,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 // Finally update register and INC PC due to Byte Read
                 cpu.registers.a = value;
                 cpu.pc = cpu.pc.wrapping_add(1);
+                emu_cycles(cpu, 1);
             }
             // [0xE0]
             LoadA8Target::A8 => {
@@ -1403,6 +1405,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 }
                 // INC PC due to Byte Read
                 cpu.pc = cpu.pc.wrapping_add(1);
+                emu_cycles(cpu, 1);
             }
         },
         // [0xEA, 0xFA]
@@ -1423,6 +1426,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 LoadA16Target::A16 => {
                     cpu.bus.write_byte(None, address, cpu.registers.a);
                     cpu.pc = cpu.pc.wrapping_add(2);
+                    emu_cycles(cpu, 1);
                 }
             }
         }
@@ -1582,6 +1586,7 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) {
         AllRegisters::HL => {
             let new_hl = cpu.registers.get_hl().wrapping_add(1);
             cpu.registers.set_hl(new_hl);
+            emu_cycles(cpu, 1);
         }
         // [0x33]
         AllRegisters::SP => {
@@ -1710,12 +1715,14 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) {
             stack_push(cpu, low as u8);
         }
     }
+    emu_cycles(cpu, 1);
 }
 
 // [0xC0, 0xD0, 0xD8, 0xC8, 0xC9]
 pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> bool {
     // Cycle if condition is not Always
     if !matches!(target, JumpTest::Always) {
+        emu_cycles(cpu, 1);
     }
 
     let jump = match_jump(cpu, &target);
@@ -1726,6 +1733,7 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> bool {
 
         let n: u16 = (high << 8) | low;
         cpu.pc = n;
+        emu_cycles(cpu, 1);
         return true; // Return happened
     }
     // If we reach here, the condition was false, no return happened

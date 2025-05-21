@@ -4,10 +4,10 @@ use crate::hdw::cpu::CPU;
 use crate::hdw::interrupts::Interrupts;
 
 pub struct Timer {
-    div: u16, // divider register R/W
-    tima: u8, // timer counter R/W
-    tma: u8, // timer modulo R/W
-    tac: u8, // timer control R/W
+    pub div: u16, // divider register R/W
+    pub tima: u8, // timer counter R/W
+    pub tma: u8, // timer modulo R/W
+    pub tac: u8, // timer control R/W
 }
 
 impl Timer {
@@ -26,23 +26,20 @@ impl Timer {
 
         self.div = self.div.wrapping_add(1);
 
-        // Check if timer is enabled (TAC bit 2)
-        if (self.tac & (1 << 2)) != 0 {
-            match self.tac & 0b11 { // Check lower 2 bits of TAC for clock select
-                0b00 => { timer_update = (prev_div & (1 << 9)) != 0 && (self.div & (1 << 9)) == 0; },
-                0b01 => { timer_update = (prev_div & (1 << 3)) != 0 && (self.div & (1 << 3)) == 0; },
-                0b10 => { timer_update = (prev_div & (1 << 5)) != 0 && (self.div & (1 << 5)) == 0; },
-                0b11 => { timer_update = (prev_div & (1 << 7)) != 0 && (self.div & (1 << 7)) == 0; },
-                _ => unreachable!(),
-            }
+        match self.tac & 0b11 { // Check lower 2 bits of TAC for clock select
+            0b00 => { timer_update = (prev_div & (1 << 9)) == 1 && (self.div & (1 << 9)) == 0; },
+            0b01 => { timer_update = (prev_div & (1 << 3)) == 1 && (self.div & (1 << 3)) == 0; },
+            0b10 => { timer_update = (prev_div & (1 << 5)) == 1 && (self.div & (1 << 5)) == 0; },
+            0b11 => { timer_update = (prev_div & (1 << 7)) == 1 && (self.div & (1 << 7)) == 0; },
+            _ => unreachable!(),
         }
-
+    
         // Check if timer is enabled (TAC bit 2) AND if a TIMA increment is due from DIV logic
-        if timer_update && (self.tac & (1 << 2)) != 0 {
+        if timer_update && (self.tac & (1 << 2)) == 1 {
             self.tima = self.tima.wrapping_add(1);
 
-            // If TIMA overflows (becomes 00 after increment from FF), reload TMA and request interrupt.
-            if self.tima == 0x00 {
+            // If TIMA overflows reload TMA and request interrupt.
+            if self.tima == 0xFF {
                 self.tima = self.tma;
                 cpu.cpu_request_interrupt(Interrupts::TIMER);
             }
@@ -59,7 +56,7 @@ impl Timer {
         }
     }
 
-    pub fn timer_read(&self, address: u16) -> u8 { // Changed to &self
+    pub fn timer_read(&self, address: u16) -> u8 {
         match address {
             0xFF04 => (self.div >> 8) as u8, // Read upper byte of DIV
             0xFF05 => self.tima,

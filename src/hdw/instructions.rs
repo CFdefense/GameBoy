@@ -365,23 +365,39 @@ impl Instruction {
                 emu_cycles(cpu, 1);
                 Some(Instruction::JR(JumpTest::Carry))},
             // INC
-            0x03 => Some(Instruction::INC(AllRegisters::BC)),
-            0x13 => Some(Instruction::INC(AllRegisters::DE)),
-            0x23 => Some(Instruction::INC(AllRegisters::HL)),
+            0x03 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::INC(AllRegisters::BC))},
+            0x13 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::INC(AllRegisters::DE))},
+            0x23 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::INC(AllRegisters::HL))},
+            0x33 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::INC(AllRegisters::SP))},
             0x04 => Some(Instruction::INC(AllRegisters::B)),
             0x14 => Some(Instruction::INC(AllRegisters::D)),
             0x24 => Some(Instruction::INC(AllRegisters::H)),
-            0x33 => Some(Instruction::INC(AllRegisters::SP)),
             0x34 => Some(Instruction::INC(AllRegisters::HLMEM)),
             0x0C => Some(Instruction::INC(AllRegisters::C)),
             0x1C => Some(Instruction::INC(AllRegisters::E)),
             0x2C => Some(Instruction::INC(AllRegisters::L)),
             0x3C => Some(Instruction::INC(AllRegisters::A)),
             // DEC
-            0x0B => Some(Instruction::DEC(AllRegisters::BC)),
-            0x1B => Some(Instruction::DEC(AllRegisters::DE)),
-            0x2B => Some(Instruction::DEC(AllRegisters::HL)),
-            0x3B => Some(Instruction::DEC(AllRegisters::SP)),
+            0x0B => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::DEC(AllRegisters::BC))},
+            0x1B => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::DEC(AllRegisters::DE))},
+            0x2B => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::DEC(AllRegisters::HL))},
+            0x3B => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::DEC(AllRegisters::SP))},
             0x05 => Some(Instruction::DEC(AllRegisters::B)),
             0x15 => Some(Instruction::DEC(AllRegisters::D)),
             0x25 => Some(Instruction::DEC(AllRegisters::H)),
@@ -493,7 +509,9 @@ impl Instruction {
                 emu_cycles(cpu, 1);
                 Some(Instruction::LD(LoadType::AWithAC(LoadACTarget::A)))},
             // LD A and a16
-            0xEA => Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A16))),
+            0xEA => {
+                emu_cycles(cpu, 2);
+                Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A16)))},
             0xFA => {
                 emu_cycles(cpu, 3);
                 Some(Instruction::LD(LoadType::AWithA16(LoadA16Target::A)))},

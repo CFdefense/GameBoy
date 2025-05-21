@@ -260,7 +260,6 @@ pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool
 
     if jump {
         if push_pc {
-            emu_cycles(cpu, 2);
             stack_push16(cpu, cpu.pc);
         }
         // combine and set pc to 2 byte addr in lil endian

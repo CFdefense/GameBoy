@@ -371,9 +371,7 @@ impl Instruction {
             0x13 => {
                 emu_cycles(cpu, 1);
                 Some(Instruction::INC(AllRegisters::DE))},
-            0x23 => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::INC(AllRegisters::HL))},
+            0x23 => {Some(Instruction::INC(AllRegisters::HL))},
             0x33 => {
                 emu_cycles(cpu, 1);
                 Some(Instruction::INC(AllRegisters::SP))},

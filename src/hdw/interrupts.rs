@@ -16,7 +16,7 @@ pub fn int_handle(cpu: &mut CPU, address: u16) {
 }
 
 pub fn int_check(cpu: &mut CPU, address: u16, int_type: Interrupts) -> bool {
-    if (cpu.int_flags & int_type as u8) == 1 && (cpu.ie_register & int_type as u8) == 1 {
+    if (cpu.int_flags & int_type as u8) != 0 && (cpu.ie_register & int_type as u8) != 0 {
         int_handle(cpu, address);
         cpu.int_flags &= !(int_type as u8);
         cpu.master_enabled = false;

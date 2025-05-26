@@ -270,57 +270,93 @@ pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool
 }
 
 // Print the current execution step
-pub fn print_step_info(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>) {
+pub fn print_step_info(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, log_ticks: bool) {
     let ticks = ctx.lock().unwrap().ticks;
     
     let instruction_name_display = cpu.curr_instruction.as_ref().map_or("None".to_string(), |instr| {
         format!("{:?}", instr).split('(').next().unwrap_or("Unknown").to_string()
     });
 
-    print!(
-        "\n{:08X} - {:04X}: {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
-        ticks,
-        cpu.pc,
-        instruction_name_display,
-        cpu.curr_opcode,
-        cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),
-        cpu.bus.read_byte(None, cpu.pc.wrapping_add(2)),
-        cpu.registers.a,
-        if cpu.registers.f.zero { 'Z' } else { '-' },
-        if cpu.registers.f.subtract { 'N' } else { '-' },
-        if cpu.registers.f.half_carry { 'H' } else { '-' },
-        if cpu.registers.f.carry { 'C' } else { '-' },
-        cpu.registers.get_bc(),
-        cpu.registers.get_de(),
-        cpu.registers.get_hl()
-    );
+    if log_ticks {
+        print!(
+            "\n{:08X} - {:04X}: {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+            ticks,
+            cpu.pc,
+            instruction_name_display,
+            cpu.curr_opcode,
+            cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),
+            cpu.bus.read_byte(None, cpu.pc.wrapping_add(2)),
+            cpu.registers.a,
+            if cpu.registers.f.zero { 'Z' } else { '-' },
+            if cpu.registers.f.subtract { 'N' } else { '-' },
+            if cpu.registers.f.half_carry { 'H' } else { '-' },
+            if cpu.registers.f.carry { 'C' } else { '-' },
+            cpu.registers.get_bc(),
+            cpu.registers.get_de(),
+            cpu.registers.get_hl()
+        );
+    } else {
+        print!(
+            "\n{:04X}: {}\t({:02X} {:02X} {:02X}) A: {:02X} F: {}{}{}{} BC: {:04X} DE: {:04X} HL: {:04X}",
+            cpu.pc,
+            instruction_name_display,
+            cpu.curr_opcode,
+            cpu.bus.read_byte(None, cpu.pc.wrapping_add(1)),
+            cpu.bus.read_byte(None, cpu.pc.wrapping_add(2)),
+            cpu.registers.a,
+            if cpu.registers.f.zero { 'Z' } else { '-' },
+            if cpu.registers.f.subtract { 'N' } else { '-' },
+            if cpu.registers.f.half_carry { 'H' } else { '-' },
+            if cpu.registers.f.carry { 'C' } else { '-' },
+            cpu.registers.get_bc(),
+            cpu.registers.get_de(),
+            cpu.registers.get_hl()
+        );
+    }
     // Flush stdout to ensure the an_info appears immediately
     let _ = std::io::stdout().flush(); 
 }
 
 // Log the current CPU state to cpu_log.txt
-pub fn log_cpu_state(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>) {
+pub fn log_cpu_state(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, log_ticks: bool) {
     let ticks = ctx.lock().unwrap().ticks;
     let pcmem0 = cpu.bus.read_byte(None, cpu.pc);
     let pcmem1 = cpu.bus.read_byte(None, cpu.pc.wrapping_add(1));
     let pcmem2 = cpu.bus.read_byte(None, cpu.pc.wrapping_add(2));
     let pcmem3 = cpu.bus.read_byte(None, cpu.pc.wrapping_add(3));
 
-    let log_entry = format!(
-        "Ticks:{:08X} A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
-        ticks,
-        cpu.registers.a,
-        cpu.registers.f.as_byte(),
-        cpu.registers.b,
-        cpu.registers.c,
-        cpu.registers.d,
-        cpu.registers.e,
-        cpu.registers.h,
-        cpu.registers.l,
-        cpu.sp,
-        cpu.pc,
-        pcmem0, pcmem1, pcmem2, pcmem3
-    );
+    let log_entry = if log_ticks {
+        format!(
+            "Ticks:{:08X} A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+            ticks,
+            cpu.registers.a,
+            cpu.registers.f.as_byte(),
+            cpu.registers.b,
+            cpu.registers.c,
+            cpu.registers.d,
+            cpu.registers.e,
+            cpu.registers.h,
+            cpu.registers.l,
+            cpu.sp,
+            cpu.pc,
+            pcmem0, pcmem1, pcmem2, pcmem3
+        )
+    } else {
+        format!(
+            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}\n",
+            cpu.registers.a,
+            cpu.registers.f.as_byte(),
+            cpu.registers.b,
+            cpu.registers.c,
+            cpu.registers.d,
+            cpu.registers.e,
+            cpu.registers.h,
+            cpu.registers.l,
+            cpu.sp,
+            cpu.pc,
+            pcmem0, pcmem1, pcmem2, pcmem3
+        )
+    };
 
     if let Ok(mut file) = OpenOptions::new()
         .create(true)

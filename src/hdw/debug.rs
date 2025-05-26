@@ -9,7 +9,7 @@ lazy_static::lazy_static! {
 }
 
 pub fn dbg_update(bus: &mut Bus) {
-    if bus.read_byte(None, 0xFF02) == 0x01 {
+    if bus.read_byte(None, 0xFF02) == 0x81 { // Check for 0x81 to indicate transfer request with internal clock
         let c = bus.read_byte(None, 0xFF01); // get flag from serial
     
         if let Ok(mut msg) = DBG_MSG.lock() {

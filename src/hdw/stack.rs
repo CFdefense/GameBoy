@@ -45,12 +45,3 @@ pub fn stack_pop(cpu: &mut CPU) -> u8 {
         cpu.bus.read_byte(Some(unsafe { &mut *cpu_ref }), address)
     }
 }
-
-pub fn stack_pop16(cpu: &mut CPU) -> u16 {
-    // Pop Low and High Bytes
-    let low: u16 = stack_pop(cpu) as u16;
-    let high: u16 = stack_pop(cpu) as u16;
-
-    // Implicit Return Combined Bytes
-    (high << 8) | low
-}

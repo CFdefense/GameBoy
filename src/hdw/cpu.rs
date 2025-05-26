@@ -72,18 +72,17 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self, ctx: Arc<Mutex<EmuContext>>) -> bool {
-        // If IME was set to be enabled on the previous cycle (due to EI), actually enable it now.
         if self.enabling_ime {
             self.master_enabled = true;
-            self.enabling_ime = false;
+            self.enabling_ime = false; // Clear the flag once IME is enabled
         }
 
         if !self.is_halted {
             self.fetch();
             self.decode();
             
-            print_step_info(self, &ctx);
-            log_cpu_state(self, &ctx);
+            print_step_info(self, &ctx, false);
+            log_cpu_state(self, &ctx, false);
             debug::dbg_update(&mut self.bus);
             debug::dbg_print();
 
@@ -97,7 +96,6 @@ impl CPU {
             }
         } else {
             // is halted
-            // A halted CPU still consumes 1 M-cycle (4 T-cycles) per "step" 
             emu_cycles(self, 1);
 
             if (self.int_flags & self.ie_register) != 0 {
@@ -108,6 +106,7 @@ impl CPU {
         if self.master_enabled {
             cpu_handle_interrupts(self);
         }
+
         true
     }
 

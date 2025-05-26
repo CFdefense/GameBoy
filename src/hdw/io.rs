@@ -1,6 +1,5 @@
 // io.rs
 use std::sync::Mutex;
-use std::io::{self, Write};
 
 use crate::hdw::cpu_util::{get_int_flags, set_int_flags};
 

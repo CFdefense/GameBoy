@@ -14,6 +14,10 @@ pub fn op_srl(cpu: &mut CPU, target: HLTarget) {
     let lsb = original_value & 0x1;
     let result = original_value >> 1;
 
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
+
     // Write the result back to the target register or memory
     match target {
         HLTarget::A => cpu.registers.a = result,
@@ -34,6 +38,10 @@ pub fn op_srl(cpu: &mut CPU, target: HLTarget) {
 pub fn op_swap(cpu: &mut CPU, target: HLTarget) {
     let original_value = match_hl(cpu, &target);
     let result = (original_value << 4) | (original_value >> 4);
+
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
 
     match target {
         HLTarget::A => cpu.registers.a = result,
@@ -57,6 +65,10 @@ pub fn op_sra(cpu: &mut CPU, target: HLTarget) {
     let mut result = original_value >> 1;
     result |= sign_bit; // Ensure original sign bit is kept
 
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
+
     match target {
         HLTarget::A => cpu.registers.a = result,
         HLTarget::B => cpu.registers.b = result,
@@ -76,6 +88,10 @@ pub fn op_sla(cpu: &mut CPU, target: HLTarget) {
     let original_value = match_hl(cpu, &target);
     let bit_7 = (original_value >> 7) & 0x1; // MSB for carry
     let result = original_value << 1;
+
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
 
     match target {
         HLTarget::A => cpu.registers.a = result,
@@ -97,6 +113,10 @@ pub fn op_rlc(cpu: &mut CPU, target: HLTarget) {
     let bit_7 = (original_value >> 7) & 0x1; // MSB for carry and for rotating to bit 0
     let result = (original_value << 1) | bit_7;
 
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
+
     match target {
         HLTarget::A => cpu.registers.a = result,
         HLTarget::B => cpu.registers.b = result,
@@ -116,6 +136,10 @@ pub fn op_rrc(cpu: &mut CPU, target: HLTarget) {
     let original_value = match_hl(cpu, &target);
     let bit_0 = original_value & 0x1; // LSB for carry and for rotating to bit 7
     let result = (original_value >> 1) | (bit_0 << 7); // Corrected: bit_0 << 7
+
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
 
     match target {
         HLTarget::A => cpu.registers.a = result,
@@ -138,6 +162,10 @@ pub fn op_rl(cpu: &mut CPU, target: HLTarget) {
     let new_carry_val = (original_value >> 7) & 0x1; // MSB of original value becomes new carry
     let result = (original_value << 1) | prev_carry; // Old carry goes into LSB
 
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
+
     match target {
         HLTarget::A => cpu.registers.a = result,
         HLTarget::B => cpu.registers.b = result,
@@ -158,6 +186,10 @@ pub fn op_rr(cpu: &mut CPU, target: HLTarget) {
     let prev_carry = cpu.registers.f.carry as u8;
     let new_carry_val = original_value & 0x1; // LSB of original value becomes new carry
     let result = (original_value >> 1) | (prev_carry << 7); // Old carry goes into MSB
+
+    if target != HLTarget::HL {
+        emu_cycles(cpu, 1);
+    }
 
     match target {
         HLTarget::A => cpu.registers.a = result,
@@ -256,6 +288,7 @@ pub fn op_rrca(cpu: &mut CPU) {
     set_flags_after_no_pre_rl_rr(cpu, bit_0);
 }
 // [0x07]
+
 pub fn op_rlca(cpu: &mut CPU) {
     // Store the original bit 7 to set the Carry flag and bit 0
     let bit_7 = (cpu.registers.a >> 7) & 1;
@@ -861,9 +894,13 @@ pub fn op_add(cpu: &mut CPU, target: OPType) {
         // [0x09, 0x19, 0x29, 0x39] // ADD HL, rr
         OPType::LoadHL(add_n16_target_enum_val) => { 
             let original_hl = cpu.registers.get_hl();
-            let value_to_add = match_n16(cpu, add_n16_target_enum_val);
+            let value_to_add = match_n16(cpu, add_n16_target_enum_val.clone());
             cpu.registers.set_hl(original_hl.wrapping_add(value_to_add));
             set_flags_after_add_n16(cpu, original_hl, value_to_add);
+
+            if add_n16_target_enum_val == AddN16Target::HL {
+                emu_cycles(cpu, 1);
+            }
         }
         // [0xE8] // ADD SP, e8
         OPType::LoadSP => {
@@ -1120,43 +1157,46 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 }
             },
             // [0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x77]
-            HLTarget::HL => match source {
-                // [0x70]
-                HLTarget::B => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.b);
+            HLTarget::HL => {
+                emu_cycles(cpu, 1);
+                match source {
+                    // [0x70]
+                    HLTarget::B => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.b);
+                    }
+                    // [0x71]
+                    HLTarget::C => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.c);
+                    }
+                    // [0x72]
+                    HLTarget::D => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.d);
+                    }
+                    // [0x73]
+                    HLTarget::E => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.e);
+                    }
+                    // [0x74]
+                    HLTarget::H => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.h);
+                    }
+                    // [0x75]
+                    HLTarget::L => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.l);
+                    }
+                    // [0x77]
+                    HLTarget::A => {
+                        cpu.bus
+                            .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
+                    }
+                    _ => panic!("Getting LD HL HL Should be HALT"),
                 }
-                // [0x71]
-                HLTarget::C => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.c);
-                }
-                // [0x72]
-                HLTarget::D => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.d);
-                }
-                // [0x73]
-                HLTarget::E => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.e);
-                }
-                // [0x74]
-                HLTarget::H => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.h);
-                }
-                // [0x75]
-                HLTarget::L => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.l);
-                }
-                // [0x77]
-                HLTarget::A => {
-                    cpu.bus
-                        .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
-                }
-                _ => panic!("Getting LD HL HL Should be HALT"),
             },
             // [0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F]
             HLTarget::A => match source {
@@ -1269,27 +1309,27 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 },
             }
         }
-        // [0x0A, 0x1A, 0x2A, 0x3A]
+        // [0x02, 0x12, 0x22, 0x32]
         LoadType::AStoreInN16(target) => {
             emu_cycles(cpu, 1);
             match target {
-                // [0x0A]
+                // [0x02]
                 LoadN16::BC => {
                     cpu.bus
                         .write_byte(None, cpu.registers.get_bc(), cpu.registers.a);
                 }
-                // [0x1A]
+                // [0x12]
                 LoadN16::DE => {
                     cpu.bus
                         .write_byte(None, cpu.registers.get_de(), cpu.registers.a);
                 }
-                // [0x2A]
+                // [0x22]
                 LoadN16::HLINC => {
                     cpu.bus
                         .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
                     cpu.registers.set_hl(cpu.registers.get_hl().wrapping_add(1));
                 }
-                // [0x3A]
+                // [0x32]
                 LoadN16::HLDEC => {
                     cpu.bus
                         .write_byte(None, cpu.registers.get_hl(), cpu.registers.a);
@@ -1297,23 +1337,22 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                 }
             }
         }
-        // [0x02, 0x12, 0x22, 0x32]
+        // [0x0A, 0x1A, 0x2A, 0x3A]
         LoadType::N16StoreInA(source) => match source {
-            
-            // [0x02]
+            // [0x0A]
             LoadN16::BC => {
                 cpu.registers.a = cpu.bus.read_byte(None, cpu.registers.get_bc());
             }
-            // [0x12]
+            // [0x1A]
             LoadN16::DE => {
                 cpu.registers.a = cpu.bus.read_byte(None, cpu.registers.get_de());
             }
-            // [0x22]
+            // [0x3A]
             LoadN16::HLDEC => {
                 cpu.registers.a = cpu.bus.read_byte(None, cpu.registers.get_hl());
                 cpu.registers.set_hl(cpu.registers.get_hl().wrapping_sub(1));
             }
-            // [0x32]
+            // [0x2A]
             LoadN16::HLINC => {
                 cpu.registers.a = cpu.bus.read_byte(None, cpu.registers.get_hl());
                 cpu.registers.set_hl(cpu.registers.get_hl().wrapping_add(1));
@@ -1500,26 +1539,31 @@ pub fn op_dec(cpu: &mut CPU, target: AllRegisters) {
             let value = cpu.bus.read_byte(None, hl_addr).wrapping_sub(1);
             cpu.bus.write_byte(None, hl_addr, value);
             set_flags_after_dec(cpu, value, original_value);
+            emu_cycles(cpu, 1);
         }
         // 16-bit register increments (don't need to Set Flags for these)
         // [0x0B]
         AllRegisters::BC => {
             let new_bc = cpu.registers.get_bc().wrapping_sub(1);
             cpu.registers.set_bc(new_bc);
+            emu_cycles(cpu, 1);
         }
         // [0x1B]
         AllRegisters::DE => {
             let new_de = cpu.registers.get_de().wrapping_sub(1);
             cpu.registers.set_de(new_de);
+            emu_cycles(cpu, 1);
         }
         // [0x2B]
         AllRegisters::HL => {
             let new_hl = cpu.registers.get_hl().wrapping_sub(1);
             cpu.registers.set_hl(new_hl);
+            emu_cycles(cpu, 1);
         }
         // [0x3B]
         AllRegisters::SP => {
             cpu.sp = cpu.sp.wrapping_sub(1);
+            emu_cycles(cpu, 1);
         }
     }
 }
@@ -1576,11 +1620,13 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) {
         AllRegisters::BC => {
             let new_bc = cpu.registers.get_bc().wrapping_add(1);
             cpu.registers.set_bc(new_bc);
+            emu_cycles(cpu, 1);
         }
         // [0x13]
         AllRegisters::DE => {
             let new_de = cpu.registers.get_de().wrapping_add(1);
             cpu.registers.set_de(new_de);
+            emu_cycles(cpu, 1); 
         }
         // [0x23]
         AllRegisters::HL => {
@@ -1591,6 +1637,7 @@ pub fn op_inc(cpu: &mut CPU, target: AllRegisters) {
         // [0x33]
         AllRegisters::SP => {
             cpu.sp = cpu.sp.wrapping_add(1);
+            emu_cycles(cpu, 1);
         }
     }
 }

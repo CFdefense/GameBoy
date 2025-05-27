@@ -75,8 +75,8 @@ impl Bus {
                 }
             } else if address == 0xFF44 {
                 // LCD Y-Coordinate (LY)
-                // For now, always return 0x90 (144) to indicate VBlank
-                0x90
+                // Return 0 for now - this should be properly implemented with PPU
+                0
             } else {
                 io_read(cpu, address)
             }

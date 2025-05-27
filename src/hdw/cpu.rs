@@ -4,6 +4,7 @@ use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
 use crate::hdw::timer::Timer;
+use crate::hdw::debug_timer::log_timer_state;
 use core::panic;
 
 use std::sync::{Arc, Mutex};
@@ -72,41 +73,57 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self, ctx: Arc<Mutex<EmuContext>>) -> bool {
+        // First, check if we need to enable interrupts from a previous EI instruction
         if self.enabling_ime {
             self.master_enabled = true;
             self.enabling_ime = false; // Clear the flag once IME is enabled
+            log_timer_state(self, "IME enabled");
+        }
+
+        // Check for interrupts before executing the next instruction
+        if self.master_enabled {
+            if (self.int_flags & self.ie_register) != 0 {
+                log_timer_state(self, "Checking interrupts before next instruction");
+            }
+            cpu_handle_interrupts(self);
         }
 
         if !self.is_halted {
             self.fetch();
             self.decode();
             
-            print_step_info(self, &ctx, false);
-            log_cpu_state(self, &ctx, false);
+            print_step_info(self, &ctx, true);
+            log_cpu_state(self, &ctx, true);
             debug::dbg_update(&mut self.bus);
             debug::dbg_print();
 
             let instruction_to_execute = self.curr_instruction.take();
 
             if let Some(instruction) = instruction_to_execute {
-                self.execute(instruction); // Execute might modify PC and flagg
-
+                log_timer_state(self, format!("Executing instruction: {:?}", instruction).as_str());
+                self.execute(instruction); // Execute might modify PC and flags
+                let ticks = ctx.lock().unwrap().ticks;
+                print!(" {:08X}", ticks);
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open("cpu_log.txt") {
+                    let _ = std::io::Write::write_all(&mut file, format!(" {:08X}\n", ticks).as_bytes());
+                }
             } else {
                 panic!("Decode Error: No Instruction")
             }
-        } else {
+
+        } else {    
             // is halted
             emu_cycles(self, 1);
 
             if (self.int_flags & self.ie_register) != 0 {
                 self.is_halted = false;
+                log_timer_state(self, "Exiting HALT state due to interrupt");
             }
         }
-
-        if self.master_enabled {
-            cpu_handle_interrupts(self);
-        }
-
+        
         true
     }
 

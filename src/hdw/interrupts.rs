@@ -1,5 +1,6 @@
 use crate::hdw::cpu::CPU;
 use crate::hdw::stack::*;
+use crate::hdw::debug_timer::log_timer_state;
 
 #[derive(Copy, Clone)]
 pub enum Interrupts {
@@ -17,10 +18,16 @@ pub fn int_handle(cpu: &mut CPU, address: u16) {
 
 pub fn int_check(cpu: &mut CPU, address: u16, int_type: Interrupts) -> bool {
     if (cpu.int_flags & int_type as u8) != 0 && (cpu.ie_register & int_type as u8) != 0 {
+        if let Interrupts::TIMER = int_type {
+            log_timer_state(cpu, "Timer interrupt triggered");
+        }
         int_handle(cpu, address);
         cpu.int_flags &= !(int_type as u8);
         cpu.master_enabled = false;
         cpu.is_halted = false;
+        if let Interrupts::TIMER = int_type {
+            log_timer_state(cpu, "Timer interrupt handled - IME disabled");
+        }
         return true;
     }
     false

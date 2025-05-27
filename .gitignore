@@ -3,3 +3,4 @@ cpu_log.txt
 /src/roms/*
 /part10
 /debug_log.txt
+/timer_debug.txt

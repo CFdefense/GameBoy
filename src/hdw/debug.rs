@@ -27,7 +27,10 @@ pub fn dbg_print() {
         if !msg.is_empty() { // parse vector 
             // Convert bytes to string, handling invalid UTF-8
             match std::str::from_utf8(&msg) {
-                Ok(s) => println!("DBG: {}", s),
+                Ok(s) => {
+                    println!();
+                    print!("DBG: {}", s);
+                },
                 Err(_) => {
                     // Fall back to printing individual bytes
                     print!("DBG (non-UTF8): ");

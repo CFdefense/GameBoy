@@ -6,7 +6,7 @@ use core::panic;
     As well as all implementations of Instruction operations such as decoding and matching bytes to instructions
 
 */
-use super::{cpu::CPU, emu::{self, emu_cycles}};
+use super::{cpu::CPU, emu::emu_cycles};
 
 // Target For All Instructions
 #[derive(Debug)]
@@ -149,7 +149,7 @@ pub enum LoadN16 {
 }
 
 // 16 bit registers to be loaded
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AddN16Target {
     BC,
     DE,
@@ -365,41 +365,31 @@ impl Instruction {
                 emu_cycles(cpu, 1);
                 Some(Instruction::JR(JumpTest::Carry))},
             // INC
-            0x03 => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::INC(AllRegisters::BC))},
-            0x13 => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::INC(AllRegisters::DE))},
-            0x23 => {Some(Instruction::INC(AllRegisters::HL))},
-            0x33 => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::INC(AllRegisters::SP))},
+            0x03 => Some(Instruction::INC(AllRegisters::BC)),
+            0x13 => Some(Instruction::INC(AllRegisters::DE)),
+            0x23 => Some(Instruction::INC(AllRegisters::HL)),
+            0x33 => Some(Instruction::INC(AllRegisters::SP)),
             0x04 => Some(Instruction::INC(AllRegisters::B)),
             0x14 => Some(Instruction::INC(AllRegisters::D)),
             0x24 => Some(Instruction::INC(AllRegisters::H)),
-            0x34 => Some(Instruction::INC(AllRegisters::HLMEM)),
+            0x34 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::INC(AllRegisters::HLMEM))},
             0x0C => Some(Instruction::INC(AllRegisters::C)),
             0x1C => Some(Instruction::INC(AllRegisters::E)),
             0x2C => Some(Instruction::INC(AllRegisters::L)),
             0x3C => Some(Instruction::INC(AllRegisters::A)),
             // DEC
-            0x0B => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::DEC(AllRegisters::BC))},
-            0x1B => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::DEC(AllRegisters::DE))},
-            0x2B => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::DEC(AllRegisters::HL))},
-            0x3B => {
-                emu_cycles(cpu, 1);
-                Some(Instruction::DEC(AllRegisters::SP))},
+            0x0B => Some(Instruction::DEC(AllRegisters::BC)),
+            0x1B => Some(Instruction::DEC(AllRegisters::DE)),
+            0x2B => Some(Instruction::DEC(AllRegisters::HL)),
+            0x3B => Some(Instruction::DEC(AllRegisters::SP)),
             0x05 => Some(Instruction::DEC(AllRegisters::B)),
             0x15 => Some(Instruction::DEC(AllRegisters::D)),
             0x25 => Some(Instruction::DEC(AllRegisters::H)),
-            0x35 => Some(Instruction::DEC(AllRegisters::HLMEM)),
+            0x35 => {
+                emu_cycles(cpu, 1);
+                Some(Instruction::DEC(AllRegisters::HLMEM))},
             0x0D => Some(Instruction::DEC(AllRegisters::C)),
             0x1D => Some(Instruction::DEC(AllRegisters::E)),
             0x2D => Some(Instruction::DEC(AllRegisters::L)),
@@ -522,7 +512,7 @@ impl Instruction {
                 byte,
             ))))},
             0xC6 => {
-                emu_cycles(cpu, 2);
+                emu_cycles(cpu, 1);
                 Some(Instruction::ADD(OPType::LoadD8))}, // ADD D8
             0xE8 => {
                 emu_cycles(cpu, 1);
@@ -662,7 +652,6 @@ impl Instruction {
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xCB | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
                 panic!("NULL INSTRUCTION READ: {:02X}", byte)
             }
-            _ => panic!("NOT AN INSTRUCTION: {:02X}", byte),
         }
     }
 

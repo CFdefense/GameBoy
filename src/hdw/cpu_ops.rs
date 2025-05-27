@@ -1308,6 +1308,7 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
                     _ => panic!("LD WORD BAD MATCH"),
                 },
             }
+
         }
         // [0x02, 0x12, 0x22, 0x32]
         LoadType::AStoreInN16(target) => {
@@ -1733,33 +1734,33 @@ pub fn op_push(cpu: &mut CPU, target: StackTarget) {
         // [0xF5]
         StackTarget::AF => {
             let high: u16 = (cpu.registers.get_af() >> 8) & 0xFF as u16;
-            stack_push(cpu, high as u8);
+            stack_push(cpu, high as u8, true);
 
             let low: u16 = cpu.registers.get_af() & 0xFF as u16;
-            stack_push(cpu, low as u8);
+            stack_push(cpu, low as u8, true);
         }
         // [0xC5]
         StackTarget::BC => {
             let high: u16 = (cpu.registers.get_bc() >> 8) & 0xFF as u16;
-            stack_push(cpu, high as u8);
+            stack_push(cpu, high as u8, true);
             let low: u16 = cpu.registers.get_bc() & 0xFF as u16;
-            stack_push(cpu, low as u8);
+            stack_push(cpu, low as u8, true);
         }
         // [0xD5]
         StackTarget::DE => {
             let high: u16 = (cpu.registers.get_de() >> 8) & 0xFF as u16;
-            stack_push(cpu, high as u8);
+            stack_push(cpu, high as u8, true);
 
             let low: u16 = cpu.registers.get_de() & 0xFF as u16;
-            stack_push(cpu, low as u8);
+            stack_push(cpu, low as u8, true);
         }
         // [0xE5]
         StackTarget::HL => {
             let high: u16 = (cpu.registers.get_hl() >> 8) & 0xFF as u16;
-            stack_push(cpu, high as u8);
+            stack_push(cpu, high as u8, true);
 
             let low: u16 = cpu.registers.get_hl() & 0xFF as u16;
-            stack_push(cpu, low as u8);
+            stack_push(cpu, low as u8, true);
         }
     }
     emu_cycles(cpu, 1);

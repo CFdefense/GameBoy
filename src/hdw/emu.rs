@@ -13,7 +13,7 @@ use crate::hdw::ui::{UI, ui_handle_events};
 use once_cell::sync::OnceCell;
 
 // Global static EmuContext holder
-static EMU_CONTEXT: OnceCell<Arc<Mutex<EmuContext>>> = OnceCell::new();
+pub static EMU_CONTEXT: OnceCell<Arc<Mutex<EmuContext>>> = OnceCell::new();
 
 // Emulator context
 pub struct EmuContext {
@@ -24,7 +24,7 @@ pub struct EmuContext {
     pub cpu: Option<Arc<Mutex<CPU>>>,
     debug_limit: Option<u32>,
     instruction_count: u32,
-    timer: Timer,
+    pub timer: Timer,
 }
 
 impl EmuContext {
@@ -143,7 +143,7 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     // Initialize Bus and CPU
     let bus = Bus::new(cart);
     let timer = Timer::new();
-    let cpu = Arc::new(Mutex::new(CPU::new(bus, timer)));
+    let cpu = Arc::new(Mutex::new(CPU::new(bus)));
     
     // Initialize context
     let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit)));
@@ -200,7 +200,7 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
             for _ in 0..t_cycles_to_add {
                 emu_ctx_lock.ticks += 1;
                 // Call timer_tick with the passed CPU reference
-                emu_ctx_lock.timer.timer_tick(cpu);
+                emu_ctx_lock.timer.timer_tick(cpu, ctx_arc);
             }
         } else {
             eprintln!("emu_cycles: Failed to lock EmuContext.");

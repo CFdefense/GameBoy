@@ -246,21 +246,13 @@ pub fn set_flags_after_add_sp_r8(cpu: &mut CPU, original_sp: u16, r8_signed: i8)
     cpu.registers.f.carry = (sp_low_byte as u16 + r8_unsigned as u16) > 0xFF;
 }
 
-pub fn set_int_flags(cpu: &mut CPU, value: u8) {
-    cpu.int_flags = value
-}
-
-pub fn get_int_flags(cpu: &CPU) -> u8 {
-    cpu.int_flags
-}
-
 // Function to help streamline alot of jumping instructions
 pub fn goto_addr(cpu: &mut CPU, address: u16, jump_test: JumpTest, push_pc: bool) -> u16 {
     let jump = match_jump(cpu, &jump_test);
 
     if jump {
         if push_pc {
-            stack_push16(cpu, cpu.pc);
+            stack_push16(cpu, cpu.pc, true);
         }
         // combine and set pc to 2 byte addr in lil endian
         cpu.pc = address;
@@ -328,7 +320,7 @@ pub fn log_cpu_state(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, log_ticks: boo
             format!("{:?}", instr).split('(').next().unwrap_or("Unknown").to_string()
         });
         format!(
-            "{:08X} - {:04X}: {:<12}\t({:02X} {:02X} {:02X}) A:{:02X} F:{}{}{}{} BC:{:04X} DE:{:04X} HL:{:04X}",
+            "{:08X} - {:04X}: {:<12}\t({:02X} {:02X} {:02X}) A:{:02X} F:{}{}{}{} BC:{:04X} DE:{:04X} HL:{:04X} IE:{:02X} IF:{:02X}",
             ticks,
             cpu.pc,
             instruction_name_display,
@@ -342,7 +334,9 @@ pub fn log_cpu_state(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, log_ticks: boo
             if cpu.registers.f.carry { 'C' } else { '-' },
             cpu.registers.get_bc(),
             cpu.registers.get_de(),
-            cpu.registers.get_hl()
+            cpu.registers.get_hl(),
+            cpu.ie_register,
+            cpu.int_flags
         )
     } else {
         let pcmem0 = cpu.bus.read_byte(None, cpu.pc);

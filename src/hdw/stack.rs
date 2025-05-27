@@ -1,9 +1,12 @@
 use crate::hdw::cpu::CPU;
 use crate::hdw::emu::emu_cycles;
-pub fn stack_push(cpu: &mut CPU, value: u8) {
+pub fn stack_push(cpu: &mut CPU, value: u8, cycle: bool) {
     // Decrement Stack Pointer
     cpu.sp -= 1;
-    emu_cycles(cpu, 1);
+
+    if cycle {
+        emu_cycles(cpu, 1);
+    }
     // Create a temporary mutable reference for the write operation
     {
         let cpu_ref = cpu as *mut CPU;
@@ -21,11 +24,11 @@ pub fn stack_push(cpu: &mut CPU, value: u8) {
     }
 }
 
-pub fn stack_push16(cpu: &mut CPU, value: u16) {
+pub fn stack_push16(cpu: &mut CPU, value: u16, cycle: bool) {
     // Push high byte
-    stack_push(cpu, (value >> 8) as u8);
+    stack_push(cpu, (value >> 8) as u8, cycle);
     // Push low byte
-    stack_push(cpu, (value & 0xFF) as u8);
+    stack_push(cpu, (value & 0xFF) as u8, cycle);
 }
 
 pub fn stack_pop(cpu: &mut CPU) -> u8 {
@@ -34,6 +37,7 @@ pub fn stack_pop(cpu: &mut CPU) -> u8 {
 
     // Increment SP
     cpu.sp += 1;
+
     emu_cycles(cpu, 1);
 
     // Create a temporary mutable reference for the write operation

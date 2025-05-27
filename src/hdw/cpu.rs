@@ -3,7 +3,6 @@ use crate::hdw::cpu_ops::*;
 use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
 use crate::hdw::registers::*;
-use crate::hdw::timer::Timer;
 use crate::hdw::debug_timer::log_timer_state;
 use core::panic;
 
@@ -17,7 +16,6 @@ use super::emu::emu_cycles;
 // Our CPU to Call and Control
 pub struct CPU {
     pub registers: Registers,
-    pub timer: Timer,
     pub pc: u16,
     pub sp: u16,
     pub bus: Bus,
@@ -35,8 +33,7 @@ pub struct CPU {
 }
 impl CPU {
     // Contructor
-    pub fn new(new_bus: Bus, mut new_timer: Timer) -> Self {
-        new_timer.div = 0xABCC;
+    pub fn new(new_bus: Bus) -> Self {
         CPU {
             registers: Registers {
                 a: 0x01,
@@ -53,7 +50,6 @@ impl CPU {
                 h: 0x01,
                 l: 0x4D,
             },
-            timer: new_timer, // Maybe need to set div to 0xABCC
             pc: 0x0100,
             sp: 0xFFFE, 
             bus: new_bus,
@@ -77,15 +73,15 @@ impl CPU {
         if self.enabling_ime {
             self.master_enabled = true;
             self.enabling_ime = false; // Clear the flag once IME is enabled
-            log_timer_state(self, "IME enabled");
+            log_timer_state(self, &ctx, "IME enabled");
         }
 
         // Check for interrupts before executing the next instruction
         if self.master_enabled {
             if (self.int_flags & self.ie_register) != 0 {
-                log_timer_state(self, "Checking interrupts before next instruction");
+                log_timer_state(self, &ctx, "Checking interrupts before next instruction");
             }
-            cpu_handle_interrupts(self);
+            cpu_handle_interrupts(self, &ctx);
         }
 
         if !self.is_halted {
@@ -100,7 +96,7 @@ impl CPU {
             let instruction_to_execute = self.curr_instruction.take();
 
             if let Some(instruction) = instruction_to_execute {
-                log_timer_state(self, format!("Executing instruction: {:?}", instruction).as_str());
+                log_timer_state(self, &ctx, format!("Executing instruction: {:?}", instruction).as_str());
                 self.execute(instruction); // Execute might modify PC and flags
                 let ticks = ctx.lock().unwrap().ticks;
                 print!(" {:08X}", ticks);
@@ -120,7 +116,7 @@ impl CPU {
 
             if (self.int_flags & self.ie_register) != 0 {
                 self.is_halted = false;
-                log_timer_state(self, "Exiting HALT state due to interrupt");
+                log_timer_state(self, &ctx, "Exiting HALT state due to interrupt");
             }
         }
         
@@ -355,5 +351,21 @@ impl CPU {
     
     pub fn cpu_request_interrupt(&mut self, interrupt: Interrupts) {
         self.int_flags |= interrupt as u8;
+    }
+
+    pub fn get_int_flags(&self) -> u8 {
+        self.int_flags
+    }
+
+    pub fn set_int_flags(&mut self, value: u8) {
+        self.int_flags = value;
+    }
+
+    pub fn get_debug_context(&self) -> Option<&Arc<Mutex<EmuContext>>> {
+        if let Some(ctx) = crate::hdw::emu::EMU_CONTEXT.get() {
+            Some(ctx)
+        } else {
+            None
+        }
     }
 }

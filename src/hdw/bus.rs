@@ -66,20 +66,7 @@ impl Bus {
             0
         } else if address < 0xFF80 {
             // IO Registers
-            if address == 0xFF0F {
-                // Interrupt Flag Register
-                if let Some(cpu) = cpu {
-                    cpu.int_flags
-                } else {
-                    panic!("BUS: Attempted to read interrupt flag register without CPU reference")
-                }
-            } else if address == 0xFF44 {
-                // LCD Y-Coordinate (LY)
-                // Return 0 for now - this should be properly implemented with PPU
-                0
-            } else {
-                io_read(cpu, address)
-            }
+            io_read(cpu, address)
         } else if address == 0xFFFF {
             // Interrupt Enable Register
             if let Some(cpu) = cpu {
@@ -95,6 +82,11 @@ impl Bus {
 
     // Function to write byte to correct place
     pub fn write_byte(&mut self, cpu: Option<&mut CPU>, address: u16, value: u8) {
+        // Temporary logging
+        if address >= 0xFF00 && address <= 0xFF7F {
+            println!("BUS_WRITE_IO: Addr={:04X}, Val={:02X}", address, value);
+        }
+
         if address < 0x8000 {
             // ROM DATA
             self.cart.write_byte(address, value);
@@ -116,19 +108,9 @@ impl Bus {
             // Reserved Unusuable
         } else if address < 0xFF80 {
             // IO Registers
-            if address == 0xFF0F {
-                // Interrupt Flag Register
-                if let Some(cpu) = cpu {
-                    cpu.int_flags = value;
-                } else {
-                    panic!("BUS: Attempted to write interrupt flag register without CPU reference");
-                }
-            } else if address == 0xFF44 {
-                // LCD Y-Coordinate (LY)
-                // This is a read-only register, writes are ignored
-            } else {
-                io_write(cpu, address, value);
-            }
+            // More temporary logging
+            println!("BUS_WRITE_IO: Dispatching to io_write for Addr={:04X}, Val={:02X}", address, value);
+            io_write(cpu, address, value);
         } else if address == 0xFFFF {
             // Interrupt Enable Register
             if let Some(cpu) = cpu {

@@ -1,7 +1,9 @@
 // io.rs
 use std::sync::Mutex;
+use crate::hdw::debug_timer::log_timer_state;
 
-use crate::hdw::cpu_util::{get_int_flags, set_int_flags};
+// Use the EMU_CONTEXT from the emu module
+use crate::hdw::emu::EMU_CONTEXT;
 
 // Thread-safe serial data using a Mutex
 lazy_static::lazy_static! {
@@ -9,7 +11,7 @@ lazy_static::lazy_static! {
 }
 
 pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
-    match address {
+    let value = match address {
         0xFF01 => {
             if let Ok(data) = SERIAL_DATA.lock() {
                 data[0]
@@ -27,21 +29,42 @@ pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
             }
         },
         0xFF04..=0xFF07 => {
-            cpu.unwrap().timer.timer_read(address)
+            if let Some(ctx_arc) = EMU_CONTEXT.get() {
+                if let Ok(emu_ctx_lock) = ctx_arc.lock() {
+                    let val = emu_ctx_lock.timer.timer_read(address);
+                    val
+                } else {
+                    eprintln!("io_read (timer): Failed to lock EmuContext");
+                    0
+                }
+            } else {
+                eprintln!("io_read (timer): Global EmuContext not initialized");
+                0
+            }
         },
         0xFF0F => {
-            get_int_flags(cpu.unwrap())
+            if let Some(c) = cpu {
+                let val = c.get_int_flags();
+                if let Some(ctx_arc) = EMU_CONTEXT.get() {
+                    log_timer_state(c, ctx_arc, &format!("Reading INT_FLAGS from FF0F = {:02X}", val));
+                }
+                val
+            } else {
+                0
+            }
         }
         _ => {
             println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
             0
         }
-    }
+    };
+    
+    value
 }
 
-pub fn io_write(cpu: Option<&mut crate::hdw::cpu::CPU>, address: u16, value: u8) {
+pub fn io_write(cpu_opt: Option<&mut crate::hdw::cpu::CPU>, address: u16, value: u8) {
     match address {
-        0xFF01 => { // SB - Serial Byte
+        0xFF01 => {
             if let Ok(mut data) = SERIAL_DATA.lock() {
                 data[0] = value;
                 return;
@@ -49,20 +72,46 @@ pub fn io_write(cpu: Option<&mut crate::hdw::cpu::CPU>, address: u16, value: u8)
                 println!("Failed to lock SERIAL_DATA for writing to SB");
             }
         },
-        0xFF02 => { // SC - Serial Control
+        0xFF02 => {
             if let Ok(mut data) = SERIAL_DATA.lock() {
-                data[1] = value; // Store the new SC value immediately 
+                data[1] = value;
                 return;
             } else {
                 println!("Failed to lock SERIAL_DATA for writing to SC");
             }
         },
         0xFF04..=0xFF07 => {
-            cpu.unwrap().timer.timer_write(address, value);
+            if let Some(ctx_arc) = EMU_CONTEXT.get() {
+                if let Ok(mut emu_ctx_lock) = ctx_arc.lock() {
+                    // Store values we need for logging before modifying timer
+                    let old_tac = if address == 0xFF07 { emu_ctx_lock.timer.tac } else { 0 };
+                    
+                    // Do the actual timer write
+                    emu_ctx_lock.timer.timer_write(address, value);
+                    
+                    // Release the lock before logging
+                    drop(emu_ctx_lock);
+                    
+                    // Now do logging if needed (without holding the lock)
+                    if address == 0xFF07 {
+                        if let Some(ref cpu) = cpu_opt {
+                            println!("TAC Write: Value={:02X}, Old={:02X}, PC={:04X}", value, old_tac, cpu.pc);
+                        }
+                    }
+                } else {
+                    eprintln!("io_write (timer): Failed to lock EmuContext");
+                }
+            } else {
+                eprintln!("io_write (timer): Global EmuContext not initialized");
+            }
             return;
         },
         0xFF0F => {
-            set_int_flags(cpu.unwrap(), value);
+            if let Some(c) = cpu_opt {
+                // For IF writes, just print directly instead of using log_timer_state
+                println!("Writing INT_FLAGS = {:02X}", value);
+                c.set_int_flags(value);
+            }
             return;
         }
         _ => {

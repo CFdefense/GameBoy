@@ -69,20 +69,6 @@ impl CPU {
 
     // Function to 'step' through instructions
     pub fn step(&mut self, ctx: Arc<Mutex<EmuContext>>) -> bool {
-        // First, check if we need to enable interrupts from a previous EI instruction
-        if self.enabling_ime {
-            self.master_enabled = true;
-            self.enabling_ime = false; // Clear the flag once IME is enabled
-            log_timer_state(self, &ctx, "IME enabled");
-        }
-
-        // Check for interrupts before executing the next instruction
-        if self.master_enabled {
-            if (self.int_flags & self.ie_register) != 0 {
-                log_timer_state(self, &ctx, "Checking interrupts before next instruction");
-            }
-            cpu_handle_interrupts(self, &ctx);
-        }
 
         if !self.is_halted {
             self.fetch();
@@ -114,10 +100,22 @@ impl CPU {
             // is halted
             emu_cycles(self, 1);
 
-            if (self.int_flags & self.ie_register) != 0 {
+            if self.int_flags != 0 {
                 self.is_halted = false;
                 log_timer_state(self, &ctx, "Exiting HALT state due to interrupt");
             }
+        }
+
+        // Check for interrupts before executing the next instruction
+        if self.master_enabled {
+            cpu_handle_interrupts(self, &ctx);
+            self.enabling_ime = false; // Clear the flag once IME is enabled
+        }
+
+        // First, check if we need to enable interrupts from a previous EI instruction
+        if self.enabling_ime {
+            self.master_enabled = true;
+            log_timer_state(self, &ctx, "IME enabled");
         }
         
         true

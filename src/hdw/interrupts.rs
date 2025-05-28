@@ -28,9 +28,6 @@ pub fn int_check(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, address: u16, int_
         cpu.set_int_flags(cpu.get_int_flags() & !(int_type as u8));
         cpu.master_enabled = false;
         cpu.is_halted = false;
-        if let Interrupts::TIMER = int_type {
-            log_timer_state(cpu, ctx, "Timer interrupt handled - IME disabled");
-        }
         return true;
     }
     false

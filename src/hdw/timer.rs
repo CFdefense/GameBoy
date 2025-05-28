@@ -28,28 +28,25 @@ impl Timer {
         let prev_div: u16 = self.div;
         self.div = self.div.wrapping_add(1); 
 
-        // Timer Enable Check: Bit 2 of TAC
-        let timer_enabled = (self.tac & (1 << 2)) != 0;
-
-        if timer_enabled {
-            let mut tima_should_increment: bool = false;
+        let mut tima_should_increment: bool = false;
             
-            // Match reference implementation's bit selection
-            match self.tac & 0b11 {
-                0b00 => { tima_should_increment = (prev_div & (1 << 9)) != 0 && (self.div & (1 << 9)) == 0; },
-                0b01 => { tima_should_increment = (prev_div & (1 << 3)) != 0 && (self.div & (1 << 3)) == 0; },
-                0b10 => { tima_should_increment = (prev_div & (1 << 5)) != 0 && (self.div & (1 << 5)) == 0; },
-                0b11 => { tima_should_increment = (prev_div & (1 << 7)) != 0 && (self.div & (1 << 7)) == 0; },
-                _ => unreachable!(), 
-            }
-        
-            if tima_should_increment {
-                self.tima = self.tima.wrapping_add(1);
-                
-                if self.tima == 0 { // Check for overflow (wrapped back to 0)
-                    self.tima = self.tma;
-                    cpu.cpu_request_interrupt(Interrupts::TIMER);
-                }
+        // Match reference implementation's bit selection
+        match self.tac & 0b11 {
+            0b00 => { tima_should_increment = (prev_div & (1 << 9)) != 0 && (self.div & (1 << 9)) == 0; },
+            0b01 => { tima_should_increment = (prev_div & (1 << 3)) != 0 && (self.div & (1 << 3)) == 0; },
+            0b10 => { tima_should_increment = (prev_div & (1 << 5)) != 0 && (self.div & (1 << 5)) == 0; },
+            0b11 => { tima_should_increment = (prev_div & (1 << 7)) != 0 && (self.div & (1 << 7)) == 0; },
+            _ => unreachable!(), 
+        }
+    
+        // Check if timer is enabled and we should increment
+        if tima_should_increment && (self.tac & (1 << 2)) != 0 {
+            self.tima = self.tima.wrapping_add(1);
+            
+            // Check for overflow ie timer is done
+            if self.tima == 0xFF {
+                self.tima = self.tma;
+                cpu.cpu_request_interrupt(Interrupts::TIMER);
             }
         }
     }

@@ -363,12 +363,4 @@ impl CPU {
     pub fn set_int_flags(&mut self, value: u8) {
         self.int_flags = value;
     }
-
-    pub fn get_debug_context(&self) -> Option<&Arc<Mutex<EmuContext>>> {
-        if let Some(ctx) = crate::hdw::emu::EMU_CONTEXT.get() {
-            Some(ctx)
-        } else {
-            None
-        }
-    }
 }

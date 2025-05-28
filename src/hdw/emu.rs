@@ -28,7 +28,7 @@ pub struct EmuContext {
 }
 
 impl EmuContext {
-    fn new(debug_limit: Option<u32>) -> Self {
+    pub fn new(debug_limit: Option<u32>) -> Self {
         EmuContext {
             running: true,
             paused: false,
@@ -142,7 +142,6 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
 
     // Initialize Bus and CPU
     let bus = Bus::new(cart);
-    let timer = Timer::new();
     let cpu = Arc::new(Mutex::new(CPU::new(bus)));
     
     // Initialize context
@@ -200,7 +199,7 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
             for _ in 0..t_cycles_to_add {
                 emu_ctx_lock.ticks += 1;
                 // Call timer_tick with the passed CPU reference
-                emu_ctx_lock.timer.timer_tick(cpu, ctx_arc);
+                emu_ctx_lock.timer.timer_tick(cpu);
             }
         } else {
             eprintln!("emu_cycles: Failed to lock EmuContext.");

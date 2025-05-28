@@ -2,10 +2,6 @@ use core::panic;
 
 use crate::hdw::cpu::CPU;
 use crate::hdw::interrupts::Interrupts;
-// use crate::hdw::debug_timer::log_timer_state;
-use crate::hdw::emu::EmuContext;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 pub struct Timer {
     pub div: u16, // divider register R/W - This is the 16-bit internal counter
@@ -24,11 +20,11 @@ impl Timer {
         }
     }
 
-    pub fn timer_tick(&mut self, cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>) {
+    pub fn timer_tick(&mut self, cpu: &mut CPU) {
         let prev_div: u16 = self.div;
         self.div = self.div.wrapping_add(1); 
 
-        let mut tima_should_increment: bool = false;
+        let tima_should_increment: bool;
             
         // Match reference implementation's bit selection
         match self.tac & 0b11 {

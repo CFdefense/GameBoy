@@ -144,11 +144,6 @@ impl CPU {
 
     // Function to execute an opcode by matching Instruction type and target then calling its method
     fn execute(&mut self, instruction: Instruction) {
-        /* maybe dont need -> return while halted
-        if self.is_halted {
-            return self.pc;
-        }
-        */
         match instruction {
             Instruction::NOP => {
                 self.pc = self.pc.wrapping_add(1);
@@ -212,6 +207,12 @@ impl CPU {
             }
             Instruction::HALT => {
                 self.is_halted = true;
+                self.pc = self.pc.wrapping_add(1);  // Increment PC after HALT
+                
+                // If there's a pending interrupt, exit HALT state immediately
+                if (self.int_flags & self.ie_register) != 0 {
+                    self.is_halted = false;
+                }
             }
             Instruction::ADD(target) => {
                 op_add(self, target);

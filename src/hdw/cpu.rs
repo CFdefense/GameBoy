@@ -30,6 +30,7 @@ pub struct CPU {
     pub int_flags: u8,
     pub enabling_ime: bool,
     pub master_enabled: bool,
+    pub log_ticks: bool,
 }
 impl CPU {
     // Contructor
@@ -64,6 +65,7 @@ impl CPU {
             ie_register: 0,
             enabling_ime: false,
             master_enabled: false,
+            log_ticks: false,
         }
     }
 
@@ -74,8 +76,8 @@ impl CPU {
             self.fetch();
             self.decode();
             
-            print_step_info(self, &ctx, true);
-            log_cpu_state(self, &ctx, true);
+            print_step_info(self, &ctx, self.log_ticks);
+            log_cpu_state(self, &ctx, self.log_ticks);
             debug::dbg_update(&mut self.bus);
             debug::dbg_print();
 
@@ -84,13 +86,15 @@ impl CPU {
             if let Some(instruction) = instruction_to_execute {
                 log_timer_state(self, &ctx, format!("Executing instruction: {:?}", instruction).as_str());
                 self.execute(instruction); // Execute might modify PC and flags
-                let ticks = ctx.lock().unwrap().ticks;
-                print!(" {:08X}", ticks);
-                if let Ok(mut file) = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open("cpu_log.txt") {
-                    let _ = std::io::Write::write_all(&mut file, format!(" {:08X}\n", ticks).as_bytes());
+                if self.log_ticks {
+                    let ticks = ctx.lock().unwrap().ticks;
+                    print!(" {:08X}", ticks);
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("cpu_log.txt") {
+                        let _ = std::io::Write::write_all(&mut file, format!(" {:08X}\n", ticks).as_bytes());
+                    }
                 }
             } else {
                 panic!("Decode Error: No Instruction")

@@ -30,10 +30,9 @@ pub struct Bus {
 }
 
 impl Bus {
-    // Consructor
+    // Constructor
     pub fn new(cart: Cartridge) -> Self {
         Bus {
-            // initialize vars
             cart,
             ram: RAM::new(),
         }
@@ -41,86 +40,57 @@ impl Bus {
 
     // Function to return a byte at an address
     pub fn read_byte(&self, cpu: Option<&CPU>, address: u16) -> u8 {
-        if address < 0x8000 {
-            // ROM DATA
-            self.cart.read_byte(address)
-        } else if address < 0xA000 {
-            // Char/Map Data
-            print!("\nMEM NOT IMPL <A");
-            0
-        } else if address < 0xC000 {
-            // Cartridge RAM
-            self.cart.read_byte(address)
-        } else if address < 0xE000 {
-            // WRAM
-            self.ram.wram_read(address)
-        } else if address < 0xFE00 {
-            // Reserved Echo RAM
-            0
-        } else if address < 0xFEA0 {
-            // OAM
-            print!("\nMEM NOT IMPL <FEA0");
-            0
-        } else if address < 0xFF00 {
-            // Reserved Unusable
-            0
-        } else if address < 0xFF80 {
-            // IO Registers
-            io_read(cpu, address)
-        } else if address == 0xFFFF {
-            // Interrupt Enable Register
-            if let Some(cpu) = cpu {
-                cpu.get_ie_register()
-            } else {
-                panic!("BUS: Attempted to read IE register without CPU reference")
-            }
-        } else {
-            // HRAM (Zero Page)
-            self.ram.hram_read(address)
+        match address {
+            0x0000..=0x7FFF => self.cart.read_byte(address),  // ROM Banks
+            0x8000..=0x9FFF => {  // Char/Map Data
+                print!("\nMEM NOT IMPL <A");
+                0
+            },
+            0xA000..=0xBFFF => self.cart.read_byte(address),  // Cartridge RAM
+            0xC000..=0xDFFF => self.ram.wram_read(address),   // WRAM
+            0xE000..=0xFDFF => 0,  // Reserved Echo RAM
+            0xFE00..=0xFE9F => {   // OAM
+                print!("\nMEM NOT IMPL <FEA0");
+                0
+            },
+            0xFEA0..=0xFEFF => 0,  // Reserved Unusable
+            0xFF00..=0xFF7F => io_read(cpu, address),  // IO Registers
+            0xFFFF => match cpu {   // Interrupt Enable Register
+                Some(cpu) => cpu.get_ie_register(),
+                None => panic!("BUS: Attempted to read IE register without CPU reference")
+            },
+            _ => self.ram.hram_read(address)  // HRAM (Zero Page)
         }
     }
 
     // Function to write byte to correct place
     pub fn write_byte(&mut self, cpu: Option<&mut CPU>, address: u16, value: u8) {
-        // Temporary logging
-        if address >= 0xFF00 && address <= 0xFF7F {
+        // Log IO writes
+        if (0xFF00..=0xFF7F).contains(&address) {
             println!("BUS_WRITE_IO: Addr={:04X}, Val={:02X}", address, value);
         }
 
-        if address < 0x8000 {
-            // ROM DATA
-            self.cart.write_byte(address, value);
-        } else if address < 0xA000 {
-            // Char/Map Data
-            print!("\nMEM NOT IMPL <A000");
-        } else if address < 0xC000 {
-            // EXT RAM
-            self.cart.write_byte(address, value);
-        } else if address < 0xE000 {
-            // WRAM
-            self.ram.wram_write(address, value);
-        } else if address < 0xFE00 {
-            // Reserved ECHO RAM
-        } else if address < 0xFEA0 {
-            // OAM RAM
-            print!("\nMEM NOT IMPL <FEA0");
-        } else if address < 0xFF00 {
-            // Reserved Unusuable
-        } else if address < 0xFF80 {
-            // IO Registers
-            // More temporary logging
-            println!("BUS_WRITE_IO: Dispatching to io_write for Addr={:04X}, Val={:02X}", address, value);
-            io_write(cpu, address, value);
-        } else if address == 0xFFFF {
-            // Interrupt Enable Register
-            if let Some(cpu) = cpu {
-                cpu.set_ie_register(value);
-            } else {
-                panic!("BUS: Attempted to write IE register without CPU reference");
-            }
-        } else {
-            // HRAM
-            self.ram.hram_write(address, value);
+        match address {
+            0x0000..=0x7FFF => self.cart.write_byte(address, value),  // ROM Banks
+            0x8000..=0x9FFF => {  // Char/Map Data
+                print!("\nMEM NOT IMPL <A000");
+            },
+            0xA000..=0xBFFF => self.cart.write_byte(address, value),  // Cartridge RAM
+            0xC000..=0xDFFF => self.ram.wram_write(address, value),   // WRAM
+            0xE000..=0xFDFF => (),  // Reserved Echo RAM
+            0xFE00..=0xFE9F => {    // OAM RAM
+                print!("\nMEM NOT IMPL <FEA0");
+            },
+            0xFEA0..=0xFEFF => (),  // Reserved Unusable
+            0xFF00..=0xFF7F => {    // IO Registers
+                println!("BUS_WRITE_IO: Dispatching to io_write for Addr={:04X}, Val={:02X}", address, value);
+                io_write(cpu, address, value);
+            },
+            0xFFFF => match cpu {    // Interrupt Enable Register
+                Some(cpu) => cpu.set_ie_register(value),
+                None => panic!("BUS: Attempted to write IE register without CPU reference")
+            },
+            _ => self.ram.hram_write(address, value)  // HRAM
         }
     }
 }

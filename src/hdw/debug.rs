@@ -1,14 +1,14 @@
 // Debug to retrieve data from serial from blaarg tests
 
 use std::sync::Mutex;
-use crate::hdw::bus::Bus;
+use crate::hdw::bus::BUS;
 
 // Thread-safe debug message buffer
 lazy_static::lazy_static! {
     static ref DBG_MSG: Mutex<Vec<u8>> = Mutex::new(Vec::with_capacity(1024));
 }
 
-pub fn dbg_update(bus: &mut Bus) {
+pub fn dbg_update(bus: &mut BUS) {
     if bus.read_byte(None, 0xFF02) == 0x81 { // Check for 0x81 to indicate transfer request with internal clock
         let c = bus.read_byte(None, 0xFF01); // get flag from serial
     

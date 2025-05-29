@@ -1,6 +1,8 @@
 // io.rs
 use std::sync::Mutex;
 use crate::hdw::debug_timer::log_timer_state;
+use crate::hdw::dma::DMA;
+use crate::hdw::cpu::CPU;
 
 // Use the EMU_CONTEXT from the emu module
 use crate::hdw::emu::EMU_CONTEXT;
@@ -8,9 +10,10 @@ use crate::hdw::emu::EMU_CONTEXT;
 // Thread-safe serial data using a Mutex
 lazy_static::lazy_static! {
     static ref SERIAL_DATA: Mutex<[u8; 2]> = Mutex::new([0; 2]);
+    static ref LY: Mutex<u8> = Mutex::new(0);
 }
 
-pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
+pub fn io_read(cpu: Option<&CPU>, address: u16) -> u8 {
     let value = match address {
         0xFF01 => {
             if let Ok(data) = SERIAL_DATA.lock() {
@@ -52,6 +55,15 @@ pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
             } else {
                 0
             }
+        },
+        0xFF44 => {
+            if let Ok(mut ly) = LY.lock() {
+                *ly += 1;
+                *ly
+            } else {
+                println!("Failed to lock LY for reading");
+                0
+            }
         }
         _ => {
             println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
@@ -62,7 +74,7 @@ pub fn io_read(cpu: Option<&crate::hdw::cpu::CPU>, address: u16) -> u8 {
     value
 }
 
-pub fn io_write(cpu_opt: Option<&mut crate::hdw::cpu::CPU>, address: u16, value: u8) {
+pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DMA) {
     match address {
         0xFF01 => {
             if let Ok(mut data) = SERIAL_DATA.lock() {
@@ -113,6 +125,10 @@ pub fn io_write(cpu_opt: Option<&mut crate::hdw::cpu::CPU>, address: u16, value:
                 c.set_int_flags(value);
             }
             return;
+        },
+        0xFF46 => {
+            dma.dma_start(value);
+            println!("DMA STARTED \n");
         }
         _ => {
             println!("IO WRITE NOT IMPLEMENTED for address: {:04X}", address);

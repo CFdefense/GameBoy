@@ -18,3 +18,4 @@ pub mod stack;
 pub mod timer;
 pub mod ui;
 pub mod ppu;
+pub mod dma;

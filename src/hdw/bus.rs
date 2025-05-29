@@ -23,21 +23,24 @@ use super::cart::Cartridge;
 use crate::hdw::cpu::CPU;
 use crate::hdw::ram::RAM;
 use crate::hdw::ppu::PPU;
+use crate::hdw::dma::DMA;
 use crate::hdw::io::{io_read,io_write};
 
-pub struct Bus {
-    cart: Cartridge,
-    ram: RAM,
-    ppu: PPU,
+pub struct BUS {
+    pub cart: Cartridge,
+    pub ram: RAM,
+    pub ppu: PPU,
+    pub dma: DMA,
 }
 
-impl Bus {
+impl BUS {
     // Constructor
     pub fn new(cart: Cartridge) -> Self {
-        Bus {
+        BUS {
             cart,
             ram: RAM::new(),
             ppu: PPU::new(),
+            dma: DMA::new(),
         }
     }
 
@@ -52,7 +55,11 @@ impl Bus {
             0xC000..=0xDFFF => self.ram.wram_read(address),   // WRAM
             0xE000..=0xFDFF => 0,  // Reserved Echo RAM
             0xFE00..=0xFE9F => {   // OAM
-                self.ppu.ppu_oam_read(address)
+                if self.dma.dma_transferring() {
+                    return 0xFF;
+                } else {
+                    self.ppu.ppu_oam_read(address)
+                }
             },
             0xFEA0..=0xFEFF => 0,  // Reserved Unusable
             0xFF00..=0xFF7F => io_read(cpu, address),  // IO Registers
@@ -75,12 +82,16 @@ impl Bus {
             0xC000..=0xDFFF => self.ram.wram_write(address, value),   // WRAM
             0xE000..=0xFDFF => (),  // Reserved Echo RAM
             0xFE00..=0xFE9F => {    // OAM RAM
-                self.ppu.ppu_oam_write(address, value)
+                if self.dma.dma_transferring() {
+                    return;
+                } else {
+                    self.ppu.ppu_oam_write(address, value)
+                }
             },
             0xFEA0..=0xFEFF => (),  // Reserved Unusable
             0xFF00..=0xFF7F => {    // IO Registers
                 println!("BUS_WRITE_IO: Dispatching to io_write for Addr={:04X}, Val={:02X}", address, value);
-                io_write(cpu, address, value);
+                io_write(cpu, address, value, &mut self.dma);
             },
             0xFFFF => match cpu {    // Interrupt Enable Register
                 Some(cpu) => cpu.set_ie_register(value),
@@ -88,5 +99,13 @@ impl Bus {
             },
             _ => self.ram.hram_write(address, value)  // HRAM
         }
+    }
+
+    pub fn tick_dma(&mut self) {
+        let mut dma = std::mem::take(&mut self.dma);
+        if dma.dma_transferring() {
+            dma.dma_tick(self);
+        }
+        self.dma = dma;
     }
 }

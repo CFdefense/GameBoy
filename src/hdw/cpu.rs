@@ -1,4 +1,4 @@
-use crate::hdw::bus::Bus;
+use crate::hdw::bus::BUS;
 use crate::hdw::cpu_ops::*;
 use crate::hdw::instructions::*;
 use crate::hdw::interrupts::*;
@@ -18,7 +18,7 @@ pub struct CPU {
     pub registers: Registers,
     pub pc: u16,
     pub sp: u16,
-    pub bus: Bus,
+    pub bus: BUS,
 
     pub curr_opcode: u8,
     pub curr_instruction: Option<Instruction>,
@@ -34,7 +34,7 @@ pub struct CPU {
 }
 impl CPU {
     // Contructor
-    pub fn new(new_bus: Bus) -> Self {
+    pub fn new(new_bus: BUS) -> Self {
         CPU {
             registers: Registers {
                 a: 0x01,

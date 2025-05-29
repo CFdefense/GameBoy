@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 // Import your required modules
-use crate::hdw::bus::Bus;
+use crate::hdw::bus::BUS;
 use crate::hdw::cart::Cartridge;
 use crate::hdw::cpu::CPU;
 use crate::hdw::timer::Timer;
@@ -22,6 +22,7 @@ pub struct EmuContext {
     pub die: bool,
     pub ticks: u64,
     pub cpu: Option<Arc<Mutex<CPU>>>,
+    pub bus: BUS,
     debug_limit: Option<u32>,
     instruction_count: u32,
     pub timer: Timer,
@@ -35,6 +36,7 @@ impl EmuContext {
             die: false,
             ticks: 0,
             cpu: None,
+            bus: BUS::new(Cartridge::new()),
             debug_limit,
             instruction_count: 0,
             timer: Timer::new(),
@@ -140,15 +142,19 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     }
     let mut ui = ui_result.unwrap();
 
-    // Initialize Bus and CPU
-    let bus = Bus::new(cart);
-    let cpu = Arc::new(Mutex::new(CPU::new(bus)));
-    
-    // Initialize context
+    // Initialize context first
     let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit)));
     
-    // Store CPU reference in context
-    ctx.lock().unwrap().cpu = Some(Arc::clone(&cpu));
+    // Initialize Bus and CPU
+    let bus = BUS::new(cart);
+    let cpu = Arc::new(Mutex::new(CPU::new(bus)));
+    
+    // Update context with CPU and bus
+    {
+        let mut ctx_lock = ctx.lock().unwrap();
+        ctx_lock.cpu = Some(Arc::clone(&cpu));
+        ctx_lock.bus = BUS::new(Cartridge::new()); // Create new bus instance for context
+    }
 
     // Initialize the global context reference
     init_global_emu_context(Arc::clone(&ctx));
@@ -201,6 +207,7 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
                 // Call timer_tick with the passed CPU reference
                 emu_ctx_lock.timer.timer_tick(cpu);
             }
+            emu_ctx_lock.bus.tick_dma(); // tick once per 4 t-cycles
         } else {
             eprintln!("emu_cycles: Failed to lock EmuContext.");
         }

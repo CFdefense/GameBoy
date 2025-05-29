@@ -22,11 +22,13 @@
 use super::cart::Cartridge;
 use crate::hdw::cpu::CPU;
 use crate::hdw::ram::RAM;
+use crate::hdw::ppu::PPU;
 use crate::hdw::io::{io_read,io_write};
 
 pub struct Bus {
     cart: Cartridge,
     ram: RAM,
+    ppu: PPU,
 }
 
 impl Bus {
@@ -35,6 +37,7 @@ impl Bus {
         Bus {
             cart,
             ram: RAM::new(),
+            ppu: PPU::new(),
         }
     }
 
@@ -43,15 +46,13 @@ impl Bus {
         match address {
             0x0000..=0x7FFF => self.cart.read_byte(address),  // ROM Banks
             0x8000..=0x9FFF => {  // Char/Map Data
-                print!("\nMEM NOT IMPL <A");
-                0
+                self.ppu.ppu_vram_read(address)
             },
             0xA000..=0xBFFF => self.cart.read_byte(address),  // Cartridge RAM
             0xC000..=0xDFFF => self.ram.wram_read(address),   // WRAM
             0xE000..=0xFDFF => 0,  // Reserved Echo RAM
             0xFE00..=0xFE9F => {   // OAM
-                print!("\nMEM NOT IMPL <FEA0");
-                0
+                self.ppu.ppu_oam_read(address)
             },
             0xFEA0..=0xFEFF => 0,  // Reserved Unusable
             0xFF00..=0xFF7F => io_read(cpu, address),  // IO Registers
@@ -65,21 +66,16 @@ impl Bus {
 
     // Function to write byte to correct place
     pub fn write_byte(&mut self, cpu: Option<&mut CPU>, address: u16, value: u8) {
-        // Log IO writes
-        if (0xFF00..=0xFF7F).contains(&address) {
-            println!("BUS_WRITE_IO: Addr={:04X}, Val={:02X}", address, value);
-        }
-
         match address {
             0x0000..=0x7FFF => self.cart.write_byte(address, value),  // ROM Banks
             0x8000..=0x9FFF => {  // Char/Map Data
-                print!("\nMEM NOT IMPL <A000");
+                self.ppu.ppu_vram_write(address, value)
             },
             0xA000..=0xBFFF => self.cart.write_byte(address, value),  // Cartridge RAM
             0xC000..=0xDFFF => self.ram.wram_write(address, value),   // WRAM
             0xE000..=0xFDFF => (),  // Reserved Echo RAM
             0xFE00..=0xFE9F => {    // OAM RAM
-                print!("\nMEM NOT IMPL <FEA0");
+                self.ppu.ppu_oam_write(address, value)
             },
             0xFEA0..=0xFEFF => (),  // Reserved Unusable
             0xFF00..=0xFF7F => {    // IO Registers

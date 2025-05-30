@@ -105,14 +105,6 @@ impl PixelFIFO {
             Some(head.color_value)
         }
     }
-
-    pub fn pipeline_fetch() {
-
-    }
-
-    pub fn pipeline_process() {
-        
-    }
 }
 
 impl OAMEntry {
@@ -179,6 +171,35 @@ impl PPU {
         ppu.lcd.lcds_mode_set(LcdMode::OAM);
         
         ppu
+    }
+
+    pub fn pipeline_fetch() {
+        todo!();
+    }
+
+    pub fn pipeline_push_pixel(&mut self) {
+        if self.pixel_fifo.fifo.size > 8 {
+            let pixel_data = self.pixel_fifo.pixel_fifo_pop().unwrap();
+
+            if self.pixel_fifo.line_x >= self.lcd.scx % 8 {
+                self.video_buffer[self.pixel_fifo.pushed_x as usize + (self.lcd.ly as usize * XRES as usize)] = pixel_data;
+                self.pixel_fifo.pushed_x += 1;
+            }
+
+            self.pixel_fifo.line_x += 1;
+        }
+    }
+
+    pub fn pipeline_process(&mut self) {
+        self.pixel_fifo.map_y = self.lcd.ly + self.lcd.scy;
+        self.pixel_fifo.map_x = self.pixel_fifo.fetch_x + self.lcd.scx;
+        self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
+
+        if (self.line_ticks & 1) == 0 { // Even Line
+            self.pipeline_fetch();
+        }
+
+        self.pipeline_push_pixel();
     }
 
     fn increment_ly(&mut self) -> Vec<Interrupts> {
@@ -330,14 +351,5 @@ impl PPU {
 
     pub fn ppu_vram_read(&self, address: u16) -> u8 {
         self.vram[(address - 0x8000) as usize]
-    }
-
-    // Placeholder functions for pipeline processing
-    fn pipeline_process(&mut self) {
-        // TODO: Implement pixel pipeline processing
-    }
-
-    fn pipeline_fifo_reset(&mut self) {
-        self.pixel_fifo.fifo = FIFO::new();
     }
 }

@@ -15,12 +15,6 @@ pub fn stack_push(cpu: &mut CPU, value: u8, cycle: bool) {
         // We ensure no other mutable references exist during this time
         cpu.bus
             .write_byte(Some(unsafe { &mut *cpu_ref }), cpu.sp, value);
-        print!("Stack push wrote to {:?} the value {:?}", cpu.sp, value);
-        print!(
-            "Got from {:?} the value {:?}",
-            cpu.sp,
-            cpu.bus.read_byte(Some(unsafe { &mut *cpu_ref }), cpu.sp),
-        );
     }
 }
 

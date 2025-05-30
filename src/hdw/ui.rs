@@ -10,6 +10,7 @@ use sdl2::EventPump;
 use sdl2::surface::Surface;
 use sdl2::rect::Rect;
 use sdl2::pixels::Color;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const SCREEN_WIDTH: u32 = 1024;
 pub const SCREEN_HEIGHT: u32 = 768;
@@ -184,9 +185,16 @@ impl UI {
     }
 }
 
-// Standalone functions for compatibility with C-style code
+// Standalone functions
 pub fn delay(ms: u32) {
     std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+}
+
+pub fn get_ticks() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 pub fn ui_handle_events(cpu: &mut super::cpu::CPU) -> bool {

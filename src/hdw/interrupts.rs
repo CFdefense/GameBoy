@@ -8,7 +8,7 @@ use std::sync::Mutex;
 #[derive(Copy, Clone)]
 pub enum Interrupts {
     VBLANK = 1,
-    LCDSTART = 2,
+    LCDSTAT = 2,
     TIMER = 4,
     SERIAL = 8,
     JOYPAD = 16,
@@ -96,7 +96,7 @@ pub fn int_check(cpu: &mut CPU, int_controller: &mut InterruptController, ctx: &
 
 pub fn cpu_handle_interrupts(cpu: &mut CPU, int_controller: &mut InterruptController, ctx: &Arc<Mutex<EmuContext>>) {
     if int_check(cpu, int_controller, ctx, 0x40, Interrupts::VBLANK) {
-    } else if int_check(cpu, int_controller, ctx, 0x48, Interrupts::LCDSTART) {
+    } else if int_check(cpu, int_controller, ctx, 0x48, Interrupts::LCDSTAT) {
     } else if int_check(cpu, int_controller, ctx, 0x50, Interrupts::TIMER) {
     } else if int_check(cpu, int_controller, ctx, 0x58, Interrupts::SERIAL) {
     } else if int_check(cpu, int_controller, ctx, 0x60, Interrupts::JOYPAD) {

@@ -26,10 +26,11 @@ pub struct EmuContext {
     debug_limit: Option<u32>,
     instruction_count: u32,
     pub timer: Timer,
+    pub debug: bool,
 }
 
 impl EmuContext {
-    pub fn new(debug_limit: Option<u32>) -> Self {
+    pub fn new(debug_limit: Option<u32>, debug: bool) -> Self {
         EmuContext {
             running: true,
             paused: false,
@@ -40,6 +41,7 @@ impl EmuContext {
             debug_limit,
             instruction_count: 0,
             timer: Timer::new(),
+            debug,
         }
     }
 
@@ -97,16 +99,22 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     // Parse command line arguments
     let mut rom_path = None;
     let mut debug_limit = None;
+    let mut debug = false;
     let mut i = 1;
     
     while i < args.len() {
         match args[i].as_str() {
-            "--debug" => {
+            "--debug-limit" => {
                 if i + 1 < args.len() {
                     debug_limit = Some(args[i + 1].parse().expect("Debug limit must be a number"));
                     i += 2;
                     continue;
                 }
+            }
+            "--debug" => {
+                debug = true;
+                i += 1;
+                continue;
             }
             path => {
                 rom_path = Some(path);
@@ -143,11 +151,11 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     let mut ui = ui_result.unwrap();
 
     // Initialize context first
-    let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit)));
+    let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit, debug)));
     
     // Initialize Bus and CPU
     let bus = BUS::new(cart);
-    let cpu = Arc::new(Mutex::new(CPU::new(bus)));
+    let cpu = Arc::new(Mutex::new(CPU::new(bus, debug)));
     
     // Update context with CPU and bus
     {
@@ -168,10 +176,25 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     });
 
     // Main loop for UI and event handling
+    let mut prev_frame = 0;
+    
     while !ctx.lock().unwrap().die {
+        // Small delay
+        thread::sleep(Duration::from_millis(1));
+        
         // Handle UI events
         let mut cpu_lock = cpu.lock().unwrap();
         let continue_running = ui.handle_events(&mut cpu_lock);
+        
+        // Check if frame has changed and update UI
+        let current_frame = cpu_lock.bus.ppu.current_frame;
+        if prev_frame != current_frame {
+            // Frame has changed, update UI
+            // Note: In the future, this could call a specific ui.update() method
+            // For now, the handle_events already updates the UI
+            prev_frame = current_frame;
+        }
+        
         drop(cpu_lock);
         
         if !continue_running {
@@ -180,8 +203,6 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
             ctx.lock().unwrap().running = false;
             break;
         }
-        
-        thread::sleep(Duration::from_millis(10));
     }
 
     // Wait for CPU thread to finish
@@ -206,7 +227,14 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
                 emu_ctx_lock.ticks += 1;
                 // Call timer_tick with the passed CPU reference
                 emu_ctx_lock.timer.timer_tick(cpu);
+                // Tick PPU for every T-cycle and handle interrupts
+                let ppu_interrupts = cpu.bus.ppu.ppu_tick();
+                for interrupt in ppu_interrupts {
+                    cpu.bus.interrupt_controller.request_interrupt(interrupt);
+                }
             }
+            // Update LCD LY register from PPU
+            cpu.bus.ppu.update_lcd_ly();
             emu_ctx_lock.bus.tick_dma(); // tick once per 4 t-cycles
         } else {
             eprintln!("emu_cycles: Failed to lock EmuContext.");
@@ -214,4 +242,13 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
     } else {
         panic!("emu_cycles: Global EmuContext not initialized. Call init_global_emu_context first.");
     }
+}
+
+pub fn is_debug_enabled() -> bool {
+    if let Some(ctx_arc) = EMU_CONTEXT.get() {
+        if let Ok(ctx_lock) = ctx_arc.lock() {
+            return ctx_lock.debug;
+        }
+    }
+    false
 }

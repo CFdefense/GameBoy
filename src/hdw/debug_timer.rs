@@ -6,6 +6,11 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 pub fn log_timer_state(cpu: &CPU, ctx: &Arc<Mutex<EmuContext>>, message: &str) {
+    // Only log if debug mode is enabled
+    if !crate::hdw::emu::is_debug_enabled() {
+        return;
+    }
+    
     let raw_int_flags = cpu.bus.interrupt_controller.get_int_flags();
     let masked_int_flags = cpu.bus.interrupt_controller.get_int_flags() | 0xE0;
     let (ticks, timer_div, timer_tima, timer_tma, timer_tac) = {

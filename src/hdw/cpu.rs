@@ -27,10 +27,11 @@ pub struct CPU {
     pub is_stepping: bool,
 
     pub log_ticks: bool,
+    pub debug: bool,
 }
 impl CPU {
     // Contructor
-    pub fn new(new_bus: BUS) -> Self {
+    pub fn new(new_bus: BUS, debug: bool) -> Self {
         CPU {
             registers: Registers {
                 a: 0x01,
@@ -58,6 +59,7 @@ impl CPU {
             is_stepping: true,
 
             log_ticks: false,
+            debug: debug,
         }
     }
 
@@ -68,8 +70,10 @@ impl CPU {
             self.fetch();
             self.decode();
             
-            print_step_info(self, &ctx, self.log_ticks);
-            log_cpu_state(self, &ctx, self.log_ticks);
+            if self.debug {
+                print_step_info(self, &ctx, self.log_ticks);
+                log_cpu_state(self, &ctx, self.log_ticks);
+            }
             debug::dbg_update(&mut self.bus);
             debug::dbg_print();
 
@@ -78,7 +82,7 @@ impl CPU {
             if let Some(instruction) = instruction_to_execute {
                 log_timer_state(self, &ctx, format!("Executing instruction: {:?}", instruction).as_str());
                 self.execute(instruction); // Execute might modify PC and flags
-                if self.log_ticks {
+                if self.log_ticks && self.debug {
                     let ticks = ctx.lock().unwrap().ticks;
                     print!(" {:08X}", ticks);
                     if let Ok(mut file) = std::fs::OpenOptions::new()

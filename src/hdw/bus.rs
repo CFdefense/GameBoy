@@ -65,7 +65,7 @@ impl BUS {
                 }
             },
             0xFEA0..=0xFEFF => 0,  // Reserved Unusable
-            0xFF00..=0xFF7F => io_read(cpu, address, &self.interrupt_controller),  // IO Registers
+            0xFF00..=0xFF7F => io_read(cpu, address, &self.interrupt_controller, &self.ppu),  // IO Registers
             0xFFFF => self.interrupt_controller.get_ie_register(),   // Interrupt Enable Register
             _ => self.ram.hram_read(address)  // HRAM (Zero Page)
         }
@@ -90,8 +90,7 @@ impl BUS {
             },
             0xFEA0..=0xFEFF => (),  // Reserved Unusable
             0xFF00..=0xFF7F => {    // IO Registers
-                println!("BUS_WRITE_IO: Dispatching to io_write for Addr={:04X}, Val={:02X}", address, value);
-                io_write(cpu, address, value, &mut self.dma, &mut self.interrupt_controller);
+                io_write(cpu, address, value, &mut self.dma, &mut self.interrupt_controller, &mut self.ppu);
             },
             0xFFFF => self.interrupt_controller.set_ie_register(value),    // Interrupt Enable Register
             _ => self.ram.hram_write(address, value)  // HRAM

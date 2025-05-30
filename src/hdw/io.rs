@@ -4,6 +4,7 @@ use crate::hdw::debug_timer::log_timer_state;
 use crate::hdw::dma::DMA;
 use crate::hdw::cpu::CPU;
 use crate::hdw::interrupts::InterruptController;
+use crate::hdw::ppu::PPU;
 
 // Use the EMU_CONTEXT from the emu module
 use crate::hdw::emu::EMU_CONTEXT;
@@ -11,10 +12,9 @@ use crate::hdw::emu::EMU_CONTEXT;
 // Thread-safe serial data using a Mutex
 lazy_static::lazy_static! {
     static ref SERIAL_DATA: Mutex<[u8; 2]> = Mutex::new([0; 2]);
-    static ref LY: Mutex<u8> = Mutex::new(0);
 }
 
-pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &InterruptController) -> u8 {
+pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &InterruptController, ppu: &PPU) -> u8 {
     let value = match address {
         0xFF01 => {
             if let Ok(data) = SERIAL_DATA.lock() {
@@ -50,20 +50,16 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
             let val = interrupt_controller.get_int_flags();
             if let Some(c) = cpu {
                 if let Some(ctx_arc) = EMU_CONTEXT.get() {
-                    log_timer_state(c, ctx_arc, &format!("Reading INT_FLAGS from FF0F = {:02X}", val));
+                    if crate::hdw::emu::is_debug_enabled() {
+                        log_timer_state(c, ctx_arc, &format!("Reading INT_FLAGS from FF0F = {:02X}", val));
+                    }
                 }
             }
             val
         },
-        0xFF44 => {
-            if let Ok(mut ly) = LY.lock() {
-                *ly += 1;
-                *ly
-            } else {
-                println!("Failed to lock LY for reading");
-                0
-            }
-        }
+        0xFF40..=0xFF4B => {
+            ppu.lcd.lcd_read(address)
+        },
         _ => {
             println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
             0
@@ -73,7 +69,7 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
     value
 }
 
-pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DMA, interrupt_controller: &mut InterruptController) {
+pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DMA, interrupt_controller: &mut InterruptController, ppu: &mut PPU) {
     match address {
         0xFF01 => {
             if let Ok(mut data) = SERIAL_DATA.lock() {
@@ -102,15 +98,6 @@ pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DM
                     
                     // Release the lock before logging
                     drop(emu_ctx_lock);
-                    
-                    // Now do logging if needed (without holding the lock)
-                    if address == 0xFF07 {
-                        if let Some(ref cpu) = cpu_opt {
-                            println!("TAC Write: Value={:02X}, Old={:02X}, PC={:04X}", value, old_tac, cpu.pc);
-                        }
-                    }
-                } else {
-                    eprintln!("io_write (timer): Failed to lock EmuContext");
                 }
             } else {
                 eprintln!("io_write (timer): Global EmuContext not initialized");
@@ -118,15 +105,21 @@ pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DM
             return;
         },
         0xFF0F => {
-            // For IF writes, just print directly instead of using log_timer_state
-            println!("Writing INT_FLAGS = {:02X}", value);
             interrupt_controller.set_int_flags(value);
             return;
         },
-        0xFF46 => {
-            dma.dma_start(value);
-            println!("DMA STARTED \n");
-        }
+        0xFF40..=0xFF4B => {
+            let result = ppu.lcd.lcd_write(address, value);
+            
+            // if lcd write returns a value we know to initiate a dma transfer
+            if let Some(dma_value) = result {
+                dma.dma_start(dma_value);
+
+                if crate::hdw::emu::is_debug_enabled() {
+                    println!("DMA STARTED");
+                }
+            }
+        },
         _ => {
             println!("IO WRITE NOT IMPLEMENTED for address: {:04X}", address);
         }

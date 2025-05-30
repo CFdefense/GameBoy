@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 pub fn log_timer_state(cpu: &CPU, ctx: &Arc<Mutex<EmuContext>>, message: &str) {
-    let raw_int_flags = cpu.int_flags;
-    let masked_int_flags = cpu.int_flags | 0xE0;
+    let raw_int_flags = cpu.bus.interrupt_controller.get_int_flags();
+    let masked_int_flags = cpu.bus.interrupt_controller.get_int_flags() | 0xE0;
     let (ticks, timer_div, timer_tima, timer_tma, timer_tac) = {
         let emu_ctx_locked = ctx.lock().unwrap();
         (
@@ -28,8 +28,8 @@ pub fn log_timer_state(cpu: &CPU, ctx: &Arc<Mutex<EmuContext>>, message: &str) {
         timer_tac,
         raw_int_flags,
         masked_int_flags,
-        cpu.ie_register,
-        cpu.master_enabled,
+        cpu.bus.interrupt_controller.get_ie_register(),
+        cpu.bus.interrupt_controller.is_master_enabled(),
         cpu.pc,
         message
     );

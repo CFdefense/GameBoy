@@ -1791,7 +1791,7 @@ pub fn op_ret(cpu: &mut CPU, target: JumpTest) -> bool {
 // [0xD9]
 pub fn op_reti(cpu: &mut CPU) {
     // Update Interrupt
-    cpu.master_enabled = true;
+    cpu.bus.interrupt_controller.set_master_enabled(true);
 
     // Call RET Logic w Always so it executes, op_ret will handle PC
     op_ret(cpu, JumpTest::Always);

@@ -335,8 +335,8 @@ pub fn log_cpu_state(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, log_ticks: boo
             cpu.registers.get_bc(),
             cpu.registers.get_de(),
             cpu.registers.get_hl(),
-            cpu.ie_register,
-            cpu.int_flags
+            cpu.bus.interrupt_controller.get_ie_register(),
+            cpu.bus.interrupt_controller.get_int_flags()
         )
     } else {
         let pcmem0 = cpu.bus.read_byte(None, cpu.pc);

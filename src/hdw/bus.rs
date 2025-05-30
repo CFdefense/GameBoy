@@ -24,6 +24,7 @@ use crate::hdw::cpu::CPU;
 use crate::hdw::ram::RAM;
 use crate::hdw::ppu::PPU;
 use crate::hdw::dma::DMA;
+use crate::hdw::interrupts::InterruptController;
 use crate::hdw::io::{io_read,io_write};
 
 pub struct BUS {
@@ -31,6 +32,7 @@ pub struct BUS {
     pub ram: RAM,
     pub ppu: PPU,
     pub dma: DMA,
+    pub interrupt_controller: InterruptController,
 }
 
 impl BUS {
@@ -41,6 +43,7 @@ impl BUS {
             ram: RAM::new(),
             ppu: PPU::new(),
             dma: DMA::new(),
+            interrupt_controller: InterruptController::new(),
         }
     }
 
@@ -62,11 +65,8 @@ impl BUS {
                 }
             },
             0xFEA0..=0xFEFF => 0,  // Reserved Unusable
-            0xFF00..=0xFF7F => io_read(cpu, address),  // IO Registers
-            0xFFFF => match cpu {   // Interrupt Enable Register
-                Some(cpu) => cpu.get_ie_register(),
-                None => panic!("BUS: Attempted to read IE register without CPU reference")
-            },
+            0xFF00..=0xFF7F => io_read(cpu, address, &self.interrupt_controller),  // IO Registers
+            0xFFFF => self.interrupt_controller.get_ie_register(),   // Interrupt Enable Register
             _ => self.ram.hram_read(address)  // HRAM (Zero Page)
         }
     }
@@ -91,12 +91,9 @@ impl BUS {
             0xFEA0..=0xFEFF => (),  // Reserved Unusable
             0xFF00..=0xFF7F => {    // IO Registers
                 println!("BUS_WRITE_IO: Dispatching to io_write for Addr={:04X}, Val={:02X}", address, value);
-                io_write(cpu, address, value, &mut self.dma);
+                io_write(cpu, address, value, &mut self.dma, &mut self.interrupt_controller);
             },
-            0xFFFF => match cpu {    // Interrupt Enable Register
-                Some(cpu) => cpu.set_ie_register(value),
-                None => panic!("BUS: Attempted to write IE register without CPU reference")
-            },
+            0xFFFF => self.interrupt_controller.set_ie_register(value),    // Interrupt Enable Register
             _ => self.ram.hram_write(address, value)  // HRAM
         }
     }

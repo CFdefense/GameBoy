@@ -26,10 +26,6 @@ pub struct CPU {
     pub is_halted: bool,
     pub is_stepping: bool,
 
-    pub ie_register: u8,
-    pub int_flags: u8,
-    pub enabling_ime: bool,
-    pub master_enabled: bool,
     pub log_ticks: bool,
 }
 impl CPU {
@@ -61,10 +57,6 @@ impl CPU {
             is_halted: false,
             is_stepping: true,
 
-            int_flags: 0,
-            ie_register: 0,
-            enabling_ime: false,
-            master_enabled: false,
             log_ticks: false,
         }
     }
@@ -104,21 +96,21 @@ impl CPU {
             // is halted
             emu_cycles(self, 1);
 
-            if self.int_flags != 0 {
+            if self.bus.interrupt_controller.get_int_flags() != 0 {
                 self.is_halted = false;
                 log_timer_state(self, &ctx, "Exiting HALT state due to interrupt");
             }
         }
 
         // Check for interrupts before executing the next instruction
-        if self.master_enabled {
-            cpu_handle_interrupts(self, &ctx);
-            self.enabling_ime = false; // Clear the flag once IME is enabled
+        if self.bus.interrupt_controller.is_master_enabled() {
+            let mut int_controller = std::mem::take(&mut self.bus.interrupt_controller);
+            cpu_handle_interrupts(self, &mut int_controller, &ctx);
+            self.bus.interrupt_controller = int_controller;
         }
 
-        // First, check if we need to enable interrupts from a previous EI instruction
-        if self.enabling_ime {
-            self.master_enabled = true;
+        // Step the interrupt controller to handle delayed IME enabling after EI
+        if self.bus.interrupt_controller.step_ime() {
             log_timer_state(self, &ctx, "IME enabled");
         }
         
@@ -214,7 +206,7 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);  // Increment PC after HALT
                 
                 // If there's a pending interrupt, exit HALT state immediately
-                if (self.int_flags & self.ie_register) != 0 {
+                if (self.bus.interrupt_controller.get_int_flags() & self.bus.interrupt_controller.get_ie_register()) != 0 {
                     self.is_halted = false;
                 }
             }
@@ -283,14 +275,14 @@ impl CPU {
                 op_rst(self, target);
             }
             Instruction::DI => {
-                self.master_enabled = false;
-                self.enabling_ime = false; // DI also cancels a pending EI
+                self.bus.interrupt_controller.set_master_enabled(false);
+                self.bus.interrupt_controller.set_enabling_ime(false); // DI also cancels a pending EI
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::EI => {
                 // EI enables interrupts AFTER the instruction FOLLOWING EI.
                 // So, we set a flag to enable IME on the next cycle.
-                self.enabling_ime = true; 
+                self.bus.interrupt_controller.set_enabling_ime(true); 
                 self.pc = self.pc.wrapping_add(1);
             }
 
@@ -341,26 +333,8 @@ impl CPU {
             }
         }
     }
-
-    // IE Getter
-    pub fn get_ie_register(&self) -> u8 {
-        self.ie_register
-    }
-
-    // IE Setter                // Perform Operation & Implicit Return
-    pub fn set_ie_register(&mut self, value: u8) {
-        self.ie_register = value;
-    }
     
     pub fn cpu_request_interrupt(&mut self, interrupt: Interrupts) {
-        self.int_flags |= interrupt as u8;
-    }
-
-    pub fn get_int_flags(&self) -> u8 {
-        self.int_flags
-    }
-
-    pub fn set_int_flags(&mut self, value: u8) {
-        self.int_flags = value;
+        self.bus.interrupt_controller.request_interrupt(interrupt);
     }
 }

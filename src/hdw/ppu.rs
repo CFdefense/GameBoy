@@ -15,6 +15,106 @@ const TICKS_PER_LINE: u32 = 456;
 const YRES: u8 = 144;
 const XRES: u8 = 160;
 
+pub enum FIFOState {
+    TILE,
+    DATA0,
+    DATA1,
+    IDLE,
+    PUSH,
+}
+
+pub struct FIFOEntry {
+    pub next: Option<Box<FIFOEntry>>,
+    pub color_value: u32,
+}
+
+pub struct FIFO {
+    pub head: Option<Box<FIFOEntry>>,
+    pub tail: Option<Box<FIFOEntry>>,
+    pub size: usize,
+    pub max_size: usize,
+}
+
+impl FIFO {
+    pub fn new() -> Self {
+        FIFO {
+            head: None,
+            tail: None,
+            size: 0,
+            max_size: 10,
+        }
+    }
+}
+
+pub struct PixelFIFO {
+    pub state: FIFOState,
+    pub fifo: FIFO,
+    pub line_x: u8,
+    pub pushed_x: u8,
+    pub fetch_x: u8,
+    pub bgw_fetch_data: [u8; 3],
+    pub fetch_entry_data: [u8; 6],
+    pub map_x: u8,
+    pub map_y: u8,
+    pub tile_y: u8,
+    pub fifo_x: u8,
+}
+
+impl PixelFIFO {
+    pub fn new() -> Self {
+        PixelFIFO {
+            state: FIFOState::TILE,
+            fifo: FIFO::new(),
+            line_x: 0,
+            pushed_x: 0,
+            fetch_x: 0,
+            bgw_fetch_data: [0; 3],
+            fetch_entry_data: [0; 6],
+            map_x: 0,
+            map_y: 0,
+            tile_y: 0,
+            fifo_x: 0,
+        }
+    }
+
+    pub fn pixel_fifo_push(&mut self, value: u32) {
+        let new_entry = Box::new(FIFOEntry {
+            color_value: value,
+            next: None,
+        });
+    
+        if self.fifo.head.is_none() {
+            self.fifo.head = Some(new_entry);
+            self.fifo.tail = self.fifo.head.as_ref().map(|h| h.as_ref() as *const FIFOEntry as *mut FIFOEntry).map(|p| unsafe { Box::from_raw(p) });
+        } else {
+            if let Some(ref mut tail) = self.fifo.tail {
+                tail.next = Some(new_entry);
+            }
+            self.fifo.tail = self.fifo.tail.as_ref().and_then(|t| t.next.as_ref()).map(|h| h.as_ref() as *const FIFOEntry as *mut FIFOEntry).map(|p| unsafe { Box::from_raw(p) });
+        }
+        self.fifo.size += 1;
+    }
+
+    pub fn pixel_fifo_pop(&mut self) -> Option<u32> {
+        if self.fifo.head.is_none() {
+            return None;
+        } else {
+            let head = self.fifo.head.take().unwrap();
+            self.fifo.head = head.next;
+            self.fifo.size -= 1;
+            Some(head.color_value)
+        }
+    }
+
+    pub fn pipeline_fetch() {
+
+    }
+
+    pub fn pipeline_process() {
+        
+    }
+}
+
 impl OAMEntry {
     pub fn new() -> Self {
         OAMEntry {
@@ -47,6 +147,7 @@ pub struct PPU {
     pub video_buffer: Vec<u32>, // Video buffer for frame (YRES * XRES * 32-bit pixels)
     pub line_ticks: u32,  // Ticks for current scanline
     pub lcd: LCD,         // LCD controller
+    pub pixel_fifo: PixelFIFO,
     
     // Frame timing
     target_frame_time: u32,
@@ -65,6 +166,7 @@ impl PPU {
             current_frame: 0,
             video_buffer: vec![0; (YRES as usize) * (XRES as usize)], // Allocate frame buffer
             lcd: LCD::new(),
+            pixel_fifo: PixelFIFO::new(),
             
             // Frame timing (60 FPS)
             target_frame_time: 1000 / 60,
@@ -99,15 +201,30 @@ impl PPU {
     fn ppu_mode_oam(&mut self) -> Vec<Interrupts> {
         if self.line_ticks >= 80 {
             self.lcd.lcds_mode_set(LcdMode::Transfer);
+
+            self.pixel_fifo.state = FIFOState::TILE;
+            self.pixel_fifo.line_x = 0;
+            self.pixel_fifo.fetch_x = 0;
+            self.pixel_fifo.pushed_x = 0;
+            self.pixel_fifo.fifo_x = 0;
         }
         Vec::new()
     }
 
     fn ppu_mode_xfer(&mut self) -> Vec<Interrupts> {
-        if self.line_ticks >= 80 + 172 {
+        self.pipeline_process();
+        let mut interrupts = Vec::new();
+
+        if self.pixel_fifo.pushed_x >= XRES {
+            self.pipeline_fifo_reset();
+
             self.lcd.lcds_mode_set(LcdMode::HBlank);
+
+            if self.lcd.lcds_stat_int(StatSrc::HBlank) {
+                interrupts.push(Interrupts::LCDSTAT);
+            }
         }
-        Vec::new()
+        interrupts
     }
 
     fn ppu_mode_vblank(&mut self) -> Vec<Interrupts> {
@@ -213,5 +330,14 @@ impl PPU {
 
     pub fn ppu_vram_read(&self, address: u16) -> u8 {
         self.vram[(address - 0x8000) as usize]
+    }
+
+    // Placeholder functions for pipeline processing
+    fn pipeline_process(&mut self) {
+        // TODO: Implement pixel pipeline processing
+    }
+
+    fn pipeline_fifo_reset(&mut self) {
+        self.pixel_fifo.fifo = FIFO::new();
     }
 }

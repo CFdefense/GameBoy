@@ -39,10 +39,15 @@ pub fn log_timer_state(cpu: &CPU, ctx: &Arc<Mutex<EmuContext>>, message: &str) {
         message
     );
 
+    // Create logs directory if it doesn't exist
+    if let Err(_) = std::fs::create_dir_all("logs") {
+        return; // If we can't create the directory, skip logging
+    }
+
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("timer_debug.txt")
+        .open("logs/timer_debug.txt")
     {
         let _ = file.write_all(log_entry.as_bytes());
     }

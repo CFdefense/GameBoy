@@ -359,10 +359,15 @@ pub fn log_cpu_state(cpu: &mut CPU, ctx: &Arc<Mutex<EmuContext>>, log_ticks: boo
         )
     };
 
+    // Create logs directory if it doesn't exist
+    if let Err(_) = std::fs::create_dir_all("logs") {
+        return; // If we can't create the directory, skip logging
+    }
+
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("cpu_log.txt")
+        .open("logs/cpu_log.txt")
     {
         let _ = file.write_all(log_entry.as_bytes());
     }

@@ -54,13 +54,13 @@ impl GamePad {
             if self.state.start {
                 output &= !(1 << 3);
             }
-            else if self.state.select {
+            if self.state.select {
                 output &= !(1 << 2);
             }
-            else if self.state.b {
+            if self.state.b {
                 output &= !(1 << 1);
             }
-            else if self.state.a {
+            if self.state.a {
                 output &= !(1 << 0);
             }
         }
@@ -69,13 +69,13 @@ impl GamePad {
             if self.state.down {
                 output &= !(1 << 3);
             }
-            else if self.state.up {
+            if self.state.up {
                 output &= !(1 << 2);
             }
-            else if self.state.left {
+            if self.state.left {
                 output &= !(1 << 1);
             }
-            else if self.state.right {
+            if self.state.right {
                 output &= !(1 << 0);
             }
         }

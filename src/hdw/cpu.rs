@@ -147,7 +147,7 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::STOP => {
-                panic!("STOP");
+                println!("STOPPED");
             }
             Instruction::RLCA => {
                 op_rlca(self);

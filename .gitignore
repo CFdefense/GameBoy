@@ -1,5 +1,5 @@
 /target
-cpu_log.txt
-/src/roms/*
+/logs/*
+/roms/*
 /debug_log.txt
 /timer_debug.txt

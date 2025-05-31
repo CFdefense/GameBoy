@@ -39,6 +39,18 @@ pub struct Cartridge {
     rom_size: usize,
     rom_data: Vec<u8>,
     rom_header: CartridgeHeader,
+
+    // MBC Type 1
+    ram_enabled: bool,
+    ram_banking: bool,
+    rom_bank_x: usize, // Index into ROM data for current bank
+    banking_mode: u8, 
+    rom_bank_value: u8,
+    ram_bank_value: u8,
+    ram_bank: usize, // Index into ram_banks
+    ram_banks: [Option<Vec<u8>>; 16], // Each bank is 8KB when allocated
+    battery: bool,
+    need_save: bool,
 }
 
 impl Cartridge {
@@ -48,9 +60,106 @@ impl Cartridge {
             rom_size: 0,
             rom_data: Vec::<u8>::new(),
             rom_header: CartridgeHeader::new(),
+            ram_enabled: false,
+            ram_banking: false,
+            rom_bank_x: 0,
+            banking_mode: 0,
+            rom_bank_value: 0,
+            ram_bank_value: 0,
+            ram_bank: 0,
+            ram_banks: std::array::from_fn(|_| None),
+            battery: false,
+            need_save: false,
         };
         cartridge
     }
+
+    pub fn cart_setup_banking(&mut self) {
+        for i in 0..16 {
+            self.ram_banks[i] = None;
+
+            if (self.rom_header.ram_size == 2 && i == 0) || 
+               (self.rom_header.ram_size == 3 && i < 4) || 
+               (self.rom_header.ram_size == 4 && i < 16) || 
+               (self.rom_header.ram_size == 5 && i < 8) {
+                // Allocate 8KB (0x2000 bytes) for each RAM bank
+                self.ram_banks[i] = Some(vec![0; 0x2000]);
+            }
+        }
+
+        self.ram_bank = 0; // Point to first bank
+        self.rom_bank_x = 0x4000; // ROM bank 1 starts at 0x4000
+        
+        // For MBC1, initialize with proper defaults
+        if self.cart_mbc1() {
+            self.ram_enabled = false; // RAM starts disabled
+            self.ram_banking = true;  // Enable RAM banking by default
+        }
+    }
+
+    pub fn cart_load_battery(&mut self) {
+        if self.ram_banks[self.ram_bank].is_none() {
+            return;
+        }
+
+        // Extract filename without path
+        let filename = std::path::Path::new(&self.file_name)
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new(&self.file_name))
+            .to_string_lossy();
+        
+        let save_file_path = format!("saves/{}.battery", filename);
+        
+        if let Ok(save_data) = std::fs::read(&save_file_path) {
+            println!("Loading battery save: {}", save_file_path);
+            
+            if let Some(ref mut ram_bank) = self.ram_banks[self.ram_bank] {
+                if save_data.len() >= 0x2000 {
+                    ram_bank[..0x2000].copy_from_slice(&save_data[..0x2000]);
+                } else {
+                    // If save file is smaller, copy what we can
+                    let copy_len = save_data.len().min(ram_bank.len());
+                    ram_bank[..copy_len].copy_from_slice(&save_data[..copy_len]);
+                }
+            }
+        } else {
+            println!("FAILED TO OPEN: {}", save_file_path);
+        }
+    }
+
+    pub fn cart_save_battery(&mut self) {
+        if self.ram_banks[self.ram_bank].is_none() {
+            return;
+        }
+
+        // Create saves directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all("saves") {
+            println!("Failed to create saves directory: {}", e);
+            return;
+        }
+
+        // Extract filename without path
+        let filename = std::path::Path::new(&self.file_name)
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new(&self.file_name))
+            .to_string_lossy();
+        
+        let save_file_path = format!("saves/{}.battery", filename);
+        
+        if let Some(ref ram_bank) = self.ram_banks[self.ram_bank] {
+            // Save only 8KB (0x2000 bytes) from current RAM bank
+            let save_data = &ram_bank[..0x2000];
+            
+            if let Err(e) = std::fs::write(&save_file_path, save_data) {
+                println!("FAILED TO OPEN: {}", save_file_path);
+                println!("Error: {}", e);
+            } else {
+                println!("Battery saved: {}", save_file_path);
+                self.need_save = false;
+            }
+        }
+    }
+
     // Function to load in cartridge
     pub fn load_cart(&mut self, file_path: &str) -> Result<(), String> {
         // Update File Name
@@ -78,17 +187,10 @@ impl Cartridge {
         file.read_exact(&mut self.rom_data)
             .map_err(|e| format!("Failed to Read Rom Data {}", e))?;
 
-        println!("Cartidge Loaded");
+        self.battery = self.cart_battery();
+        self.need_save = false;
 
-        /* Print entire cartridge content in hex
-        println!("\nROM Data (Hex):");
-        for (i, byte) in self.rom_data.iter().enumerate() {
-            if *byte != 0 {
-                print!("{:02X} ", byte);
-            }
-        }
-        println!(); // Ensure the last line is properly ended
-        */
+        println!("Cartidge Loaded");
 
         // Load Header Information
         self.rom_header = CartridgeHeader {
@@ -112,11 +214,19 @@ impl Cartridge {
         // Calculate the actual ROM size per pandocs
         self.rom_size = 32 * 1024 * (1 << self.rom_header.rom_size);
 
+        // Setup Banking
+        self.cart_setup_banking();
+
         // Perform Checksum Test
         self.checksum_test()?;
 
         // Print Cartridge Information
         self.print_info();
+
+        // Load Battery
+        if self.battery {
+            self.cart_load_battery();
+        }
 
         Ok(())
     }
@@ -186,12 +296,122 @@ impl Cartridge {
 
     // Method to read a byte at an address
     pub fn read_byte(&self, address: u16) -> u8 {
-        self.rom_data[address as usize]
+        if address < 0x4000 { 
+            return self.rom_data[address as usize];
+        }
+
+        // For non-MBC1 games, just read from ROM directly
+        if !self.cart_mbc1() {
+            let index = address as usize;
+            if index < self.rom_data.len() {
+                return self.rom_data[index];
+            } else {
+                return 0xFF; // Out of bounds
+            }
+        }
+
+        // MBC1 logic below
+        if (address & 0xE000) == 0xA000 {
+            if !self.ram_enabled {
+                return 0xFF;
+            }
+
+            if !self.ram_banking {
+                return 0xFF;
+            }
+
+            if let Some(ref ram_bank) = self.ram_banks[self.ram_bank] {
+                return ram_bank[address as usize - 0xA000];
+            }
+            return 0xFF;
+        }
+        
+        // ROM bank 1+ access for MBC1
+        let rom_address = self.rom_bank_x + (address as usize - 0x4000);
+        if rom_address < self.rom_data.len() {
+            return self.rom_data[rom_address];
+        } else {
+            return 0xFF; // Out of bounds
+        }
     }
 
     // Method to write a value to an address
-    pub fn write_byte(&mut self, address: u16, value: u8) {
-        self.rom_data[address as usize] = value;
+    pub fn write_byte(&mut self, address: u16, mut value: u8) {
+        if !self.cart_mbc1() {
+            return;
+        }
+
+        if address < 0x2000 {
+            self.ram_enabled = (value & 0xF) == 0xA;
+        }
+
+        if (address & 0xE000) == 0x2000 {
+            // ROM bank number
+            if value == 0 {
+                value = 1;
+            }
+
+            value &= 0b11111;
+
+            self.rom_bank_value = value;
+            self.rom_bank_x = 0x4000 * self.rom_bank_value as usize;
+        }
+
+        if (address & 0xE000) == 0x4000 {
+            // RAM bank number
+            self.ram_bank_value = value & 0b1111;
+
+            if self.ram_banking {
+                if self.cart_needs_save() {
+                    self.cart_save_battery();
+                }
+
+                self.ram_bank = self.ram_bank_value as usize;
+            }
+        }
+
+        if (address & 0xE000) == 0x6000 {
+            // Banking mode select
+            self.banking_mode = value & 1;
+            self.ram_banking = self.banking_mode != 0;
+
+            if self.ram_banking {
+                if self.cart_needs_save() {
+                    self.cart_save_battery();
+                }
+                
+                self.ram_bank = self.ram_bank_value as usize;
+            }
+        }
+
+        if (address & 0xE000) == 0xA000 {
+            if !self.ram_enabled {
+                return;
+            }
+
+            if let Some(ref mut ram_bank) = self.ram_banks[self.ram_bank] {
+                let ram_address = (address - 0xA000) as usize;
+                if ram_address < ram_bank.len() {
+                    ram_bank[ram_address] = value;
+
+                    if self.battery {
+                        self.need_save = true;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn cart_needs_save(&self) -> bool {
+        self.need_save
+    }
+
+    pub fn cart_battery(&self) -> bool {
+        self.rom_header.cart_type == 0x03 || self.rom_header.cart_type == 0x06 || self.rom_header.cart_type == 0x09 || self.rom_header.cart_type == 0x0D
+    }
+
+    pub fn cart_mbc1(&self) -> bool {
+        self.rom_header.cart_type == 0x01 || self.rom_header.cart_type == 0x02 || self.rom_header.cart_type == 0x03
     }
 }
 
@@ -302,7 +522,7 @@ lazy_static! {
         map.insert("92", "Video System");
         map.insert("93", "Ocean Software/Acclaim Entertainment");
         map.insert("95", "Varie");
-        map.insert("96", "Yonezawa/s’pal");
+        map.insert("96", "Yonezawa/s'pal");
         map.insert("97", "Kaneko");
         map.insert("99", "Pack-In-Video");
         map.insert("9H", "Bottom Up");
@@ -422,12 +642,12 @@ lazy_static! {
         map.insert("8B", "Bullet-Proof Software");
         map.insert("8C", "Vic Tokai Corp.");
         map.insert("8E", "Ape Inc.");
-        map.insert("8F", "I’Max");
+        map.insert("8F", "I'Max");
         map.insert("91", "Chunsoft Co.");
         map.insert("92", "Video System");
         map.insert("93", "Tsubaraya Productions");
         map.insert("95", "Varie");
-        map.insert("96", "Yonezawa/S’Pal");
+        map.insert("96", "Yonezawa/S'Pal");
         map.insert("97", "Kemco");
         map.insert("99", "Arc");
         map.insert("9A", "Nihon Bussan");

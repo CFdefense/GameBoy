@@ -224,7 +224,7 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
                 // Call timer_tick with the passed CPU reference
                 emu_ctx_lock.timer.timer_tick(cpu);
                 // Tick PPU for every T-cycle and handle interrupts
-                let ppu_interrupts = cpu.bus.ppu.ppu_tick();
+                let ppu_interrupts = cpu.bus.ppu.ppu_tick(&mut cpu.bus.cart);
                 for interrupt in ppu_interrupts {
                     cpu.bus.interrupt_controller.request_interrupt(interrupt);
                 }

@@ -61,6 +61,10 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
             }
             val
         },
+        0xFF10..=0xFF3F => {
+            // Sound registers
+            0
+        },
         0xFF40..=0xFF4B => {
             ppu.lcd.lcd_read(address)
         },
@@ -114,6 +118,10 @@ pub fn io_write(address: u16, value: u8, dma: &mut DMA, interrupt_controller: &m
         0xFF0F => {
             interrupt_controller.set_int_flags(value);
             return;
+        },
+        0xFF10..=0xFF3F => {
+            // Sound registers
+            
         },
         0xFF40..=0xFF4B => {
             let result = ppu.lcd.lcd_write(address, value);

@@ -121,7 +121,22 @@ impl PPU {
         // Instead of using unsafe code, manually inline the pipeline operations
         self.pixel_fifo.map_y = self.lcd.ly + self.lcd.scy;
         self.pixel_fifo.map_x = self.pixel_fifo.fetch_x + self.lcd.scx;
-        self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
+        
+        // Calculate tile_y - use window relative position if window is active
+        if self.window_visible() && self.lcd.ly >= self.lcd.wy {
+            let window_x = self.lcd.wx;
+            if self.pixel_fifo.fetch_x + 7 >= window_x {
+                // Use window-relative tile_y
+                let window_relative_y = (self.lcd.ly - self.lcd.wy) as u8;
+                self.pixel_fifo.tile_y = ((window_relative_y) % 8) * 2;
+            } else {
+                // Use normal background tile_y
+                self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
+            }
+        } else {
+            // Use normal background tile_y
+            self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
+        }
 
         if (self.line_ticks & 1) == 0 { // Even Line
             self.pipeline_fetch();
@@ -136,6 +151,7 @@ impl PPU {
                 self.fetched_entry_count = 0;
                 
                 if self.lcd.lcdc_bgw_enable() {
+                    // First load background tile
                     let map_address = self.lcd.lcdc_bg_map_area() + 
                         ((self.pixel_fifo.map_x / 8) as u16) + 
                         (((self.pixel_fifo.map_y / 8) as u16) * 32);
@@ -146,7 +162,13 @@ impl PPU {
                         self.pixel_fifo.bgw_fetch_data[0] = self.pixel_fifo.bgw_fetch_data[0].wrapping_add(128);
                     }
 
-                    self.pipeline_load_window_tile();
+                    // Check if window should override background
+                    if self.window_visible() && self.lcd.ly >= self.lcd.wy {
+                        let window_x = self.lcd.wx;
+                        if self.pixel_fifo.fetch_x + 7 >= window_x {
+                            self.pipeline_load_window_tile();
+                        }
+                    }
                 }
 
                 if self.lcd.lcdc_obj_enable() && self.line_sprites.is_some() {
@@ -196,7 +218,8 @@ impl PPU {
     fn increment_ly(&mut self) -> Vec<Interrupts> {
         let mut interrupts = Vec::new();
 
-        if self.window_visible() && self.lcd.ly >= self.lcd.wy && self.ly < self.lcd.wy + YRES {
+        // Increment window line counter if window is visible and we're in window area
+        if self.window_visible() && self.lcd.ly >= self.lcd.wy {
             self.window_line += 1;
         }
 
@@ -271,7 +294,7 @@ impl PPU {
         interrupts
     }
 
-    fn ppu_mode_hblank(&mut self) -> Vec<Interrupts> {
+    fn ppu_mode_hblank(&mut self, cart: &mut crate::hdw::cart::Cartridge) -> Vec<Interrupts> {
         let mut interrupts = Vec::new();
         
         if self.line_ticks >= TICKS_PER_LINE {
@@ -302,6 +325,11 @@ impl PPU {
                     self.frame_count = 0;
 
                     println!("FPS: {}", fps);
+                    
+                    // Save Cart Battery if needed
+                    if cart.cart_needs_save() {
+                        cart.cart_save_battery();
+                    }
                 }
 
                 self.frame_count += 1;
@@ -316,14 +344,14 @@ impl PPU {
         interrupts
     }
 
-    pub fn ppu_tick(&mut self) -> Vec<Interrupts> {
+    pub fn ppu_tick(&mut self, cart: &mut crate::hdw::cart::Cartridge) -> Vec<Interrupts> {
         self.line_ticks += 1;
         
         match self.lcd.lcds_mode() {
             LcdMode::OAM => self.ppu_mode_oam(),
             LcdMode::Transfer => self.ppu_mode_xfer(),
             LcdMode::VBlank => self.ppu_mode_vblank(),
-            LcdMode::HBlank => self.ppu_mode_hblank(),
+            LcdMode::HBlank => self.ppu_mode_hblank(cart),
         }
     }
 
@@ -578,25 +606,28 @@ impl PPU {
 
     pub fn pipeline_load_window_tile(&mut self) {
         if !self.window_visible() {
-            return
+            return;
         }
 
-        let window_y = self.lcd.wy;
         let window_x = self.lcd.wx;
         
-        if self.pixel_fifo.fetch_x + 7 >= window_x && self.pixel_fifo.fetch_x + 7 < window_x + YRES + 14 {
-            if self.lcd.ly >= window_y && self.lcd.ly < window_y + XRES {
-                let window_tile_y: u8 = self.window_line / 8;
+        // Calculate window tile coordinates  
+        let win_tile_x = ((self.pixel_fifo.fetch_x + 7).saturating_sub(window_x)) / 8;
+        // Use the actual window line (current LY - window Y) for tile Y calculation
+        let window_relative_y = (self.lcd.ly - self.lcd.wy) as u8;
+        let win_tile_y = window_relative_y / 8;
 
-                self.pixel_fifo.bgw_fetch_data[0] = self.ppu_vram_read(
-                    self.lcd.lcdc_win_map_area() + 
-                    ((self.pixel_fifo.fetch_x + 7 - window_x) / 8) as u16 +
-                    (window_tile_y as u16 * 32)
-                );
+        // Ensure we're within bounds
+        if win_tile_x < 32 && win_tile_y < 32 {
+            // Get the tile index from the window map
+            let map_address = self.lcd.lcdc_win_map_area() + 
+                (win_tile_x as u16) + 
+                (win_tile_y as u16 * 32);
+            
+            self.pixel_fifo.bgw_fetch_data[0] = self.read_vram(map_address);
 
-                if self.lcd.lcdc_bgw_data_area() == 0x8800 {
-                    self.pixel_fifo.bgw_fetch_data[0] += 128;
-                }
+            if self.lcd.lcdc_bgw_data_area() == 0x8800 {
+                self.pixel_fifo.bgw_fetch_data[0] = self.pixel_fifo.bgw_fetch_data[0].wrapping_add(128);
             }
         }
     }

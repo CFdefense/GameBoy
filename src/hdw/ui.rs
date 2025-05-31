@@ -12,6 +12,7 @@ use sdl2::surface::Surface;
 use sdl2::rect::Rect;
 use sdl2::pixels::Color;
 use sdl2::keyboard::Keycode;
+use sdl2::audio::{AudioQueue, AudioSpecDesired};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::hdw::cpu::CPU;
 
@@ -41,28 +42,34 @@ const TILE_COLORS: [u32; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
 
 pub struct UI {
     // Core SDL2 components
-    pub sdl_context: sdl2::Sdl,
-    pub video_subsystem: VideoSubsystem,
-    pub ttf_context: Sdl2TtfContext,
+    pub _sdl_context: sdl2::Sdl,
+    pub _video_subsystem: VideoSubsystem,
+    pub _ttf_context: Sdl2TtfContext,
     
     // Rendering contexts for main game window and debug tile viewer
     pub main_canvas: WindowCanvas,
-    pub debug_canvas: WindowCanvas,
+    pub debug_canvas: Option<WindowCanvas>,
     
     // Texture creators for efficient rendering
     pub main_texture_creator: TextureCreator<WindowContext>,
-    pub debug_texture_creator: TextureCreator<WindowContext>,
+    pub debug_texture_creator: Option<TextureCreator<WindowContext>>,
     
     // Event handling for user input
     pub event_pump: EventPump,
     
     // Frame buffers - surfaces hold pixel data before rendering to screen
     pub screen_surface: Surface<'static>,
-    pub debug_surface: Surface<'static>,
+    pub debug_surface: Option<Surface<'static>>,
+    
+    // Audio components
+    pub audio_queue: Option<AudioQueue<f32>>,
+    
+    // Debug flag
+    pub debug: bool,
 }
 
 impl UI {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(debug: bool) -> Result<Self, String> {
         // Initialize SDL2 video subsystem
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
@@ -74,6 +81,27 @@ impl UI {
         let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
         println!("TTF INIT");
 
+        // Initialize SDL2 audio
+        let audio_subsystem = sdl_context.audio()?;
+        println!("AUDIO INIT");
+
+        let desired_spec = AudioSpecDesired {
+            freq: Some(44100),
+            channels: Some(1), // Mono
+            samples: Some(4096),
+        };
+
+        let audio_queue = match audio_subsystem.open_queue::<f32, _>(None, &desired_spec) {
+            Ok(queue) => {
+                queue.resume(); // Start audio playback
+                Some(queue)
+            },
+            Err(e) => {
+                println!("Failed to initialize audio: {}", e);
+                None
+            }
+        };
+
         // Create main emulator window - centered on screen
         let main_window = video_subsystem
             .window("GameBoy", SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -81,36 +109,44 @@ impl UI {
             .build()
             .map_err(|e| e.to_string())?;
 
-        // Get main window position to place debug window adjacent to it
-        let (x, y) = main_window.position();
+        // Create debug tile viewer window only if debug is enabled
+        let (debug_canvas, debug_texture_creator, debug_surface) = if debug {
+            // Get main window position to place debug window adjacent to it
+            let (x, y) = main_window.position();
 
-        // Create debug tile viewer window - positioned to the right of main window
-        let debug_window = video_subsystem
-            .window("Debug Viewer", DEBUG_WINDOW_WIDTH, DEBUG_WINDOW_HEIGHT)
-            .position(x + SCREEN_WIDTH as i32 + 10, y)
-            .build()
-            .map_err(|e| e.to_string())?;
+            // Create debug tile viewer window - positioned to the right of main window
+            let debug_window = video_subsystem
+                .window("Debug Viewer", DEBUG_WINDOW_WIDTH, DEBUG_WINDOW_HEIGHT)
+                .position(x + SCREEN_WIDTH as i32 + 10, y)
+                .build()
+                .map_err(|e| e.to_string())?;
 
-        // Convert windows to canvas objects for 2D rendering
+            let canvas = debug_window.into_canvas().build().map_err(|e| e.to_string())?;
+            let texture_creator = canvas.texture_creator();
+            
+            // Create surface for debug tile display with extra space for padding
+            let surface = Surface::new(DEBUG_SURFACE_WIDTH, DEBUG_SURFACE_HEIGHT, PixelFormatEnum::ARGB8888)
+                .map_err(|e| e.to_string())?;
+                
+            (Some(canvas), Some(texture_creator), Some(surface))
+        } else {
+            (None, None, None)
+        };
+
+        // Convert main window to canvas object for 2D rendering
         let main_canvas = main_window.into_canvas().build().map_err(|e| e.to_string())?;
-        let debug_canvas = debug_window.into_canvas().build().map_err(|e| e.to_string())?;
         
-        // Create texture creators for efficient GPU-accelerated rendering
+        // Create texture creator for efficient GPU-accelerated rendering
         let main_texture_creator = main_canvas.texture_creator();
-        let debug_texture_creator = debug_canvas.texture_creator();
 
         // Create RGB surface for main display - ARGB8888 format for full color support
         let screen_surface = Surface::new(SCREEN_WIDTH, SCREEN_HEIGHT, PixelFormatEnum::ARGB8888)
             .map_err(|e| e.to_string())?;
 
-        // Create surface for debug tile display with extra space for padding
-        let debug_surface = Surface::new(DEBUG_SURFACE_WIDTH, DEBUG_SURFACE_HEIGHT, PixelFormatEnum::ARGB8888)
-            .map_err(|e| e.to_string())?;
-
         Ok(UI {
-            sdl_context,
-            video_subsystem,
-            ttf_context,
+            _sdl_context: sdl_context,
+            _video_subsystem: video_subsystem,
+            _ttf_context: ttf_context,
             main_canvas,
             debug_canvas,
             main_texture_creator,
@@ -118,6 +154,8 @@ impl UI {
             event_pump,
             screen_surface,
             debug_surface,
+            audio_queue,
+            debug,
         })
     }
 
@@ -125,6 +163,13 @@ impl UI {
     /// Each tile consists of 16 bytes (2 bytes per 8-pixel row)
     /// The two bytes form bit planes that combine to create 2-bit color values (0-3)
     fn display_tile(&mut self, start_location: u16, tile_num: u16, x: i32, y: i32, cpu: &mut super::cpu::CPU) {
+        // Only render if debug surface exists
+        let debug_surface = if let Some(ref mut surface) = self.debug_surface {
+            surface
+        } else {
+            return;
+        };
+
         // Process each row of the tile (8 rows total, 2 bytes per row)
         for tile_y in (0..16).step_by(2) {
             // Calculate addresses for the two bit planes of this row
@@ -155,7 +200,7 @@ impl UI {
                     // Fill the scaled pixel rectangle with the appropriate color
                     if (color as usize) < TILE_COLORS.len() {
                         let color_value = TILE_COLORS[color as usize];
-                        self.debug_surface.fill_rect(rect, Color::RGBA(
+                        debug_surface.fill_rect(rect, Color::RGBA(
                             ((color_value >> 16) & 0xFF) as u8,  // Red component
                             ((color_value >> 8) & 0xFF) as u8,   // Green component
                             (color_value & 0xFF) as u8,          // Blue component
@@ -170,12 +215,19 @@ impl UI {
     /// Updates the debug window showing all tiles in VRAM
     /// Displays 384 tiles in a 16x24 grid layout
     pub fn update_dbg_window(&mut self, cpu: &mut super::cpu::CPU) {
+        // Only update if debug is enabled and components exist
+        if !self.debug || self.debug_surface.is_none() || self.debug_texture_creator.is_none() || self.debug_canvas.is_none() {
+            return;
+        }
+
         let mut x_draw = 0;
         let mut y_draw = 0;
         let mut tile_num = 0;
 
         // Clear debug surface with dark gray background
-        self.debug_surface.fill_rect(None, Color::RGBA(0x11, 0x11, 0x11, 0xFF)).unwrap();
+        if let Some(ref mut debug_surface) = self.debug_surface {
+            debug_surface.fill_rect(None, Color::RGBA(0x11, 0x11, 0x11, 0xFF)).unwrap();
+        }
 
         // Start from VRAM tile data area
         let addr = 0x8000;
@@ -197,13 +249,16 @@ impl UI {
         }
 
         // Create texture from surface and render to debug window
-        let debug_texture = self.debug_texture_creator
-            .create_texture_from_surface(&self.debug_surface)
-            .expect("Failed to create debug texture");
-        
-        self.debug_canvas.clear();
-        self.debug_canvas.copy(&debug_texture, None, None).unwrap();
-        self.debug_canvas.present();
+        if let (Some(ref debug_texture_creator), Some(ref mut debug_canvas), Some(ref debug_surface)) = 
+            (&self.debug_texture_creator, &mut self.debug_canvas, &self.debug_surface) {
+            let debug_texture = debug_texture_creator
+                .create_texture_from_surface(debug_surface)
+                .expect("Failed to create debug texture");
+            
+            debug_canvas.clear();
+            debug_canvas.copy(&debug_texture, None, None).unwrap();
+            debug_canvas.present();
+        }
     }
 
     /// Updates the main game display window
@@ -315,11 +370,50 @@ impl UI {
             }
         }
         
+        // Update audio
+        self.update_audio(cpu);
+        
         // Update the display after processing events
         self.ui_update(cpu);
         
         // Continue running
         true
+    }
+    
+    /// Updates audio by getting samples from the audio system and queuing them
+    pub fn update_audio(&mut self, cpu: &mut CPU) {
+        if let Some(ref audio_queue) = self.audio_queue {
+            // Get available queue size
+            let queue_size = audio_queue.size();
+            let target_queue_size = 4096; // Keep a reasonable buffer
+            
+            // Add samples if queue is getting low
+            if queue_size < target_queue_size {
+                let samples_needed = (target_queue_size - queue_size).min(1024);
+                let mut audio_buffer = vec![0.0f32; samples_needed as usize];
+                
+                // Get samples from the audio system
+                let available_samples = cpu.bus.apu.sample_buffer.len();
+                if available_samples > 0 {
+                    // Get actual samples from the audio buffer
+                    let copy_len = available_samples.min(samples_needed as usize);
+                    cpu.bus.apu.get_samples(&mut audio_buffer[..copy_len]);
+                    
+                    // Fill remaining with silence if needed
+                    for i in copy_len..audio_buffer.len() {
+                        audio_buffer[i] = 0.0;
+                    }
+                } else {
+                    // If no samples available, fill with silence
+                    for sample in audio_buffer.iter_mut() {
+                        *sample = 0.0;
+                    }
+                }
+                
+                // Queue the audio samples using the non-deprecated method
+                let _ = audio_queue.queue_audio(&audio_buffer);
+            }
+        }
     }
 }
 

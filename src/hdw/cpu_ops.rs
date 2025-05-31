@@ -540,11 +540,13 @@ pub fn op_cp(cpu: &mut CPU, target: OPTarget) {
         } // [0xBF]
         // [0xBE]
         OPTarget::HL => {
-            set_flags_after_cp(cpu, cpu.registers.a, cpu.bus.read_byte(None, cpu.registers.get_hl()));
+            let hl_value = cpu.bus.read_byte(None, cpu.registers.get_hl());
+            set_flags_after_cp(cpu, cpu.registers.a, hl_value);
         }
         // [0xFE]
         OPTarget::D8 => {
-            set_flags_after_cp(cpu, cpu.registers.a, cpu.bus.read_byte(None, cpu.pc + 1));
+            let d8_value = cpu.bus.read_byte(None, cpu.pc + 1);
+            set_flags_after_cp(cpu, cpu.registers.a, d8_value);
             cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
@@ -776,18 +778,11 @@ pub fn op_sub(cpu: &mut CPU, target: OPTarget) {
         // [0x96]
         OPTarget::HL => {
             // SUB
-            cpu.registers.a = cpu
-                .registers
-                .a
-                .wrapping_sub(cpu.bus.read_byte(None, cpu.registers.get_hl()));
+            let hl_value = cpu.bus.read_byte(None, cpu.registers.get_hl());
+            cpu.registers.a = cpu.registers.a.wrapping_sub(hl_value);
 
             // Set Flags
-            set_flags_after_sub(
-                cpu,
-                cpu.registers.a,
-                original_value,
-                cpu.bus.read_byte(None, cpu.registers.get_hl()),
-            );
+            set_flags_after_sub(cpu, cpu.registers.a, original_value, hl_value);
         }
         // [0x97]
         OPTarget::A => {
@@ -800,18 +795,11 @@ pub fn op_sub(cpu: &mut CPU, target: OPTarget) {
         // [0xD6]
         OPTarget::D8 => {
             // SUB
-            cpu.registers.a = cpu
-                .registers
-                .a
-                .wrapping_sub(cpu.bus.read_byte(None, cpu.pc + 1));
+            let d8_value = cpu.bus.read_byte(None, cpu.pc + 1);
+            cpu.registers.a = cpu.registers.a.wrapping_sub(d8_value);
 
             // Set Flags
-            set_flags_after_sub(
-                cpu,
-                cpu.registers.a,
-                original_value,
-                cpu.bus.read_byte(None, cpu.pc + 1),
-            );
+            set_flags_after_sub(cpu, cpu.registers.a, original_value, d8_value);
             cpu.pc = cpu.pc.wrapping_add(1);
         }
     }
@@ -1393,10 +1381,8 @@ pub fn op_ld(cpu: &mut CPU, target: LoadType) {
             }
             // [0x36]
             HLTarget::HL => {
-                cpu.bus.write_byte(
-                    cpu.registers.get_hl(),
-                    cpu.bus.read_byte(None, cpu.pc + 1),
-                );
+                let d8_value = cpu.bus.read_byte(None, cpu.pc + 1);
+                cpu.bus.write_byte(cpu.registers.get_hl(), d8_value);
                 cpu.pc = cpu.pc.wrapping_add(1);
             }
             // [0x3E]
@@ -1529,7 +1515,7 @@ pub fn op_dec(cpu: &mut CPU, target: AllRegisters) {
             // Increment value at bus location HL
             let hl_addr = cpu.registers.get_hl();
             let original_value = cpu.bus.read_byte(None, hl_addr);
-            let value = cpu.bus.read_byte(None, hl_addr).wrapping_sub(1);
+            let value = original_value.wrapping_sub(1);
             cpu.bus.write_byte( hl_addr, value);
             set_flags_after_dec(cpu, value, original_value);
             emu_cycles(cpu, 1);

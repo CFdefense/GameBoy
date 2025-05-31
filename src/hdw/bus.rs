@@ -26,52 +26,57 @@ use crate::hdw::ppu::PPU;
 use crate::hdw::dma::DMA;
 use crate::hdw::interrupts::InterruptController;
 use crate::hdw::gamepad::GamePad;
+use crate::hdw::apu::AudioSystem;
 use crate::hdw::io::{io_read,io_write};
 
 pub struct BUS {
     pub cart: Cartridge,
     pub ram: RAM,
     pub ppu: PPU,
-    pub dma: DMA,
+    pub apu: AudioSystem,
     pub gamepad: GamePad,
     pub interrupt_controller: InterruptController,
+    pub dma: DMA,
 }
 
 impl BUS {
     // Constructor
-    pub fn new(cart: Cartridge) -> Self {
+    pub fn new() -> Self {
         BUS {
-            cart,
+            cart: Cartridge::new(),
             ram: RAM::new(),
             ppu: PPU::new(),
-            dma: DMA::new(),
+            apu: AudioSystem::new(),
             gamepad: GamePad::new(),
             interrupt_controller: InterruptController::new(),
+            dma: DMA::new(),
         }
     }
 
     // Function to return a byte at an address
-    pub fn read_byte(&self, cpu: Option<&CPU>, address: u16) -> u8 {
-        match address {
-            0x0000..=0x7FFF => self.cart.read_byte(address),  // ROM Banks
-            0x8000..=0x9FFF => {  // Char/Map Data
-                self.ppu.ppu_vram_read(address)
-            },
+    pub fn read_byte(&mut self, cpu: Option<&CPU>, address: u16) -> u8 {
+        let value = match address {
+            0x0000..=0x7FFF => self.cart.read_byte(address),  // Cartridge ROM
+            0x8000..=0x9FFF => self.ppu.ppu_vram_read(address), // Video RAM
             0xA000..=0xBFFF => self.cart.read_byte(address),  // Cartridge RAM
             0xC000..=0xDFFF => self.ram.wram_read(address),   // WRAM
-            0xE000..=0xFDFF => 0,  // Reserved Echo RAM
-            0xFE00..=0xFE9F => {   // OAM
+            0xE000..=0xFDFF => self.ram.wram_read(address),   // Work RAM (echo)
+            0xFE00..=0xFE9F => {
                 if self.dma.dma_transferring() {
-                    return 0xFF;
+                    0xFF
                 } else {
                     self.ppu.ppu_oam_read(address)
                 }
-            },
-            0xFEA0..=0xFEFF => 0,  // Reserved Unusable
-            0xFF00..=0xFF7F => io_read(cpu, address, &self.interrupt_controller, &self.ppu, &self.gamepad),  // IO Registers
-            0xFFFF => self.interrupt_controller.get_ie_register(),   // Interrupt Enable Register
-            _ => self.ram.hram_read(address)  // HRAM (Zero Page)
-        }
+            }, // OAM
+            0xFEA0..=0xFEFF => 0x00, // Unusable memory
+            0xFF00..=0xFF7F => {
+                io_read(cpu, address, &self.interrupt_controller, &self.ppu, &self.gamepad, &self.apu)
+            }, // I/O registers
+            0xFF80..=0xFFFE => self.ram.hram_read(address), // High RAM
+            0xFFFF => self.interrupt_controller.get_ie_register(), // Interrupt Enable
+        };
+        
+        value
     }
 
     // Function to write byte to correct place
@@ -93,7 +98,7 @@ impl BUS {
             },
             0xFEA0..=0xFEFF => (),  // Reserved Unusable
             0xFF00..=0xFF7F => {    // IO Registers
-                io_write(address, value, &mut self.dma, &mut self.interrupt_controller, &mut self.ppu, &mut self.gamepad);
+                io_write(address, value, &mut self.dma, &mut self.interrupt_controller, &mut self.ppu, &mut self.gamepad, &mut self.apu);
             },
             0xFFFF => self.interrupt_controller.set_ie_register(value),    // Interrupt Enable Register
             _ => self.ram.hram_write(address, value)  // HRAM

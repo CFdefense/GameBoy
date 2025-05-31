@@ -22,7 +22,6 @@ pub struct EmuContext {
     pub die: bool,
     pub ticks: u64,
     pub cpu: Option<Arc<Mutex<CPU>>>,
-    pub bus: BUS,
     debug_limit: Option<u32>,
     instruction_count: u32,
     pub timer: Timer,
@@ -32,12 +31,11 @@ pub struct EmuContext {
 impl EmuContext {
     pub fn new(debug_limit: Option<u32>, debug: bool) -> Self {
         EmuContext {
-            running: true,
+            running: false,
             paused: false,
             die: false,
             ticks: 0,
             cpu: None,
-            bus: BUS::new(Cartridge::new()),
             debug_limit,
             instruction_count: 0,
             timer: Timer::new(),
@@ -136,7 +134,7 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     println!("Cart loaded..");
 
     // Initialize UI
-    let ui_result = UI::new();
+    let ui_result = UI::new(debug);
     if let Err(e) = &ui_result {
         println!("Failed to initialize UI: {}", e);
         return Err(io::Error::new(
@@ -150,14 +148,15 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit, debug)));
     
     // Initialize Bus and CPU
-    let bus = BUS::new(cart);
+    let mut bus = BUS::new();
+    bus.cart = cart;
     let cpu = Arc::new(Mutex::new(CPU::new(bus, debug)));
     
-    // Update context with CPU and bus
+    // Update context with CPU
     {
         let mut ctx_lock = ctx.lock().unwrap();
         ctx_lock.cpu = Some(Arc::clone(&cpu));
-        ctx_lock.bus = BUS::new(Cartridge::new()); // Create new bus instance for context
+        ctx_lock.running = true;
     }
 
     // Initialize the global context reference
@@ -228,6 +227,8 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
                 for interrupt in ppu_interrupts {
                     cpu.bus.interrupt_controller.request_interrupt(interrupt);
                 }
+                // Tick audio for every T-cycle
+                cpu.bus.apu.tick();
             }
             // Update LCD LY register from PPU
             cpu.bus.ppu.update_lcd_ly();

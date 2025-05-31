@@ -40,7 +40,7 @@ pub struct Cartridge {
     rom_data: Vec<u8>,
     rom_header: CartridgeHeader,
 
-    // MBC Type 1
+    // MBC Type 1 & 3
     ram_enabled: bool,
     ram_banking: bool,
     rom_bank_x: usize, // Index into ROM data for current bank
@@ -51,6 +51,16 @@ pub struct Cartridge {
     ram_banks: [Option<Vec<u8>>; 16], // Each bank is 8KB when allocated
     battery: bool,
     need_save: bool,
+    
+    // MBC3 RTC (Real Time Clock) support
+    rtc_registers: [u8; 5], // RTC S, M, H, DL, DH (0x08-0x0C)
+    rtc_latched: [u8; 5],   // Latched RTC values
+    rtc_latch_state: u8,    // For latch sequence (0x00 -> 0x01)
+    rtc_selected: bool,     // True if RTC register selected instead of RAM
+    rtc_register_select: u8, // Which RTC register (0x08-0x0C)
+    
+    // RTC timing (simplified - real implementation would use system time)
+    rtc_last_time: std::time::SystemTime,
 }
 
 impl Cartridge {
@@ -70,6 +80,12 @@ impl Cartridge {
             ram_banks: std::array::from_fn(|_| None),
             battery: false,
             need_save: false,
+            rtc_registers: [0; 5],
+            rtc_latched: [0; 5],
+            rtc_latch_state: 0,
+            rtc_selected: false,
+            rtc_register_select: 0,
+            rtc_last_time: std::time::SystemTime::now(),
         };
         cartridge
     }
@@ -94,6 +110,19 @@ impl Cartridge {
         if self.cart_mbc1() {
             self.ram_enabled = false; // RAM starts disabled
             self.ram_banking = true;  // Enable RAM banking by default
+        }
+        
+        // For MBC3, initialize with proper defaults
+        if self.cart_mbc3() {
+            self.ram_enabled = false; // RAM starts disabled
+            self.ram_banking = true;  // Enable RAM banking by default
+            self.rtc_selected = false; // Start with RAM selected
+            self.rtc_register_select = 0x08; // Default to seconds register
+            
+            // Initialize RTC if supported
+            if self.cart_has_rtc() {
+                self.update_rtc_time();
+            }
         }
     }
 
@@ -295,13 +324,18 @@ impl Cartridge {
     }
 
     // Method to read a byte at an address
-    pub fn read_byte(&self, address: u16) -> u8 {
+    pub fn read_byte(&mut self, address: u16) -> u8 {
         if address < 0x4000 { 
             return self.rom_data[address as usize];
         }
 
-        // For non-MBC1 games, just read from ROM directly
-        if !self.cart_mbc1() {
+        // For MBC3, handle RTC time updates
+        if self.cart_mbc3() && self.cart_has_rtc() {
+            self.update_rtc_time();
+        }
+
+        // For non-MBC games, just read from ROM directly
+        if !self.cart_mbc1() && !self.cart_mbc3() {
             let index = address as usize;
             if index < self.rom_data.len() {
                 return self.rom_data[index];
@@ -310,9 +344,18 @@ impl Cartridge {
             }
         }
 
-        // MBC1 logic below
+        // MBC1 and MBC3 logic below
         if (address & 0xE000) == 0xA000 {
             if !self.ram_enabled {
+                return 0xFF;
+            }
+
+            // MBC3: Check if RTC register is selected
+            if self.cart_mbc3() && self.rtc_selected {
+                let rtc_index = (self.rtc_register_select - 0x08) as usize;
+                if rtc_index < 5 {
+                    return self.rtc_latched[rtc_index];
+                }
                 return 0xFF;
             }
 
@@ -326,7 +369,7 @@ impl Cartridge {
             return 0xFF;
         }
         
-        // ROM bank 1+ access for MBC1
+        // ROM bank 1+ access for MBC1 and MBC3
         let rom_address = self.rom_bank_x + (address as usize - 0x4000);
         if rom_address < self.rom_data.len() {
             return self.rom_data[rom_address];
@@ -337,50 +380,84 @@ impl Cartridge {
 
     // Method to write a value to an address
     pub fn write_byte(&mut self, address: u16, mut value: u8) {
-        if !self.cart_mbc1() {
+        if !self.cart_mbc1() && !self.cart_mbc3() {
             return;
         }
 
         if address < 0x2000 {
+            // RAM and Timer Enable (MBC1 & MBC3)
             self.ram_enabled = (value & 0xF) == 0xA;
         }
 
         if (address & 0xE000) == 0x2000 {
-            // ROM bank number
+            // ROM bank number (MBC1 & MBC3)
             if value == 0 {
                 value = 1;
             }
 
-            value &= 0b11111;
+            if self.cart_mbc1() {
+                value &= 0b11111; // MBC1: 5 bits
+            } else if self.cart_mbc3() {
+                value &= 0b1111111; // MBC3: 7 bits (supports banks 0x01-0x7F)
+            }
 
             self.rom_bank_value = value;
             self.rom_bank_x = 0x4000 * self.rom_bank_value as usize;
         }
 
         if (address & 0xE000) == 0x4000 {
-            // RAM bank number
-            self.ram_bank_value = value & 0b1111;
-
-            if self.ram_banking {
-                if self.cart_needs_save() {
-                    self.cart_save_battery();
+            // RAM bank number or RTC register select (MBC1 & MBC3)
+            if self.cart_mbc3() {
+                if value <= 0x07 {
+                    // RAM bank selection
+                    self.ram_bank_value = value & 0b1111;
+                    self.rtc_selected = false;
+                    
+                    if self.ram_banking {
+                        if self.cart_needs_save() {
+                            self.cart_save_battery();
+                        }
+                        self.ram_bank = self.ram_bank_value as usize;
+                    }
+                } else if value >= 0x08 && value <= 0x0C {
+                    // RTC register selection
+                    self.rtc_register_select = value;
+                    self.rtc_selected = true;
                 }
-
-                self.ram_bank = self.ram_bank_value as usize;
+            } else if self.cart_mbc1() {
+                // MBC1 RAM bank handling
+                self.ram_bank_value = value & 0b1111;
+                
+                if self.ram_banking {
+                    if self.cart_needs_save() {
+                        self.cart_save_battery();
+                    }
+                    self.ram_bank = self.ram_bank_value as usize;
+                }
             }
         }
 
         if (address & 0xE000) == 0x6000 {
-            // Banking mode select
-            self.banking_mode = value & 1;
-            self.ram_banking = self.banking_mode != 0;
+            if self.cart_mbc1() {
+                // Banking mode select (MBC1)
+                self.banking_mode = value & 1;
+                self.ram_banking = self.banking_mode != 0;
 
-            if self.ram_banking {
-                if self.cart_needs_save() {
-                    self.cart_save_battery();
+                if self.ram_banking {
+                    if self.cart_needs_save() {
+                        self.cart_save_battery();
+                    }
+                    self.ram_bank = self.ram_bank_value as usize;
                 }
-                
-                self.ram_bank = self.ram_bank_value as usize;
+            } else if self.cart_mbc3() {
+                // Latch Clock Data (MBC3)
+                if self.cart_has_rtc() {
+                    if self.rtc_latch_state == 0x00 && value == 0x01 {
+                        // Latch current RTC values
+                        self.rtc_latched = self.rtc_registers;
+                    }
+                    self.rtc_latch_state = value;
+                }
             }
         }
 
@@ -389,6 +466,18 @@ impl Cartridge {
                 return;
             }
 
+            // MBC3: Check if writing to RTC register
+            if self.cart_mbc3() && self.rtc_selected {
+                let rtc_index = (self.rtc_register_select - 0x08) as usize;
+                if rtc_index < 5 {
+                    self.rtc_registers[rtc_index] = value;
+                    // Also update the latched value
+                    self.rtc_latched[rtc_index] = value;
+                }
+                return;
+            }
+
+            // Regular RAM write
             if let Some(ref mut ram_bank) = self.ram_banks[self.ram_bank] {
                 let ram_address = (address - 0xA000) as usize;
                 if ram_address < ram_bank.len() {
@@ -407,11 +496,85 @@ impl Cartridge {
     }
 
     pub fn cart_battery(&self) -> bool {
-        self.rom_header.cart_type == 0x03 || self.rom_header.cart_type == 0x06 || self.rom_header.cart_type == 0x09 || self.rom_header.cart_type == 0x0D
+        match self.rom_header.cart_type {
+            0x03 | 0x06 | 0x09 | 0x0D | // MBC1+RAM+BATTERY, MBC2+BATTERY, ROM+RAM+BATTERY, MMM01+RAM+BATTERY
+            0x0F | 0x10 | 0x13 => true, // MBC3+TIMER+BATTERY, MBC3+TIMER+RAM+BATTERY, MBC3+RAM+BATTERY
+            _ => false,
+        }
     }
 
     pub fn cart_mbc1(&self) -> bool {
         self.rom_header.cart_type == 0x01 || self.rom_header.cart_type == 0x02 || self.rom_header.cart_type == 0x03
+    }
+
+    pub fn cart_mbc3(&self) -> bool {
+        match self.rom_header.cart_type {
+            0x0F | 0x10 | 0x11 | 0x12 | 0x13 => true,
+            _ => false,
+        }
+    }
+    
+    pub fn cart_has_rtc(&self) -> bool {
+        match self.rom_header.cart_type {
+            0x0F | 0x10 => true, // MBC3+TIMER+BATTERY, MBC3+TIMER+RAM+BATTERY
+            _ => false,
+        }
+    }
+
+    // Update RTC registers based on elapsed time
+    fn update_rtc_time(&mut self) {
+        if !self.cart_has_rtc() {
+            return;
+        }
+        
+        let now = std::time::SystemTime::now();
+        if let Ok(elapsed) = now.duration_since(self.rtc_last_time) {
+            let elapsed_seconds = elapsed.as_secs();
+            if elapsed_seconds > 0 {
+                // Add elapsed seconds to RTC
+                let mut total_seconds = self.rtc_registers[0] as u64; // Seconds
+                total_seconds += elapsed_seconds;
+                
+                // Handle overflow from seconds to minutes
+                if total_seconds >= 60 {
+                    let minutes = total_seconds / 60;
+                    self.rtc_registers[0] = (total_seconds % 60) as u8;
+                    
+                    let total_minutes = self.rtc_registers[1] as u64 + minutes;
+                    if total_minutes >= 60 {
+                        let hours = total_minutes / 60;
+                        self.rtc_registers[1] = (total_minutes % 60) as u8;
+                        
+                        let total_hours = self.rtc_registers[2] as u64 + hours;
+                        if total_hours >= 24 {
+                            let days = total_hours / 24;
+                            self.rtc_registers[2] = (total_hours % 24) as u8;
+                            
+                            // Handle day counter (9 bits total)
+                            let mut day_counter = ((self.rtc_registers[4] & 0x01) as u16) << 8 | self.rtc_registers[3] as u16;
+                            day_counter = day_counter.wrapping_add(days as u16);
+                            
+                            // Check for overflow
+                            if day_counter > 0x1FF {
+                                self.rtc_registers[4] |= 0x80; // Set carry bit
+                                day_counter &= 0x1FF; // Keep only 9 bits
+                            }
+                            
+                            self.rtc_registers[3] = (day_counter & 0xFF) as u8;
+                            self.rtc_registers[4] = (self.rtc_registers[4] & 0xFE) | ((day_counter >> 8) & 0x01) as u8;
+                        } else {
+                            self.rtc_registers[2] = total_hours as u8;
+                        }
+                    } else {
+                        self.rtc_registers[1] = total_minutes as u8;
+                    }
+                } else {
+                    self.rtc_registers[0] = total_seconds as u8;
+                }
+                
+                self.rtc_last_time = now;
+            }
+        }
     }
 }
 

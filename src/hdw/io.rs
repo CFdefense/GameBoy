@@ -6,6 +6,7 @@ use crate::hdw::cpu::CPU;
 use crate::hdw::interrupts::InterruptController;
 use crate::hdw::ppu::PPU;
 use crate::hdw::gamepad::GamePad;
+use crate::hdw::apu::AudioSystem;
 
 // Use the EMU_CONTEXT from the emu module
 use crate::hdw::emu::EMU_CONTEXT;
@@ -15,7 +16,7 @@ lazy_static::lazy_static! {
     static ref SERIAL_DATA: Mutex<[u8; 2]> = Mutex::new([0; 2]);
 }
 
-pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &InterruptController, ppu: &PPU, gamepad: &GamePad) -> u8 {
+pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &InterruptController, ppu: &PPU, gamepad: &GamePad, apu: &AudioSystem) -> u8 {
     let value = match address {
         0xFF00 => {
             gamepad.get_gamepad_output()
@@ -63,7 +64,7 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
         },
         0xFF10..=0xFF3F => {
             // Sound registers
-            0
+            apu.read_register(address)
         },
         0xFF40..=0xFF4B => {
             ppu.lcd.lcd_read(address)
@@ -77,7 +78,7 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
     value
 }
 
-pub fn io_write(address: u16, value: u8, dma: &mut DMA, interrupt_controller: &mut InterruptController, ppu: &mut PPU, gamepad: &mut GamePad) {
+pub fn io_write(address: u16, value: u8, dma: &mut DMA, interrupt_controller: &mut InterruptController, ppu: &mut PPU, gamepad: &mut GamePad, apu: &mut AudioSystem) {
     match address {
         0xFF00 => {
             gamepad.gamepad_set_selection(value);
@@ -121,7 +122,7 @@ pub fn io_write(address: u16, value: u8, dma: &mut DMA, interrupt_controller: &m
         },
         0xFF10..=0xFF3F => {
             // Sound registers
-            
+            apu.write_register(address, value);
         },
         0xFF40..=0xFF4B => {
             let result = ppu.lcd.lcd_write(address, value);

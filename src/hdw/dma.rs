@@ -31,11 +31,13 @@ impl DMA {
             return false;
         }
         
-        let value = bus.read_byte(None, ((self.byte_value as u16) * 0x100) + self.current_byte as u16);
+        let source_address = ((self.byte_value as u16) * 0x100) + self.current_byte as u16;
+        let value = bus.read_byte(None, source_address);
         bus.ppu.ppu_oam_write(self.current_byte as u16, value);
         
         self.current_byte = self.current_byte + 1;
         self.active = self.current_byte < 0xA0;
+        
         self.active
     }
 

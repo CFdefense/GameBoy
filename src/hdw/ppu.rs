@@ -1,6 +1,7 @@
 use crate::hdw::lcd::{LCD, LcdMode, StatSrc};
 use crate::hdw::interrupts::Interrupts;
 use crate::hdw::ui::{get_ticks, delay};
+use crate::hdw::ppu_pipeline::{PixelFIFO, FIFOState};
 
 #[derive(Copy, Clone)]
 pub struct OAMEntry {
@@ -15,96 +16,19 @@ const TICKS_PER_LINE: u32 = 456;
 const YRES: u8 = 144;
 const XRES: u8 = 160;
 
-pub enum FIFOState {
-    TILE,
-    DATA0,
-    DATA1,
-    IDLE,
-    PUSH,
+pub struct OAMLineEntry {
+    pub entry: OAMEntry,
+    pub next: Option<Box<OAMLineEntry>>,
 }
 
-pub struct FIFOEntry {
-    pub next: Option<Box<FIFOEntry>>,
-    pub color_value: u32,
-}
-
-pub struct FIFO {
-    pub head: Option<Box<FIFOEntry>>,
-    pub tail: Option<Box<FIFOEntry>>,
-    pub size: usize,
-    pub max_size: usize,
-}
-
-impl FIFO {
-    pub fn new() -> Self {
-        FIFO {
-            head: None,
-            tail: None,
-            size: 0,
-            max_size: 10,
-        }
-    }
-}
-
-pub struct PixelFIFO {
-    pub state: FIFOState,
-    pub fifo: FIFO,
-    pub line_x: u8,
-    pub pushed_x: u8,
-    pub fetch_x: u8,
-    pub bgw_fetch_data: [u8; 3],
-    pub fetch_entry_data: [u8; 6],
-    pub map_x: u8,
-    pub map_y: u8,
-    pub tile_y: u8,
-    pub fifo_x: u8,
-}
-
-impl PixelFIFO {
-    pub fn new() -> Self {
-        PixelFIFO {
-            state: FIFOState::TILE,
-            fifo: FIFO::new(),
-            line_x: 0,
-            pushed_x: 0,
-            fetch_x: 0,
-            bgw_fetch_data: [0; 3],
-            fetch_entry_data: [0; 6],
-            map_x: 0,
-            map_y: 0,
-            tile_y: 0,
-            fifo_x: 0,
-        }
-    }
-
-    pub fn pixel_fifo_push(&mut self, value: u32) {
-        let new_entry = Box::new(FIFOEntry {
-            color_value: value,
+impl OAMLineEntry {
+    pub fn new(entry: OAMEntry) -> Self {
+        OAMLineEntry {
+            entry,
             next: None,
-        });
-    
-        if self.fifo.head.is_none() {
-            self.fifo.head = Some(new_entry);
-            self.fifo.tail = self.fifo.head.as_ref().map(|h| h.as_ref() as *const FIFOEntry as *mut FIFOEntry).map(|p| unsafe { Box::from_raw(p) });
-        } else {
-            if let Some(ref mut tail) = self.fifo.tail {
-                tail.next = Some(new_entry);
-            }
-            self.fifo.tail = self.fifo.tail.as_ref().and_then(|t| t.next.as_ref()).map(|h| h.as_ref() as *const FIFOEntry as *mut FIFOEntry).map(|p| unsafe { Box::from_raw(p) });
         }
-        self.fifo.size += 1;
     }
 
-    pub fn pixel_fifo_pop(&mut self) -> Option<u32> {
-        if self.fifo.head.is_none() {
-            return None;
-        } else {
-            let head = self.fifo.head.take().unwrap();
-            self.fifo.head = head.next;
-            self.fifo.size -= 1;
-            Some(head.color_value)
-        }
-    }
 }
 
 impl OAMEntry {
@@ -140,7 +64,17 @@ pub struct PPU {
     pub line_ticks: u32,  // Ticks for current scanline
     pub lcd: LCD,         // LCD controller
     pub pixel_fifo: PixelFIFO,
-    
+
+    // Sprite/fifo info
+    pub line_sprite_count: u8, // 0 - 10 sprites per line
+    pub line_sprites: Option<Box<OAMLineEntry>>, // linked list of current line sprites
+    pub line_entry_array: [OAMLineEntry; 10],
+    pub fetched_entry_count: u8,
+    pub fetched_entries: [OAMEntry; 3],
+
+    // Window info
+    pub window_line: u8,
+
     // Frame timing
     target_frame_time: u32,
     prev_frame_time: u64,
@@ -159,7 +93,17 @@ impl PPU {
             video_buffer: vec![0; (YRES as usize) * (XRES as usize)], // Allocate frame buffer
             lcd: LCD::new(),
             pixel_fifo: PixelFIFO::new(),
-            
+
+            // Sprite/fifo info
+            line_sprite_count: 0,
+            line_sprites: None,
+            line_entry_array: std::array::from_fn(|_| OAMLineEntry::new(OAMEntry::new())),
+            fetched_entry_count: 0,
+            fetched_entries: [OAMEntry::new(); 3],
+
+            // Window info
+            window_line: 0,
+
             // Frame timing (60 FPS)
             target_frame_time: 1000 / 60,
             prev_frame_time: 0,
@@ -172,25 +116,9 @@ impl PPU {
         
         ppu
     }
-
-    pub fn pipeline_fetch() {
-        todo!();
-    }
-
-    pub fn pipeline_push_pixel(&mut self) {
-        if self.pixel_fifo.fifo.size > 8 {
-            let pixel_data = self.pixel_fifo.pixel_fifo_pop().unwrap();
-
-            if self.pixel_fifo.line_x >= self.lcd.scx % 8 {
-                self.video_buffer[self.pixel_fifo.pushed_x as usize + (self.lcd.ly as usize * XRES as usize)] = pixel_data;
-                self.pixel_fifo.pushed_x += 1;
-            }
-
-            self.pixel_fifo.line_x += 1;
-        }
-    }
-
+    
     pub fn pipeline_process(&mut self) {
+        // Instead of using unsafe code, manually inline the pipeline operations
         self.pixel_fifo.map_y = self.lcd.ly + self.lcd.scy;
         self.pixel_fifo.map_x = self.pixel_fifo.fetch_x + self.lcd.scx;
         self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
@@ -202,8 +130,76 @@ impl PPU {
         self.pipeline_push_pixel();
     }
 
+    fn pipeline_fetch(&mut self) {
+        match self.pixel_fifo.state {
+            FIFOState::TILE => {
+                self.fetched_entry_count = 0;
+                
+                if self.lcd.lcdc_bgw_enable() {
+                    let map_address = self.lcd.lcdc_bg_map_area() + 
+                        ((self.pixel_fifo.map_x / 8) as u16) + 
+                        (((self.pixel_fifo.map_y / 8) as u16) * 32);
+                    
+                    self.pixel_fifo.bgw_fetch_data[0] = self.read_vram(map_address);
+
+                    if self.lcd.lcdc_bgw_data_area() == 0x8800 {
+                        self.pixel_fifo.bgw_fetch_data[0] = self.pixel_fifo.bgw_fetch_data[0].wrapping_add(128);
+                    }
+
+                    self.pipeline_load_window_tile();
+                }
+
+                if self.lcd.lcdc_obj_enable() && self.line_sprites.is_some() {
+                    self.pipeline_load_sprite_tile();
+                }
+
+                self.pixel_fifo.state = FIFOState::DATA0;
+                self.pixel_fifo.fetch_x += 8;
+            },
+            FIFOState::DATA0 => {
+                let data_address = self.lcd.lcdc_bgw_data_area() +
+                    ((self.pixel_fifo.bgw_fetch_data[0] as u16) * 16) +
+                    (self.pixel_fifo.tile_y as u16);
+
+                self.pixel_fifo.bgw_fetch_data[1] = self.read_vram(data_address);
+                self.pipeline_load_sprite_data(0);
+                self.pixel_fifo.state = FIFOState::DATA1;
+            },
+            FIFOState::DATA1 => {
+                let data_address = self.lcd.lcdc_bgw_data_area() +
+                    ((self.pixel_fifo.bgw_fetch_data[0] as u16) * 16) +
+                    (self.pixel_fifo.tile_y as u16 + 1);
+
+                self.pixel_fifo.bgw_fetch_data[2] = self.read_vram(data_address);
+                self.pipeline_load_sprite_data(1);
+                self.pixel_fifo.state = FIFOState::IDLE;
+            },
+            FIFOState::IDLE => {
+                self.pixel_fifo.state = FIFOState::PUSH;
+            },
+            FIFOState::PUSH => {
+                if self.pipeline_add() {
+                    self.pixel_fifo.state = FIFOState::TILE;
+                }
+            }
+        }
+    }
+
+    fn read_vram(&self, address: u16) -> u8 {
+        if address >= 0x8000 && address <= 0x9FFF {
+            self.vram[(address - 0x8000) as usize]
+        } else {
+            0xFF
+        }
+    }
+
     fn increment_ly(&mut self) -> Vec<Interrupts> {
         let mut interrupts = Vec::new();
+
+        if self.window_visible() && self.lcd.ly >= self.lcd.wy && self.ly < self.lcd.wy + YRES {
+            self.window_line += 1;
+        }
+
         self.ly += 1;
 
         if self.ly == self.lcd.lyc {
@@ -229,16 +225,25 @@ impl PPU {
             self.pixel_fifo.pushed_x = 0;
             self.pixel_fifo.fifo_x = 0;
         }
+
+        if self.line_ticks == 1 {
+            // Read OAM on first tick
+            self.line_sprites = None;
+            self.line_sprite_count = 0;
+
+            self.load_line_sprites();
+        }
+
         Vec::new()
     }
 
     fn ppu_mode_xfer(&mut self) -> Vec<Interrupts> {
+        // Now we can enable pipeline processing since it doesn't need bus access
         self.pipeline_process();
         let mut interrupts = Vec::new();
 
         if self.pixel_fifo.pushed_x >= XRES {
-            self.pipeline_fifo_reset();
-
+            self.pixel_fifo.pipeline_fifo_reset();
             self.lcd.lcds_mode_set(LcdMode::HBlank);
 
             if self.lcd.lcds_stat_int(StatSrc::HBlank) {
@@ -257,6 +262,7 @@ impl PPU {
             if self.ly >= LINES_PER_FRAME {
                 self.lcd.lcds_mode_set(LcdMode::OAM);
                 self.ly = 0;
+                self.window_line = 0;
             }
 
             self.line_ticks = 0;
@@ -351,5 +357,251 @@ impl PPU {
 
     pub fn ppu_vram_read(&self, address: u16) -> u8 {
         self.vram[(address - 0x8000) as usize]
+    }
+
+    pub fn load_line_sprites(&mut self) {
+        let cur_y = self.lcd.ly as i16;
+        let sprite_height = self.lcd.lcdc_obj_height() as i16;
+        
+        // Clear line entry array
+        self.line_entry_array = std::array::from_fn(|_| OAMLineEntry::new(OAMEntry::new()));
+        
+        for i in 0..40 {
+            let entry: OAMEntry = self.oam_ram[i];
+            
+            if entry.x == 0 {
+                continue;
+            }
+            
+            // max 10 sprites allowed per line
+            if self.line_sprite_count >= 10 {
+                break;
+            }
+            
+            // Check if sprite is on current line (Game Boy sprites have Y offset of 16)
+            if entry.y <= cur_y as u8 + 16 && entry.y + sprite_height as u8 > cur_y as u8 + 16 {
+                let entry_index = self.line_sprite_count as usize;
+                self.line_entry_array[entry_index] = OAMLineEntry::new(entry);
+                self.line_sprite_count += 1;
+                
+                // Insert into sorted linked list by x position
+                if self.line_sprites.is_none() || 
+                   self.line_sprites.as_ref().unwrap().entry.x > entry.x {
+                    let mut new_entry = Box::new(OAMLineEntry::new(entry));
+                    new_entry.next = self.line_sprites.take();
+                    self.line_sprites = Some(new_entry);
+                    continue;
+                }
+                
+                // Find insertion point in sorted list
+                if let Some(ref mut head) = self.line_sprites {
+                    let mut current = head;
+                    
+                    loop {
+                        let should_insert_after_current = if let Some(ref next_node) = current.next {
+                            next_node.entry.x > entry.x
+                        } else {
+                            true
+                        };
+                        
+                        if should_insert_after_current {
+                            if current.next.is_some() {
+                                let mut new_entry = Box::new(OAMLineEntry::new(entry));
+                                new_entry.next = current.next.take();
+                                current.next = Some(new_entry);
+                            } else {
+                                current.next = Some(Box::new(OAMLineEntry::new(entry)));
+                            }
+                            break;
+                        }
+                        
+                        if let Some(ref mut next) = current.next {
+                            current = next;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn pipeline_add(&mut self) -> bool {
+        if self.pixel_fifo.fifo_size() > 8 {
+            return false;
+        }
+
+        let x: i16 = self.pixel_fifo.fetch_x as i16 - (8 - (self.lcd.scx % 8)) as i16;
+
+        for i in 0..8 {
+            let bit = 7 - i;
+            let hi = if (self.pixel_fifo.bgw_fetch_data[1] & (1 << bit)) != 0 { 1 } else { 0 };
+            let lo = if (self.pixel_fifo.bgw_fetch_data[2] & (1 << bit)) != 0 { 2 } else { 0 };
+            
+            let mut color_index = hi | lo;
+            let mut color: u32 = self.lcd.bg_colors[color_index as usize];
+
+            if !self.lcd.lcdc_bgw_enable() {
+                color = self.lcd.bg_colors[0];
+                color_index = 0; // Important: when background is disabled, treat it as transparent (color index 0)
+            }
+
+            if self.lcd.lcdc_obj_enable() {
+                color = self.fetch_sprite_pixels(bit, color, color_index);
+            }
+
+            if (x + i as i16) >= 0 {
+                self.pixel_fifo.pixel_fifo_push(color);
+                self.pixel_fifo.fifo_x += 1;
+            }
+        }
+        true
+    }
+
+    fn pipeline_push_pixel(&mut self) {
+        if self.pixel_fifo.fifo_size() > 0 {
+            let pixel_data = self.pixel_fifo.pixel_fifo_pop().unwrap();
+
+            if self.pixel_fifo.line_x >= self.lcd.scx % 8 {
+                let x = self.pixel_fifo.pushed_x as usize;
+                let y = self.lcd.ly as usize;
+                let buffer_index = x + (y * XRES as usize);
+                
+                if x < XRES as usize && y < YRES as usize && buffer_index < self.video_buffer.len() {
+                    self.video_buffer[buffer_index] = pixel_data;
+                }
+                self.pixel_fifo.pushed_x += 1;
+            }
+            self.pixel_fifo.line_x += 1;
+        }
+    }
+
+    fn pipeline_load_sprite_tile(&mut self) {
+        let mut current_sprite = self.line_sprites.as_ref();
+        
+        while let Some(le) = current_sprite {
+            let sp_x = (le.entry.x as i16 - 8) + (self.lcd.scx % 8) as i16;
+            
+            if (sp_x >= self.pixel_fifo.fetch_x as i16 && sp_x < self.pixel_fifo.fetch_x as i16 + 8) ||
+                ((sp_x + 8) >= self.pixel_fifo.fetch_x as i16 && (sp_x + 8) < self.pixel_fifo.fetch_x as i16 + 8) {
+                if (self.fetched_entry_count as usize) < 3 {
+                    self.fetched_entries[self.fetched_entry_count as usize] = le.entry;
+                    self.fetched_entry_count += 1;
+                }
+            }
+            
+            current_sprite = le.next.as_ref();
+            
+            if current_sprite.is_none() || self.fetched_entry_count >= 3 {
+                break;
+            }
+        }
+    }
+
+    fn pipeline_load_sprite_data(&mut self, offset: u8) {
+        let cur_y = self.lcd.ly as i16;
+        let sprite_height = self.lcd.lcdc_obj_height();
+
+        for i in 0..self.fetched_entry_count as usize {
+            if i >= 3 { break; }
+            
+            let mut ty = ((cur_y + 16 - self.fetched_entries[i].y as i16) * 2) as u8;
+
+            let f_y_flip = (self.fetched_entries[i].flags & (1 << 6)) != 0;
+            if f_y_flip {
+                ty = ((sprite_height * 2) - 2) - ty;
+            }
+
+            let mut tile_index = self.fetched_entries[i].tile;
+            if sprite_height == 16 {
+                tile_index &= !1;
+            }
+
+            let address = 0x8000 + (tile_index as u16 * 16) + ty as u16 + offset as u16;
+            self.pixel_fifo.fetch_entry_data[(i * 2) + offset as usize] = self.read_vram(address);
+        }
+    }
+
+    fn fetch_sprite_pixels(&self, _bit: u8, color: u32, bg_color: u8) -> u32 {
+        let mut result_color = color;
+        
+        for i in 0..self.fetched_entry_count as usize {
+            if i >= 3 { break; }
+            
+            let sprite = &self.fetched_entries[i];
+            let sp_x = (sprite.x as i16 - 8) + (self.lcd.scx % 8) as i16;
+            
+            if sp_x + 8 < self.pixel_fifo.fifo_x as i16 {
+                continue;
+            }
+
+            let offset = (self.pixel_fifo.fifo_x as i16) - sp_x;
+            
+            if offset < 0 || offset > 7 {
+                continue;
+            }
+
+            let mut bit = 7 - offset;
+            
+            let f_x_flip = (sprite.flags & (1 << 5)) != 0;
+            if f_x_flip {
+                bit = offset;
+            }
+
+            let hi = if (self.pixel_fifo.fetch_entry_data[i * 2] & (1 << bit)) != 0 { 1 } else { 0 };
+            let lo = if (self.pixel_fifo.fetch_entry_data[(i * 2) + 1] & (1 << bit)) != 0 { 2 } else { 0 };
+            
+            let bg_priority = (sprite.flags & (1 << 7)) != 0;
+            let sprite_color_index = hi | lo;
+            
+            if sprite_color_index == 0 {
+                continue; // Transparent sprite pixel
+            }
+
+            if !bg_priority || bg_color == 0 {
+                let f_pn = (sprite.flags & (1 << 4)) != 0;
+                
+                result_color = if f_pn {
+                    self.lcd.sp2_colors[sprite_color_index as usize]
+                } else {
+                    self.lcd.sp1_colors[sprite_color_index as usize]
+                };
+
+                if sprite_color_index != 0 {
+                    break; // Stop processing more sprites once we find a visible one
+                }
+            }
+        }
+
+        result_color
+    }
+
+    pub fn pipeline_load_window_tile(&mut self) {
+        if !self.window_visible() {
+            return
+        }
+
+        let window_y = self.lcd.wy;
+        let window_x = self.lcd.wx;
+        
+        if self.pixel_fifo.fetch_x + 7 >= window_x && self.pixel_fifo.fetch_x + 7 < window_x + YRES + 14 {
+            if self.lcd.ly >= window_y && self.lcd.ly < window_y + XRES {
+                let window_tile_y: u8 = self.window_line / 8;
+
+                self.pixel_fifo.bgw_fetch_data[0] = self.ppu_vram_read(
+                    self.lcd.lcdc_win_map_area() + 
+                    ((self.pixel_fifo.fetch_x + 7 - window_x) / 8) as u16 +
+                    (window_tile_y as u16 * 32)
+                );
+
+                if self.lcd.lcdc_bgw_data_area() == 0x8800 {
+                    self.pixel_fifo.bgw_fetch_data[0] += 128;
+                }
+            }
+        }
+    }
+
+    pub fn window_visible(&self) -> bool {
+        return self.lcd.lcdc_win_enable() && self.lcd.wx <= 166 && self.lcd.wy < YRES
     }
 }

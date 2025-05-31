@@ -24,7 +24,6 @@ pub struct CPU {
     pub curr_instruction: Option<Instruction>,
 
     pub is_halted: bool,
-    pub is_stepping: bool,
 
     pub log_ticks: bool,
     pub debug: bool,
@@ -56,7 +55,6 @@ impl CPU {
             curr_instruction: None,
 
             is_halted: false,
-            is_stepping: true,
 
             log_ticks: false,
             debug: debug,
@@ -73,10 +71,10 @@ impl CPU {
             if self.debug {
                 print_step_info(self, &ctx, self.log_ticks);
                 log_cpu_state(self, &ctx, self.log_ticks);
+                debug::dbg_update(&mut self.bus);
+                debug::dbg_print();
             }
-            debug::dbg_update(&mut self.bus);
-            debug::dbg_print();
-
+            
             let instruction_to_execute = self.curr_instruction.take();
 
             if let Some(instruction) = instruction_to_execute {

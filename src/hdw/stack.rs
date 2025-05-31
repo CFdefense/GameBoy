@@ -7,15 +7,8 @@ pub fn stack_push(cpu: &mut CPU, value: u8, cycle: bool) {
     if cycle {
         emu_cycles(cpu, 1);
     }
-    // Create a temporary mutable reference for the write operation
-    {
-        let cpu_ref = cpu as *mut CPU;
-        // SAFETY: We're only creating a temporary reference and not modifying any state
-        // The CPU reference is valid for the duration of this scope
-        // We ensure no other mutable references exist during this time
-        cpu.bus
-            .write_byte(Some(unsafe { &mut *cpu_ref }), cpu.sp, value);
-    }
+
+    cpu.bus.write_byte(cpu.sp, value);
 }
 
 pub fn stack_push16(cpu: &mut CPU, value: u16, cycle: bool) {

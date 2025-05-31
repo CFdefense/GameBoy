@@ -18,7 +18,7 @@ pub fn dbg_update(bus: &mut BUS) {
             println!("Failed to lock DBG_MSG for updating");
         }
         
-        bus.write_byte(None, 0xFF02, 0); // reset flag
+        bus.write_byte( 0xFF02, 0); // reset flag
     }
 }
 
@@ -43,13 +43,5 @@ pub fn dbg_print() {
         }
     } else {
         println!("Failed to lock DBG_MSG for printing");
-    }
-}
-
-pub fn dbg_clear() {
-    if let Ok(mut msg) = DBG_MSG.lock() {
-        msg.clear();
-    } else {
-        println!("Failed to lock DBG_MSG for clearing");
     }
 }

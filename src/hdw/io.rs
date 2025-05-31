@@ -5,6 +5,7 @@ use crate::hdw::dma::DMA;
 use crate::hdw::cpu::CPU;
 use crate::hdw::interrupts::InterruptController;
 use crate::hdw::ppu::PPU;
+use crate::hdw::gamepad::GamePad;
 
 // Use the EMU_CONTEXT from the emu module
 use crate::hdw::emu::EMU_CONTEXT;
@@ -14,8 +15,11 @@ lazy_static::lazy_static! {
     static ref SERIAL_DATA: Mutex<[u8; 2]> = Mutex::new([0; 2]);
 }
 
-pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &InterruptController, ppu: &PPU) -> u8 {
+pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &InterruptController, ppu: &PPU, gamepad: &GamePad) -> u8 {
     let value = match address {
+        0xFF00 => {
+            gamepad.get_gamepad_output()
+        },
         0xFF01 => {
             if let Ok(data) = SERIAL_DATA.lock() {
                 data[0]
@@ -69,8 +73,11 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
     value
 }
 
-pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DMA, interrupt_controller: &mut InterruptController, ppu: &mut PPU) {
+pub fn io_write(address: u16, value: u8, dma: &mut DMA, interrupt_controller: &mut InterruptController, ppu: &mut PPU, gamepad: &mut GamePad) {
     match address {
+        0xFF00 => {
+            gamepad.gamepad_set_selection(value);
+        },
         0xFF01 => {
             if let Ok(mut data) = SERIAL_DATA.lock() {
                 data[0] = value;
@@ -91,7 +98,7 @@ pub fn io_write(cpu_opt: Option<&mut CPU>, address: u16, value: u8, dma: &mut DM
             if let Some(ctx_arc) = EMU_CONTEXT.get() {
                 if let Ok(mut emu_ctx_lock) = ctx_arc.lock() {
                     // Store values we need for logging before modifying timer
-                    let old_tac = if address == 0xFF07 { emu_ctx_lock.timer.tac } else { 0 };
+                    if address == 0xFF07 { emu_ctx_lock.timer.tac } else { 0 };
                     
                     // Do the actual timer write
                     emu_ctx_lock.timer.timer_write(address, value);

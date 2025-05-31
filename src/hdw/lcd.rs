@@ -92,7 +92,10 @@ impl LCD {
         let offset = (address - 0xFF40) as u8;
         
         match offset {
-            0x00 => { self.lcdc = value; None },      // 0xFF40 - LCD Control
+            0x00 => { 
+                self.lcdc = value; 
+                None 
+            },      // 0xFF40 - LCD Control
             0x01 => { self.lcds = value; None },      // 0xFF41 - LCD Status
             0x02 => { self.scy = value; None },       // 0xFF42 - Scroll Y
             0x03 => { self.scx = value; None },       // 0xFF43 - Scroll X
@@ -111,7 +114,7 @@ impl LCD {
             },      // 0xFF48 - Object Palette 0
             0x09 => { 
                 self.obp1 = value; 
-                self.update_palette(value & 0b11111100, 1);
+                self.update_palette(value & 0b11111100, 2);
                 None 
             },      // 0xFF49 - Object Palette 1
             0x0A => { self.wy = value; None },        // 0xFF4A - Window Y

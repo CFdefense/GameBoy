@@ -8,7 +8,7 @@ use crate::hdw::bus::BUS;
 use crate::hdw::cart::Cartridge;
 use crate::hdw::cpu::CPU;
 use crate::hdw::timer::Timer;
-use crate::hdw::ui::{UI, ui_handle_events};
+use crate::hdw::ui::UI;
 
 use once_cell::sync::OnceCell;
 
@@ -43,10 +43,6 @@ impl EmuContext {
             timer: Timer::new(),
             debug,
         }
-    }
-
-    pub fn set_running(&mut self, running: bool) {
-        self.running = running;
     }
 }
 
@@ -235,7 +231,12 @@ pub fn emu_cycles(cpu: &mut CPU, cpu_m_cycles: u8) {
             }
             // Update LCD LY register from PPU
             cpu.bus.ppu.update_lcd_ly();
-            emu_ctx_lock.bus.tick_dma(); // tick once per 4 t-cycles
+            
+            // Release the lock before ticking DMA to avoid deadlock
+            drop(emu_ctx_lock);
+            
+            // Tick DMA on the CPU's bus (where the game actually runs)
+            cpu.bus.tick_dma(); // tick once per 4 t-cycles
         } else {
             eprintln!("emu_cycles: Failed to lock EmuContext.");
         }

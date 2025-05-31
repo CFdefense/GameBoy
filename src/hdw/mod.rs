@@ -18,5 +18,7 @@ pub mod stack;
 pub mod timer;
 pub mod ui;
 pub mod ppu;
+pub mod ppu_pipeline;
 pub mod dma;
 pub mod lcd;
+pub mod gamepad;

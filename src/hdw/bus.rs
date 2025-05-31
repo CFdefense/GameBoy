@@ -25,6 +25,7 @@ use crate::hdw::ram::RAM;
 use crate::hdw::ppu::PPU;
 use crate::hdw::dma::DMA;
 use crate::hdw::interrupts::InterruptController;
+use crate::hdw::gamepad::GamePad;
 use crate::hdw::io::{io_read,io_write};
 
 pub struct BUS {
@@ -32,6 +33,7 @@ pub struct BUS {
     pub ram: RAM,
     pub ppu: PPU,
     pub dma: DMA,
+    pub gamepad: GamePad,
     pub interrupt_controller: InterruptController,
 }
 
@@ -43,6 +45,7 @@ impl BUS {
             ram: RAM::new(),
             ppu: PPU::new(),
             dma: DMA::new(),
+            gamepad: GamePad::new(),
             interrupt_controller: InterruptController::new(),
         }
     }
@@ -65,14 +68,14 @@ impl BUS {
                 }
             },
             0xFEA0..=0xFEFF => 0,  // Reserved Unusable
-            0xFF00..=0xFF7F => io_read(cpu, address, &self.interrupt_controller, &self.ppu),  // IO Registers
+            0xFF00..=0xFF7F => io_read(cpu, address, &self.interrupt_controller, &self.ppu, &self.gamepad),  // IO Registers
             0xFFFF => self.interrupt_controller.get_ie_register(),   // Interrupt Enable Register
             _ => self.ram.hram_read(address)  // HRAM (Zero Page)
         }
     }
 
     // Function to write byte to correct place
-    pub fn write_byte(&mut self, cpu: Option<&mut CPU>, address: u16, value: u8) {
+    pub fn write_byte(&mut self, address: u16, value: u8) {
         match address {
             0x0000..=0x7FFF => self.cart.write_byte(address, value),  // ROM Banks
             0x8000..=0x9FFF => {  // Char/Map Data
@@ -90,7 +93,7 @@ impl BUS {
             },
             0xFEA0..=0xFEFF => (),  // Reserved Unusable
             0xFF00..=0xFF7F => {    // IO Registers
-                io_write(cpu, address, value, &mut self.dma, &mut self.interrupt_controller, &mut self.ppu);
+                io_write(address, value, &mut self.dma, &mut self.interrupt_controller, &mut self.ppu, &mut self.gamepad);
             },
             0xFFFF => self.interrupt_controller.set_ie_register(value),    // Interrupt Enable Register
             _ => self.ram.hram_write(address, value)  // HRAM

@@ -1080,12 +1080,7 @@ impl MenuRenderer {
         let line_height = 50; // Reduced from 60
         let preview_size = 28; // Reduced from 40
         let preview_spacing = 3; // Reduced spacing between color boxes
-        
-        // Calculate available width for layout
-        let available_width = screen_width as i32 - 40; // 20px margin on each side
-        let name_width = available_width * 3 / 5; // 60% for name
-        let preview_width = available_width * 2 / 5; // 40% for color preview
-        
+            
         for (i, palette) in menu_context.available_palettes.iter().enumerate() {
             let y = start_y + (i as i32 * line_height);
             let is_selected = i == menu_context.selected_palette_index;

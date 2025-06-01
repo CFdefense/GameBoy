@@ -277,8 +277,4 @@ impl MenuContext {
     pub fn get_current_palette(&self) -> &ColorPalette {
         &self.current_palette
     }
-    
-    pub fn get_selected_palette(&self) -> Option<&ColorPalette> {
-        self.available_palettes.get(self.selected_palette_index)
-    }
 } 

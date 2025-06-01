@@ -367,6 +367,9 @@ impl UI {
         // Render FPS in bottom left corner using UI's FPS counter
         self.render_fps();
 
+        // Render controls display at the bottom center
+        self.render_controls();
+
         // Create texture from surface and render to main window
         let main_texture = self.main_texture_creator
             .create_texture_from_surface(&self.screen_surface)
@@ -793,6 +796,15 @@ impl UI {
                 0b01100,
                 0b01100,
             ],
+            '=' => [
+                0b00000,
+                0b00000,
+                0b11111,
+                0b00000,
+                0b11111,
+                0b00000,
+                0b00000,
+            ],
             _ => [
                 0b01110,
                 0b10001,
@@ -813,6 +825,49 @@ impl UI {
                 }
             }
         }
+    }
+
+    /// Renders the controls display at the bottom center of the screen
+    fn render_controls(&mut self) {
+        let controls_text = "Z=B  X=A  ARROWS=D-PAD  ENTER=START  TAB=SELECT  ESC=EXIT";
+        
+        // Calculate text dimensions (6 pixels per character, 7 pixels height)
+        let text_width = controls_text.len() as i32 * 6;
+        let text_height = 7;
+        
+        // Calculate where the game area ends
+        let game_height = YRES * SCALE;
+        let game_offset_y = (SCREEN_HEIGHT - game_height) / 2;
+        let game_bottom = game_offset_y + game_height;
+        
+        // Position controls below the game area with some margin
+        let text_x = (SCREEN_WIDTH as i32 - text_width) / 2;
+        let text_y = game_bottom as i32 + 5; // 5px margin below game
+        
+        // Draw semi-transparent background box
+        let bg_padding = 5;
+        let bg_rect = Rect::new(
+            text_x - bg_padding,
+            text_y - bg_padding,
+            (text_width + 2 * bg_padding) as u32,
+            (text_height + 2 * bg_padding) as u32
+        );
+        self.screen_surface.fill_rect(bg_rect, Color::RGBA(0, 0, 0, 160)).unwrap();
+        
+        // Draw border around the controls box
+        let border_color = Color::RGBA(100, 100, 100, 200);
+        let border_rects = [
+            Rect::new(text_x - bg_padding, text_y - bg_padding, (text_width + 2 * bg_padding) as u32, 1),  // Top
+            Rect::new(text_x - bg_padding, text_y + text_height + bg_padding - 1, (text_width + 2 * bg_padding) as u32, 1),  // Bottom
+            Rect::new(text_x - bg_padding, text_y - bg_padding, 1, (text_height + 2 * bg_padding) as u32),  // Left
+            Rect::new(text_x + text_width + bg_padding - 1, text_y - bg_padding, 1, (text_height + 2 * bg_padding) as u32),  // Right
+        ];
+        for border_rect in &border_rects {
+            self.screen_surface.fill_rect(*border_rect, border_color).unwrap();
+        }
+        
+        // Draw the controls text in white
+        self.draw_header_text(&controls_text, text_x, text_y, Color::RGB(255, 255, 255));
     }
 
     /// Updates audio by getting samples from the audio system and queuing them

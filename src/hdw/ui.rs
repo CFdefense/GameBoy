@@ -1,7 +1,34 @@
+/**
+ * UI Module - SDL2-based Game Boy Emulator User Interface
+ * 
+ * This module implements the complete user interface system for the Game Boy emulator,
+ * including the main game display, debug tile viewer, header overlay, and audio output.
+ * It uses SDL2 for cross-platform graphics, audio, and input handling.
+ * 
+ * Display Components:
+ * - Main game window: 800x600 pixels with scaled Game Boy display (160x144 -> 640x576)
+ * - Debug tile viewer: 16x24 grid showing all 384 VRAM tiles (when debug enabled)
+ * - Header overlay: Shows game name, current time, and exit button
+ * - FPS counter: Real-time frame rate display
+ * 
+ * Audio System:
+ * - SDL2 audio queue with 44.1kHz mono output
+ * - Real-time audio sample buffering from APU
+ * - Configurable buffer sizes for low-latency playback
+ * 
+ * Rendering Pipeline:
+ * - Surface-based pixel manipulation for game display
+ * - Texture streaming for GPU-accelerated rendering
+ * - Custom bitmap font rendering for UI text
+ * - Color palette support for authentic Game Boy visuals
+ * 
+ * The UI system provides both emulation display and development tools,
+ * with the debug viewer showing raw VRAM tile data for development purposes.
+ */
+
 // UI module for Game Boy emulator
 // Handles SDL2-based graphical user interface, including main game display and debug tile viewer
 
-use sdl2::event::Event;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::{TextureCreator, WindowCanvas};
 use sdl2::ttf::Sdl2TtfContext;
@@ -11,7 +38,6 @@ use sdl2::EventPump;
 use sdl2::surface::Surface;
 use sdl2::rect::Rect;
 use sdl2::pixels::Color;
-use sdl2::keyboard::Keycode;
 use sdl2::audio::{AudioQueue, AudioSpecDesired};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::hdw::cpu::CPU;
@@ -42,6 +68,16 @@ pub const DEBUG_SURFACE_HEIGHT: u32 = 24 * 8 * SCALE;
 // Represents the 4 possible Game Boy colors from white to black
 const TILE_COLORS: [u32; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
 
+/**
+ * UI - Main User Interface Controller
+ * 
+ * Manages all aspects of the emulator's visual and audio presentation.
+ * Coordinates between SDL2 subsystems and emulator components to provide
+ * real-time display of Game Boy output with optional debug visualizations.
+ * 
+ * The UI handles window management, rendering pipelines, audio streaming,
+ * and provides development tools for debugging graphics and timing.
+ */
 pub struct UI {
     // Core SDL2 components
     pub _sdl_context: sdl2::Sdl,

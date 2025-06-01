@@ -1,8 +1,51 @@
+/**
+ * CPU Utilities Module - Helper Functions for CPU Operations
+ * 
+ * This module provides essential utility functions that support CPU instruction
+ * execution, including register access, flag management, conditional testing,
+ * and program flow control. These utilities are used throughout the CPU
+ * implementation to maintain consistent behavior and reduce code duplication.
+ * 
+ * Core Functionality:
+ * 
+ * Register Access:
+ * - match_hl(): Maps HLTarget enums to actual register values
+ * - match_n16(): Maps register pair enums to 16-bit values
+ * 
+ * Conditional Testing:
+ * - match_jump(): Evaluates jump conditions based on CPU flags
+ * - Supports Z/NZ (zero), C/NC (carry) condition codes
+ * 
+ * Flag Management:
+ * Specialized flag update functions for different instruction types:
+ * - Arithmetic: set_flags_after_add_a(), set_flags_after_sub()
+ * - Logical: set_flags_after_and(), set_flags_after_xor_or()
+ * - Bit operations: set_flags_after_bit(), set_flags_after_pref_op()
+ * - Special: set_flags_after_daa(), set_flags_after_cpl()
+ * 
+ * Program Flow:
+ * - goto_addr(): Handles jumps, calls, and returns with optional stack push
+ * - Manages conditional execution and PC updates
+ * 
+ * Debug Support:
+ * - print_step_info(): Outputs detailed CPU state information
+ * - log_cpu_state(): File-based logging for debugging
+ * - Conditional logging based on debug mode settings
+ * 
+ * Flag Update Algorithms:
+ * Each flag setting function implements the precise Game Boy flag update rules:
+ * - Zero flag: Set when result equals zero
+ * - Subtract flag: Set for subtraction operations, cleared for addition
+ * - Half carry: Set when carry/borrow occurs between bits 3 and 4
+ * - Carry flag: Set when carry/borrow occurs from most significant bit
+ * 
+ * The utilities ensure consistent and accurate CPU behavior across all
+ * instruction implementations while providing debugging capabilities.
+ */
+
 /*
 
-
-    Helper File to Contain Helper Utilization Functions For CPU
-
+    Helper File to Contain Helper Utilization Functions For CPU Execute Operations
 
 */
 use super::emu::emu_cycles;

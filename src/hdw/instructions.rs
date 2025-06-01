@@ -1,3 +1,39 @@
+/**
+ * Instructions Module - Game Boy CPU Instruction Set Implementation
+ * 
+ * This module defines and implements the complete Game Boy Sharp LR35902 CPU instruction set.
+ * It provides instruction decoding, operand parsing, and execution coordination for all
+ * 256 possible opcodes plus the 256 CB-prefixed instructions.
+ * 
+ * Instruction Categories:
+ * - Load/Store: Data movement between registers, memory, and immediate values
+ * - Arithmetic: ADD, SUB, INC, DEC with flag updates
+ * - Logic: AND, OR, XOR, CP with zero/carry flag handling  
+ * - Bit Operations: Shifts, rotates, bit test/set/reset (CB-prefixed)
+ * - Jumps/Calls: Conditional and unconditional program flow control
+ * - Stack: PUSH/POP operations for 16-bit register pairs
+ * - Control: NOP, HALT, STOP, interrupt enable/disable
+ * 
+ * Addressing Modes:
+ * - Register: Direct register access (A, B, C, D, E, H, L)
+ * - Register Indirect: Memory access through register pairs (BC, DE, HL)
+ * - Immediate: 8-bit (d8) and 16-bit (d16) literal values  
+ * - Direct: Absolute memory addressing (a8, a16)
+ * - Relative: PC-relative jumps (r8 signed offset)
+ * 
+ * Instruction Timing:
+ * The module handles cycle-accurate timing by calling emu_cycles() during
+ * instruction decoding to account for memory access and operand fetch cycles.
+ * 
+ * Conditional Execution:
+ * Many instructions support conditional execution based on CPU flags:
+ * - Z (Zero), NZ (Not Zero)
+ * - C (Carry), NC (Not Carry)
+ * 
+ * The instruction decoder maps opcodes to enum variants that capture both
+ * the operation type and its operand requirements for efficient execution.
+ */
+
 use core::panic;
 
 /*
@@ -8,6 +44,12 @@ use core::panic;
 */
 use super::{cpu::CPU, emu::emu_cycles};
 
+/**
+ * Instruction - Complete Game Boy Instruction Set
+ * 
+ * Represents every possible instruction the Game Boy CPU can execute.
+ * Each variant captures the instruction type and its required operands.
+ */
 // Target For All Instructions
 #[derive(Debug)]
 pub enum Instruction {

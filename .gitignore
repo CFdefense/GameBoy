@@ -1,5 +1,16 @@
+*
+!*/
+!*.*
 /target
 /logs/*
-/roms/*
+/saves/*
 /debug_log.txt
 /timer_debug.txt
+*.sav
+*.s
+*.bin
+*.inc
+readme.txt
+/roms/*.txt
+/cpu_log.txt
+*.sym

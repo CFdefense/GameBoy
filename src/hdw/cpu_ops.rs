@@ -1,8 +1,53 @@
-/*
+/**
+ * CPU Operations Module - Game Boy CPU Instruction Implementations
+ * 
+ * This module contains the actual implementation of all Game Boy CPU instructions.
+ * Each function corresponds to a specific instruction type and handles the detailed
+ * execution logic, register updates, memory access, and flag modifications.
+ * 
+ * Instruction Categories Implemented:
+ * 
+ * Bit Operations (CB-prefixed):
+ * - Shifts: SRL, SRA, SLA (logical/arithmetic shifts)
+ * - Rotates: RLC, RRC, RL, RR (with and without carry)
+ * - SWAP: Exchange upper and lower nibbles
+ * - BIT: Test specific bit and set zero flag
+ * - RES/SET: Reset or set specific bit in register
+ * 
+ * Arithmetic Operations:
+ * - ADD/ADC: Addition with optional carry
+ * - SUB/SBC: Subtraction with optional carry  
+ * - INC/DEC: Increment/decrement 8-bit and 16-bit values
+ * - DAA: Decimal adjust after BCD arithmetic
+ * - CPL: Complement (invert) accumulator
+ * 
+ * Logical Operations:
+ * - AND/OR/XOR: Bitwise logical operations
+ * - CP: Compare (subtract without storing result)
+ * 
+ * Load Operations:
+ * - LD: Comprehensive load instruction handling all addressing modes
+ * - Supports register-to-register, immediate, and memory operations
+ * 
+ * Control Flow:
+ * - JP/JR: Absolute and relative jumps with conditions
+ * - CALL/RET: Subroutine calls and returns with stack management
+ * - RST: Restart vectors for interrupt handling
+ * 
+ * Stack Operations:
+ * - PUSH/POP: Stack manipulation for 16-bit register pairs
+ * 
+ * Flag Management:
+ * All arithmetic and logical operations properly update the CPU flags register:
+ * - Zero (Z): Set when result is zero
+ * - Subtract (N): Set for subtraction operations  
+ * - Half Carry (H): Set when carry occurs from bit 3 to bit 4
+ * - Carry (C): Set when carry occurs from bit 7 or borrow occurs
+ * 
+ * The operations maintain cycle-accurate timing and authentic Game Boy behavior
+ * for maximum compatibility with original software.
+ */
 
-    Helper File to Contain Helper Utilization Functions For CPU Execute Operations
-
-*/
 use crate::hdw::cpu::*;
 use crate::hdw::cpu_util::*;
 use crate::hdw::instructions::*;

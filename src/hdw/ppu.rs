@@ -1,23 +1,78 @@
+/**
+ * PPU Module - Game Boy Picture Processing Unit
+ * 
+ * This module implements the Game Boy's Picture Processing Unit (PPU), which is responsible
+ * for generating the video output displayed on the LCD screen. The PPU operates in parallel
+ * with the CPU and manages graphics rendering, sprite display, and LCD timing.
+ * 
+ * Core Components:
+ * - Video RAM (VRAM): 8KB for tile data and tile maps
+ * - Object Attribute Memory (OAM): 160 bytes for sprite attributes  
+ * - LCD Controller: Manages display timing and rendering modes
+ * - Pixel Pipeline: Fetches and processes background/window/sprite pixels
+ * - DMA Controller: Transfers sprite data during specific timing windows
+ * 
+ * Rendering Pipeline:
+ * 1. OAM Scan: Search for sprites visible on current scanline
+ * 2. Pixel Transfer: Fetch background, window, and sprite data
+ * 3. HBlank: Horizontal blanking period between scanlines
+ * 4. VBlank: Vertical blanking period after frame completion
+ * 
+ * LCD Modes and Timing:
+ * - Mode 0 (HBlank): 204 cycles - CPU can access VRAM/OAM
+ * - Mode 1 (VBlank): 4560 cycles - CPU can access VRAM/OAM  
+ * - Mode 2 (OAM): 80 cycles - CPU cannot access OAM
+ * - Mode 3 (Transfer): 172 cycles - CPU cannot access VRAM/OAM
+ * 
+ * Graphics Features:
+ * - 160x144 pixel display with 4-color grayscale palette
+ * - 40 hardware sprites (8x8 or 8x16 pixels) with priority system
+ * - Background and window layers with scrolling support
+ * - Hardware-accelerated pixel FIFO for authentic timing
+ * 
+ * The PPU achieves cycle-accurate timing to ensure proper game compatibility
+ * and authentic visual behavior matching original Game Boy hardware.
+ */
+
 use crate::hdw::lcd::{LCD, LcdMode, StatSrc};
 use crate::hdw::interrupts::Interrupts;
 use crate::hdw::ui::{get_ticks, delay};
 use crate::hdw::ppu_pipeline::{PixelFIFO, FIFOState};
 
+/**
+ * OAMEntry - Object Attribute Memory Entry
+ * 
+ * Represents a single sprite's attributes stored in OAM.
+ * Each sprite uses 4 bytes in OAM memory (40 sprites total).
+ */
 #[derive(Copy, Clone)]
 pub struct OAMEntry {
+    /// Y position on screen (offset by 16 pixels)
     pub y: u8,
+    /// X position on screen (offset by 8 pixels)  
     pub x: u8,
+    /// Tile number in VRAM tile data area
     pub tile: u8,
+    /// Attribute flags (palette, priority, flip bits)
     pub flags: u8,
 }
 
-const LINES_PER_FRAME: u8 = 154;
-const TICKS_PER_LINE: u32 = 456;
-const YRES: u8 = 144;
-const XRES: u8 = 160;
+// Display timing constants matching Game Boy hardware specifications
+const LINES_PER_FRAME: u8 = 154;  // Total scanlines including VBlank
+const TICKS_PER_LINE: u32 = 456;   // CPU cycles per scanline
+const YRES: u8 = 144;              // Visible scanlines  
+const XRES: u8 = 160;              // Pixels per scanline
 
+/**
+ * OAMLineEntry - Linked List Node for Sprite Processing
+ * 
+ * Used to build sorted lists of sprites visible on current scanline.
+ * Sprites are sorted by X position for proper priority handling.
+ */
 pub struct OAMLineEntry {
+    /// Sprite attributes for this entry
     pub entry: OAMEntry,
+    /// Pointer to next sprite in sorted list
     pub next: Option<Box<OAMLineEntry>>,
 }
 
@@ -55,6 +110,19 @@ impl OAMEntry {
     }
 }
 
+/**
+ * PPU - Picture Processing Unit Controller
+ * 
+ * Main PPU controller that manages all graphics rendering operations.
+ * Coordinates between LCD timing, pixel pipeline, sprite processing,
+ * and frame generation to produce authentic Game Boy video output.
+ * 
+ * The PPU operates in four distinct modes during each frame:
+ * - OAM Scan: Find sprites for current scanline
+ * - Pixel Transfer: Render pixels using background, window, and sprites  
+ * - HBlank: Horizontal blanking between scanlines
+ * - VBlank: Vertical blanking between frames
+ */
 pub struct PPU {
     pub oam_ram: [OAMEntry; 40],
     pub vram: [u8; 0x2000],

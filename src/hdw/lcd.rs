@@ -1,21 +1,84 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(u8)]
+/**
+ * LCD Module - Game Boy LCD Controller Implementation
+ * 
+ * This module implements the Game Boy's LCD (Liquid Crystal Display) controller,
+ * which manages the display timing, graphics modes, and visual output parameters.
+ * The LCD controller coordinates with the PPU to generate the final video signal.
+ * 
+ * Key Registers:
+ * - LCDC (0xFF40): LCD Control - enables/disables display features
+ * - LCDS (0xFF41): LCD Status - current mode and interrupt sources  
+ * - SCY/SCX (0xFF42/43): Background scroll registers
+ * - LY/LYC (0xFF44/45): Current scanline and scanline compare
+ * - WY/WX (0xFF4A/4B): Window position registers
+ * - BGP/OBP0/OBP1 (0xFF47-49): Palette data for colors
+ * 
+ * Display Modes:
+ * - HBlank (Mode 0): Horizontal blanking - CPU can access VRAM/OAM
+ * - VBlank (Mode 1): Vertical blanking - CPU can access VRAM/OAM
+ * - OAM (Mode 2): OAM scan - CPU cannot access OAM  
+ * - Transfer (Mode 3): Pixel transfer - CPU cannot access VRAM/OAM
+ * 
+ * Graphics Features:
+ * - 160x144 pixel display with 4-shade grayscale
+ * - Background layer with infinite scrolling
+ * - Window overlay layer for UI elements
+ * - 40 hardware sprites with size/palette/priority control
+ * - Programmable palettes for authentic Game Boy colors
+ * 
+ * Interrupt Sources:
+ * The LCD controller can generate STAT interrupts based on:
+ * - HBlank entry, VBlank entry, OAM mode entry
+ * - LY == LYC scanline coincidence detection
+ * 
+ * The LCD system provides cycle-accurate timing and mode switching
+ * to ensure proper game compatibility and visual authenticity.
+ */
+
+/**
+ * LcdMode - LCD Controller Display Modes
+ * 
+ * Represents the four distinct operating modes of the LCD controller.
+ * Each mode has specific timing characteristics and memory access restrictions.
+ */
 pub enum LcdMode {
+    /// Mode 0: Horizontal blanking (204 cycles)
     HBlank = 0,
+    /// Mode 1: Vertical blanking (4560 cycles total)  
     VBlank = 1,
+    /// Mode 2: OAM scan (80 cycles)
     OAM = 2,
+    /// Mode 3: Pixel transfer (172 cycles)
     Transfer = 3,
 }
 
+/**
+ * StatSrc - LCD Status Interrupt Sources
+ * 
+ * Bit flags for different interrupt sources in the STAT register.
+ * Multiple sources can be enabled simultaneously.
+ */
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum StatSrc {
+    /// HBlank interrupt enable (bit 3)
     HBlank = 1 << 3,
+    /// VBlank interrupt enable (bit 4)
     VBlank = 1 << 4,
+    /// OAM interrupt enable (bit 5)  
     OAM = 1 << 5,
+    /// LYC=LY coincidence interrupt enable (bit 6)
     LYC = 1 << 6,
 }
 
+/**
+ * LCD - LCD Controller State and Registers
+ * 
+ * Manages all LCD control registers, display timing, and color palettes.
+ * Provides hardware-accurate register access and palette management
+ * for authentic Game Boy graphics output.
+ */
 pub struct LCD {
     pub lcdc: u8,           // LCD Control register (0xFF40)
     pub lcds: u8,           // LCD Status register (0xFF41)
@@ -175,6 +238,7 @@ impl LCD {
     }
 
     /// LCD enable - LCDC_LCD_ENABLE
+    #[allow(dead_code)]
     pub fn lcdc_lcd_enable(&self) -> bool {
         self.bit(self.lcdc, 7)
     }
@@ -199,6 +263,7 @@ impl LCD {
     }
 
     /// Get LYC flag - LCDS_LYC
+    #[allow(dead_code)]
     pub fn lcds_lyc(&self) -> bool {
         self.bit(self.lcds, 2)
     }
@@ -216,46 +281,55 @@ impl LCD {
     // Additional helper methods for interrupt management
 
     /// Check if HBlank interrupt is enabled
+    #[allow(dead_code)]
     pub fn hblank_int_enabled(&self) -> bool {
         self.lcds_stat_int(StatSrc::HBlank)
     }
 
     /// Check if VBlank interrupt is enabled
+    #[allow(dead_code)]
     pub fn vblank_int_enabled(&self) -> bool {
         self.lcds_stat_int(StatSrc::VBlank)
     }
 
     /// Check if OAM interrupt is enabled
+    #[allow(dead_code)]
     pub fn oam_int_enabled(&self) -> bool {
         self.lcds_stat_int(StatSrc::OAM)
     }
 
     /// Check if LYC interrupt is enabled
+    #[allow(dead_code)]
     pub fn lyc_int_enabled(&self) -> bool {
         self.lcds_stat_int(StatSrc::LYC)
     }
 
     /// Set HBlank interrupt enable
+    #[allow(dead_code)]
     pub fn set_hblank_int(&mut self, enable: bool) {
         Self::bit_set(&mut self.lcds, 3, enable);
     }
 
     /// Set VBlank interrupt enable
+    #[allow(dead_code)]
     pub fn set_vblank_int(&mut self, enable: bool) {
         Self::bit_set(&mut self.lcds, 4, enable);
     }
 
     /// Set OAM interrupt enable
+    #[allow(dead_code)]
     pub fn set_oam_int(&mut self, enable: bool) {
         Self::bit_set(&mut self.lcds, 5, enable);
     }
 
     /// Set LYC interrupt enable
+    #[allow(dead_code)]
     pub fn set_lyc_int(&mut self, enable: bool) {
         Self::bit_set(&mut self.lcds, 6, enable);
     }
 
     /// Update LYC flag based on current LY and LYC values
+    #[allow(dead_code)]
     pub fn update_lyc_flag(&mut self) {
         let lyc_equals_ly = self.ly == self.lyc;
         self.lcds_lyc_set(lyc_equals_ly);

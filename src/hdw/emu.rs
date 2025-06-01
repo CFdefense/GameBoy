@@ -159,6 +159,7 @@ fn cpu_run(cpu: Arc<Mutex<CPU>>, ctx: Arc<Mutex<EmuContext>>) {
 }
 
 // Main Emulator Startup Function
+#[allow(dead_code)]
 pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     // Parse command line arguments
     let mut rom_path = None;

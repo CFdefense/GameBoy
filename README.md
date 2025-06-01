@@ -1,10 +1,10 @@
-# Game Boy Emulator - A Complete Game Boy Hardware Emulation
+# RustedROM - A Complete Gameboy Emulator
 
 A cycle-accurate Game Boy emulator written in Rust that faithfully recreates the original 1989 Nintendo Game Boy hardware, supporting the complete library of Game Boy games with accurate timing, graphics, audio, and save functionality.
 
 ## Demo
 <div align="center">
-    <img src="demo.gif" alt="Game Boy Emulator Demo" width="750">
+    <img src="https://github.com/CFdefense/RustedROM/blob/master/docs/demo.gif" alt="Description of the GIF" width="750">
 </div>
 
 ## Overview
@@ -69,9 +69,7 @@ The emulator supports the entire Game Boy library with features like battery-bac
 ### Core
 - Rust
 - SDL2 for graphics and audio
-- Custom CPU implementation
-- Custom PPU rendering engine
-- Custom APU audio synthesis
+- Python for debugging and test scripts
 
 ### Dependencies
 - sdl2 - Graphics, audio, and input handling

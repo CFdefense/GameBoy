@@ -14,3 +14,4 @@ readme.txt
 /roms/*.txt
 /cpu_log.txt
 *.sym
+.vscode

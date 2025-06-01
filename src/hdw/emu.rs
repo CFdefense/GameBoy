@@ -258,13 +258,29 @@ pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, de
     // Main loop for UI and event handling
     let mut prev_frame = 0;
     
-    while !ctx.lock().unwrap().die && !ui.exit_requested {
+    while !{
+        let ctx_lock_result = ctx.lock();
+        match ctx_lock_result {
+            Ok(ctx_lock) => ctx_lock.die,
+            Err(_) => {
+                println!("Context mutex poisoned, shutting down");
+                true
+            }
+        }
+    } && !ui.exit_requested {
         // Small delay
         thread::sleep(Duration::from_millis(1));
         
         // Handle UI events without holding CPU lock
         let continue_running = {
-            let mut cpu_lock = cpu.lock().unwrap();
+            let cpu_lock_result = cpu.lock();
+            let mut cpu_lock = match cpu_lock_result {
+                Ok(lock) => lock,
+                Err(_) => {
+                    println!("CPU mutex poisoned, shutting down");
+                    break;
+                }
+            };
             
             // Process events first (without calling ui_update)
             let mut should_continue = true;
@@ -344,7 +360,14 @@ pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, de
         
         // Now update UI without holding CPU lock
         {
-            let mut cpu_lock = cpu.lock().unwrap();
+            let cpu_lock_result = cpu.lock();
+            let mut cpu_lock = match cpu_lock_result {
+                Ok(lock) => lock,
+                Err(_) => {
+                    println!("CPU mutex poisoned during UI update, shutting down");
+                    break;
+                }
+            };
             
             // Check if frame has changed and update UI
             let current_frame = cpu_lock.bus.ppu.current_frame;
@@ -356,8 +379,10 @@ pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, de
         
         if !continue_running || ui.exit_requested {
             println!("UI requested shutdown");
-            ctx.lock().unwrap().die = true;
-            ctx.lock().unwrap().running = false;
+            if let Ok(mut ctx_lock) = ctx.lock() {
+                ctx_lock.die = true;
+                ctx_lock.running = false;
+            }
             break;
         }
     }
@@ -372,7 +397,9 @@ pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, de
     }
 
     // Make sure to properly signal the CPU thread to stop
-    ctx.lock().unwrap().running = false;
+    if let Ok(mut ctx_lock) = ctx.lock() {
+        ctx_lock.running = false;
+    }
 
     Ok(())
 }

@@ -189,23 +189,23 @@ impl PPU {
     
     pub fn pipeline_process(&mut self) {
         // Instead of using unsafe code, manually inline the pipeline operations
-        self.pixel_fifo.map_y = self.lcd.ly + self.lcd.scy;
-        self.pixel_fifo.map_x = self.pixel_fifo.fetch_x + self.lcd.scx;
+        self.pixel_fifo.map_y = self.lcd.ly.wrapping_add(self.lcd.scy);
+        self.pixel_fifo.map_x = self.pixel_fifo.fetch_x.wrapping_add(self.lcd.scx);
         
         // Calculate tile_y - use window relative position if window is active
         if self.window_visible() && self.lcd.ly >= self.lcd.wy {
             let window_x = self.lcd.wx;
             if self.pixel_fifo.fetch_x + 7 >= window_x {
                 // Use window-relative tile_y
-                let window_relative_y = (self.lcd.ly - self.lcd.wy) as u8;
+                let window_relative_y = self.lcd.ly.saturating_sub(self.lcd.wy);
                 self.pixel_fifo.tile_y = ((window_relative_y) % 8) * 2;
             } else {
                 // Use normal background tile_y
-                self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
+                self.pixel_fifo.tile_y = ((self.lcd.ly.wrapping_add(self.lcd.scy)) % 8) * 2;
             }
         } else {
             // Use normal background tile_y
-            self.pixel_fifo.tile_y = ((self.lcd.ly + self.lcd.scy) % 8) * 2;
+            self.pixel_fifo.tile_y = ((self.lcd.ly.wrapping_add(self.lcd.scy)) % 8) * 2;
         }
 
         if (self.line_ticks & 1) == 0 { // Even Line
@@ -246,7 +246,7 @@ impl PPU {
                 }
 
                 self.pixel_fifo.state = FIFOState::DATA0;
-                self.pixel_fifo.fetch_x += 8;
+                self.pixel_fifo.fetch_x = self.pixel_fifo.fetch_x.wrapping_add(8);
             },
             FIFOState::DATA0 => {
                 let data_address = self.lcd.lcdc_bgw_data_area() +

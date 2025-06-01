@@ -69,9 +69,7 @@ The emulator supports the entire Game Boy library with features like battery-bac
 ### Core
 - Rust
 - SDL2 for graphics and audio
-- Custom CPU implementation
-- Custom PPU rendering engine
-- Custom APU audio synthesis
+- Python for debugging and test scripts
 
 ### Dependencies
 - sdl2 - Graphics, audio, and input handling

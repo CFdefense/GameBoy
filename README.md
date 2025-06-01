@@ -4,7 +4,7 @@ A cycle-accurate Game Boy emulator written in Rust that faithfully recreates the
 
 ## Demo
 <div align="center">
-    <img src="demo.gif" alt="Game Boy Emulator Demo" width="750">
+    <img src="https://github.com/CFdefense/RustedROM/blob/master/docs/demo.gif" alt="Description of the GIF" width="750">
 </div>
 
 ## Overview

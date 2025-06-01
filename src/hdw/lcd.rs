@@ -349,4 +349,13 @@ impl LCD {
         }
     }
 
+    pub fn update_default_colors(&mut self, new_colors: [u32; 4]) {
+        self.default_colors = new_colors;
+        
+        // Update all palettes with new default colors
+        self.update_palette(self.bgp, 0);
+        self.update_palette(self.obp0 & 0b11111100, 1);
+        self.update_palette(self.obp1 & 0b11111100, 2);
+    }
+
 }    

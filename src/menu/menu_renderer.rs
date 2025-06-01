@@ -22,6 +22,7 @@ impl MenuRenderer {
             MenuState::MainMenu => Self::render_main_menu(surface, menu_context, screen_width, screen_height),
             MenuState::Credits => Self::render_credits(surface, screen_width, screen_height),
             MenuState::GameSelection => Self::render_game_selection(surface, menu_context, screen_width, screen_height),
+            MenuState::PaletteSelection => Self::render_palette_selection(surface, menu_context, screen_width, screen_height),
             MenuState::InGame(_) => {
                 // Game is running, don't render menu
             }
@@ -44,17 +45,24 @@ impl MenuRenderer {
         } else {
             Self::PRIMARY_COLOR
         };
-        let credits_color = if menu_context.selected_main_option == 1 {
+        let palette_color = if menu_context.selected_main_option == 1 {
+            Self::SELECTED_COLOR
+        } else {
+            Self::PRIMARY_COLOR
+        };
+        let credits_color = if menu_context.selected_main_option == 2 {
             Self::SELECTED_COLOR
         } else {
             Self::PRIMARY_COLOR
         };
         
         let start_y = center_y + 40;
-        let credits_y = center_y + 80;
+        let palette_y = center_y + 80;
+        let credits_y = center_y + 120;
         
         // Always draw text in the same position (centered)
         Self::draw_text_centered(surface, "START", center_x, start_y, start_color, 3);
+        Self::draw_text_centered(surface, "PALETTE", center_x, palette_y, palette_color, 3);
         Self::draw_text_centered(surface, "CREDITS", center_x, credits_y, credits_color, 3);
         
         // Draw selection arrow separately to the left of selected option
@@ -62,8 +70,14 @@ impl MenuRenderer {
         if menu_context.selected_main_option == 0 {
             Self::draw_text_centered(surface, ">", center_x - arrow_offset, start_y, Self::SELECTED_COLOR, 3);
         } else if menu_context.selected_main_option == 1 {
+            Self::draw_text_centered(surface, ">", center_x - arrow_offset, palette_y, Self::SELECTED_COLOR, 3);
+        } else if menu_context.selected_main_option == 2 {
             Self::draw_text_centered(surface, ">", center_x - arrow_offset, credits_y, Self::SELECTED_COLOR, 3);
         }
+        
+        // Show current palette selection
+        let current_palette_text = format!("Current: {}", menu_context.get_current_palette().get_name());
+        Self::draw_text_centered(surface, &current_palette_text, center_x, credits_y + 60, Self::SECONDARY_COLOR, 1);
         
         // Draw controls hint at bottom - centered
         Self::draw_text_centered(surface, "Arrow Keys: Navigate  |  Enter: Select", 
@@ -1054,5 +1068,110 @@ impl MenuRenderer {
                 }
             }
         }
+    }
+    
+    fn render_palette_selection(surface: &mut Surface, menu_context: &MenuContext, screen_width: u32, screen_height: u32) {
+        let center_x = screen_width as i32 / 2;
+        
+        // Draw title
+        Self::draw_text_centered(surface, "SELECT COLOR PALETTE", center_x, 25, Self::PRIMARY_COLOR, 2);
+        
+        let start_y = 60;
+        let line_height = 50; // Reduced from 60
+        let preview_size = 28; // Reduced from 40
+        let preview_spacing = 3; // Reduced spacing between color boxes
+        
+        // Calculate available width for layout
+        let available_width = screen_width as i32 - 40; // 20px margin on each side
+        let name_width = available_width * 3 / 5; // 60% for name
+        let preview_width = available_width * 2 / 5; // 40% for color preview
+        
+        for (i, palette) in menu_context.available_palettes.iter().enumerate() {
+            let y = start_y + (i as i32 * line_height);
+            let is_selected = i == menu_context.selected_palette_index;
+            let is_current = palette == menu_context.get_current_palette();
+            
+            // Draw selection highlight with reduced width
+            if is_selected {
+                let highlight_rect = Rect::new(10, y - 3, screen_width - 20, line_height as u32 - 6);
+                surface.fill_rect(highlight_rect, Color::RGBA(100, 200, 255, 30)).unwrap();
+            }
+            
+            // Draw selection arrow
+            if is_selected {
+                Self::draw_text(surface, ">", 15, y + 12, Self::SELECTED_COLOR, 2);
+            }
+            
+            // Draw palette name with shortened versions
+            let name_color = if is_selected { 
+                Self::SELECTED_COLOR 
+            } else if is_current {
+                Self::BATTERY_COLOR // Use green to indicate current
+            } else { 
+                Self::PRIMARY_COLOR 
+            };
+            
+            // Use shorter names to fit better
+            let short_name = match palette {
+                crate::menu::ColorPalette::ClassicGreen => "CLASSIC GAME BOY",
+                crate::menu::ColorPalette::Grayscale => "GRAYSCALE",
+                crate::menu::ColorPalette::PurpleShades => "PURPLE DREAMS",
+                crate::menu::ColorPalette::BlueShades => "OCEAN BLUE",
+                crate::menu::ColorPalette::Sepia => "VINTAGE SEPIA",
+                crate::menu::ColorPalette::RedShades => "RUBY RED",
+                crate::menu::ColorPalette::CyberpunkGreen => "CYBERPUNK",
+                crate::menu::ColorPalette::Ocean => "DEEP OCEAN",
+            };
+            
+            let palette_name = if is_current {
+                format!("{} *", short_name) // Use * instead of (Current) to save space
+            } else {
+                short_name.to_string()
+            };
+            
+            Self::draw_text(surface, &palette_name, 35, y + 12, name_color, 1); // Reduced scale from 2 to 1
+            
+            // Draw color preview boxes - positioned on the right side
+            let colors = palette.get_colors();
+            let total_preview_width = (preview_size + preview_spacing) * 4 - preview_spacing;
+            let box_start_x = screen_width as i32 - total_preview_width - 15; // 15px margin from right
+            
+            for (j, &color) in colors.iter().enumerate() {
+                let box_x = box_start_x + (j as i32 * (preview_size + preview_spacing));
+                let box_rect = Rect::new(box_x, y + 5, preview_size as u32, preview_size as u32);
+                
+                // Convert ARGB to RGB for SDL2
+                let r = ((color >> 16) & 0xFF) as u8;
+                let g = ((color >> 8) & 0xFF) as u8;
+                let b = (color & 0xFF) as u8;
+                let sdl_color = Color::RGB(r, g, b);
+                
+                surface.fill_rect(box_rect, sdl_color).unwrap();
+                
+                // Draw border with thinner lines
+                let border_color = if is_selected { Self::SELECTED_COLOR } else { Color::RGB(100, 100, 100) };
+                Self::draw_rect_border(surface, box_rect, border_color);
+            }
+        }
+        
+        // Draw instructions with better spacing
+        let instructions_y = screen_height as i32 - 45;
+        Self::draw_text_centered(surface, "UP/DOWN: NAVIGATE | ENTER: SELECT | BACKSPACE: BACK", 
+                                center_x, instructions_y, Self::SECONDARY_COLOR, 1);
+                                
+        Self::draw_text_centered(surface, "* = CURRENT PALETTE", 
+                                center_x, screen_height as i32 - 25, Self::CREDITS_COLOR, 1);
+    }
+    
+    fn draw_rect_border(surface: &mut Surface, rect: Rect, color: Color) {
+        // Draw border lines manually since SDL2 doesn't have a direct border function
+        // Top line
+        surface.fill_rect(Rect::new(rect.x(), rect.y(), rect.width(), 1), color).unwrap();
+        // Bottom line  
+        surface.fill_rect(Rect::new(rect.x(), rect.y() + rect.height() as i32 - 1, rect.width(), 1), color).unwrap();
+        // Left line
+        surface.fill_rect(Rect::new(rect.x(), rect.y(), 1, rect.height()), color).unwrap();
+        // Right line
+        surface.fill_rect(Rect::new(rect.x() + rect.width() as i32 - 1, rect.y(), 1, rect.height()), color).unwrap();
     }
 } 

@@ -204,10 +204,10 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     }
     let mut ui = ui_result.unwrap();
 
-    emu_run_with_ui(rom_path, &mut ui, debug_limit, debug)
+    emu_run_with_ui(rom_path, &mut ui, debug_limit, debug, None)
 }
 
-pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, debug: bool) -> io::Result<()> {
+pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, debug: bool, palette: Option<[u32; 4]>) -> io::Result<()> {
     // Attempt to create Cartridge
     let mut cart = Cartridge::new();
     if let Err(e) = cart.load_cart(rom_path) {
@@ -236,6 +236,13 @@ pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, de
     let mut bus = BUS::new();
     bus.cart = cart;
     let cpu = Arc::new(Mutex::new(CPU::new(bus, debug)));
+    
+    // Apply palette if provided
+    if let Some(palette_colors) = palette {
+        if let Ok(mut cpu_lock) = cpu.lock() {
+            cpu_lock.bus.ppu.lcd.update_default_colors(palette_colors);
+        }
+    }
     
     // Update context with CPU
     {

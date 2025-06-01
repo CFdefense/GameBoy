@@ -121,7 +121,8 @@ fn main() -> Result<(), String> {
         // Launch game if requested
         if let Some(game_path) = launch_game {
             println!("Launching game: {}", game_path);
-            match launch_emulator(&game_path, &mut ui, menu_context.debug) {
+            let palette_colors = menu_context.get_current_palette().get_colors();
+            match launch_emulator(&game_path, &mut ui, menu_context.debug, Some(palette_colors)) {
                 Ok(_) => {
                     println!("Game session ended, returning to menu");
                     menu_context.exit_game();
@@ -156,11 +157,11 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn launch_emulator(rom_path: &str, ui: &mut UI, debug: bool) -> Result<(), String> {
+fn launch_emulator(rom_path: &str, ui: &mut UI, debug: bool, palette: Option<[u32; 4]>) -> Result<(), String> {
     println!("Starting Game Boy emulator for: {}", rom_path);
 
     // Use the new function that accepts an existing UI context
-    match hdw::emu::emu_run_with_ui(rom_path, ui, None, debug) {
+    match hdw::emu::emu_run_with_ui(rom_path, ui, None, debug, palette) {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("Emulator error: {}", e)),
     }
@@ -179,5 +180,5 @@ fn main_direct_rom() -> Result<(), String> {
     
     // Create UI for direct ROM loading
     let mut ui = UI::new(false)?;
-    launch_emulator(rom_path, &mut ui, false)
+    launch_emulator(rom_path, &mut ui, false, None)
 }

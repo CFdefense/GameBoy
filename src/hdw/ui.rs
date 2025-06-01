@@ -15,26 +15,28 @@ use sdl2::keyboard::Keycode;
 use sdl2::audio::{AudioQueue, AudioSpecDesired};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::hdw::cpu::CPU;
+use chrono::Local;
 
 // Main emulator window dimensions - provides plenty of space for the scaled Game Boy display
-pub const SCREEN_WIDTH: u32 = 1024;
-pub const SCREEN_HEIGHT: u32 = 768;
+pub const SCREEN_WIDTH: u32 = 800;
+pub const SCREEN_HEIGHT: u32 = 600;
 
 // Game Boy screen resolution - the actual LCD dimensions
 pub const XRES: u32 = 160;
 pub const YRES: u32 = 144;
 
-// Scale factor for pixel upscaling - makes the 160x144 display visible on modern screens
+// Scale factor for pixel upscaling - calculated to fit the window
+// With 800x600 window: 800/160 = 5, 600/144 = 4.16, so use 4 to fit height
 const SCALE: u32 = 4;
 
 // Debug window shows VRAM tile data in a 16x24 grid (384 tiles total)
 // Each tile is 8x8 pixels, scaled up by the scale factor
 pub const DEBUG_WINDOW_WIDTH: u32 = 16 * 8 * SCALE;
-pub const DEBUG_WINDOW_HEIGHT: u32 = 32 * 8 * SCALE;
+pub const DEBUG_WINDOW_HEIGHT: u32 = 24 * 8 * SCALE;
 
-// Debug surface is slightly larger to accommodate padding and additional info
-pub const DEBUG_SURFACE_WIDTH: u32 = (16 * 8 * SCALE) + (16 * SCALE);
-pub const DEBUG_SURFACE_HEIGHT: u32 = (32 * 8 * SCALE) + (64 * SCALE);
+// Debug surface matches the window size exactly to prevent black space
+pub const DEBUG_SURFACE_WIDTH: u32 = 16 * 8 * SCALE;
+pub const DEBUG_SURFACE_HEIGHT: u32 = 24 * 8 * SCALE;
 
 // Color palette for tile display in debug viewer
 // Represents the 4 possible Game Boy colors from white to black
@@ -66,6 +68,16 @@ pub struct UI {
     
     // Debug flag
     pub debug: bool,
+    
+    // Game info for header bar
+    pub current_game_name: Option<String>,
+    pub show_header: bool,
+    pub exit_requested: bool,
+    
+    // FPS tracking
+    pub fps_counter: u32,
+    pub fps_display: u32,
+    pub fps_timer: u64,
 }
 
 impl UI {
@@ -156,6 +168,12 @@ impl UI {
             debug_surface,
             audio_queue,
             debug,
+            current_game_name: None,
+            show_header: true,
+            exit_requested: false,
+            fps_counter: 0,
+            fps_display: 0,
+            fps_timer: 0,
         })
     }
 
@@ -267,15 +285,27 @@ impl UI {
         // Update debug window first to avoid borrow conflicts
         self.update_dbg_window(cpu);
 
+        // Update FPS counter
+        self.update_fps();
+
+        // Calculate centering offsets to center the game in the window
+        let game_width = XRES * SCALE;
+        let game_height = YRES * SCALE;
+        let offset_x = (SCREEN_WIDTH - game_width) / 2;
+        let offset_y = (SCREEN_HEIGHT - game_height) / 2;
+
+        // Clear the screen with black background
+        self.screen_surface.fill_rect(None, Color::RGB(0, 0, 0)).unwrap();
+
         // Render each pixel from the Game Boy's video buffer to the main display
         for line_num in 0..YRES {
             for x in 0..XRES {
-                // Calculate scaled pixel rectangle
+                // Calculate scaled pixel rectangle with centering offset
                 let rect = Rect::new(
-                    (x * SCALE) as i32,         // Scaled X position
-                    (line_num * SCALE) as i32,  // Scaled Y position
-                    SCALE,                      // Scaled width
-                    SCALE                       // Scaled height
+                    (offset_x + x * SCALE) as i32,         // Centered X position
+                    (offset_y + line_num * SCALE) as i32,  // Centered Y position
+                    SCALE,                                 // Scaled width
+                    SCALE                                  // Scaled height
                 );
 
                 // Get pixel color from PPU video buffer
@@ -293,6 +323,14 @@ impl UI {
             }
         }
 
+        // Render header bar overlay if enabled
+        if self.show_header {
+            self.render_header_bar();
+        }
+
+        // Render FPS in bottom left corner using UI's FPS counter
+        self.render_fps();
+
         // Create texture from surface and render to main window
         let main_texture = self.main_texture_creator
             .create_texture_from_surface(&self.screen_surface)
@@ -303,83 +341,444 @@ impl UI {
         self.main_canvas.present();
     }
 
-    /// Maps keyboard input to gamepad buttons
-    /// Returns true if the key is mapped to a gamepad button
-    fn ui_on_key(cpu: &mut CPU, down: bool, key_code: Keycode) -> bool {
-        match key_code {
-            Keycode::Z => {
-                cpu.bus.gamepad.state.b = down;
-                true
-            },
-            Keycode::X => {
-                cpu.bus.gamepad.state.a = down;
-                true
-            },
-            Keycode::Return => {
-                cpu.bus.gamepad.state.start = down;
-                true
-            },
-            Keycode::Tab => {
-                cpu.bus.gamepad.state.select = down;
-                true
-            },
-            Keycode::Up => {
-                cpu.bus.gamepad.state.up = down;
-                true
-            },
-            Keycode::Down => {
-                cpu.bus.gamepad.state.down = down;
-                true
-            },
-            Keycode::Left => {
-                cpu.bus.gamepad.state.left = down;
-                true
-            },
-            Keycode::Right => {
-                cpu.bus.gamepad.state.right = down;
-                true
-            },
-            _ => false
+    /// Updates FPS counter
+    fn update_fps(&mut self) {
+        let now = get_ticks();
+        if now - self.fps_timer > 1000 {
+            self.fps_display = self.fps_counter;
+            self.fps_counter = 0;
+            self.fps_timer = now;
+        } else {
+            self.fps_counter += 1;
         }
     }
 
-    /// Handles SDL events and updates the display
-    /// Returns false if the application should quit, true otherwise
-    pub fn handle_events(&mut self, cpu: &mut CPU) -> bool {
-        // Process all pending SDL events
-        for event in self.event_pump.poll_iter() {
-            match event {
-                // Handle quit events (X button, Alt+F4, etc.)
-                Event::Quit {..} => {
-                    return false;
-                },
-                // Handle window close events
-                Event::Window { win_event: sdl2::event::WindowEvent::Close, .. } => {
-                    return false;
-                },
-                // Handle key down events
-                Event::KeyDown { keycode: Some(keycode), .. } => {
-                    Self::ui_on_key(cpu, true, keycode);
-                },
-                // Handle key up events
-                Event::KeyUp { keycode: Some(keycode), .. } => {
-                    Self::ui_on_key(cpu, false, keycode);
-                },
-                // Ignore other events for now
-                _ => {}
-            }
+    /// Renders FPS in the bottom left corner of the display
+    fn render_fps(&mut self) {
+        let fps_text = format!("FPS: {}", self.fps_display);
+        let fps_x = 10;
+        let fps_y = SCREEN_HEIGHT as i32 - 20;
+        self.draw_header_text(&fps_text, fps_x, fps_y, Color::RGB(255, 255, 255));
+    }
+
+    /// Sets the current game name for display in the header bar
+    pub fn set_game_name(&mut self, game_name: String) {
+        self.current_game_name = Some(game_name);
+    }
+
+    /// Renders the header bar overlay with game name, time, and exit button
+    fn render_header_bar(&mut self) {
+        let header_height = 30;
+        let header_rect = Rect::new(0, 0, SCREEN_WIDTH, header_height);
+        
+        // Draw semi-transparent dark background
+        self.screen_surface.fill_rect(header_rect, Color::RGBA(0, 0, 0, 180)).unwrap();
+        
+        // Draw game name on the left
+        if let Some(ref game_name) = self.current_game_name {
+            let game_name_clone = game_name.clone();
+            self.draw_header_text(&game_name_clone, 10, 8, Color::RGB(255, 255, 255));
         }
         
-        // Update audio
-        self.update_audio(cpu);
+        // Draw current time in the center
+        let time_str = self.get_current_time_string();
+        let time_width = time_str.len() as i32 * 6; // 6 pixels per character
+        let center_x = (SCREEN_WIDTH as i32 / 2) - (time_width / 2);
+        self.draw_header_text(&time_str, center_x, 8, Color::RGB(200, 200, 200));
         
-        // Update the display after processing events
-        self.ui_update(cpu);
+        // Draw exit button on the right
+        let exit_text = "EXIT";
+        let exit_button_width = 45i32;
+        let exit_button_height = 22i32;
+        let exit_x = (SCREEN_WIDTH - 55) as i32; // 10px margin from right
         
-        // Continue running
-        true
+        // Draw exit button background
+        let exit_button_rect = Rect::new(exit_x, 4, exit_button_width as u32, exit_button_height as u32);
+        self.screen_surface.fill_rect(exit_button_rect, Color::RGBA(180, 60, 60, 200)).unwrap();
+        
+        // Draw exit button border
+        let border_rects = [
+            Rect::new(exit_x, 4, exit_button_width as u32, 2),                    // Top
+            Rect::new(exit_x, 4 + exit_button_height - 2, exit_button_width as u32, 2), // Bottom
+            Rect::new(exit_x, 4, 2, exit_button_height as u32),                   // Left
+            Rect::new(exit_x + exit_button_width - 2, 4, 2, exit_button_height as u32), // Right
+        ];
+        for border_rect in &border_rects {
+            self.screen_surface.fill_rect(*border_rect, Color::RGB(220, 80, 80)).unwrap();
+        }
+        
+        // Center the EXIT text within the button
+        let exit_text_width = exit_text.len() as i32 * 6; // 6 pixels per character
+        let exit_text_x = exit_x + (exit_button_width - exit_text_width) / 2;
+        let exit_text_y = 4 + (exit_button_height - 7) / 2; // 7 is character height
+        self.draw_header_text(exit_text, exit_text_x, exit_text_y, Color::RGB(255, 255, 255));
     }
-    
+
+    /// Gets the current time as a formatted string
+    fn get_current_time_string(&self) -> String {
+        let now = Local::now();
+        now.format("%H:%M:%S").to_string()
+    }
+
+    /// Draws text on the header bar using simple pixel font
+    fn draw_header_text(&mut self, text: &str, x: i32, y: i32, color: Color) {
+        for (i, ch) in text.chars().enumerate() {
+            let char_x = x + (i as i32 * 6);
+            self.draw_header_char(ch, char_x, y, color);
+        }
+    }
+
+    /// Draws a single character using a simple 5x7 pixel font
+    fn draw_header_char(&mut self, ch: char, x: i32, y: i32, color: Color) {
+        // Simple 5x7 bitmap font patterns
+        let pattern = match ch.to_ascii_uppercase() {
+            'A' => [
+                0b01110,
+                0b10001,
+                0b10001,
+                0b11111,
+                0b10001,
+                0b10001,
+                0b10001,
+            ],
+            'B' => [
+                0b11110,
+                0b10001,
+                0b10001,
+                0b11110,
+                0b10001,
+                0b10001,
+                0b11110,
+            ],
+            'C' => [
+                0b01111,
+                0b10000,
+                0b10000,
+                0b10000,
+                0b10000,
+                0b10000,
+                0b01111,
+            ],
+            'D' => [
+                0b11110,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b11110,
+            ],
+            'E' => [
+                0b11111,
+                0b10000,
+                0b10000,
+                0b11110,
+                0b10000,
+                0b10000,
+                0b11111,
+            ],
+            'F' => [
+                0b11111,
+                0b10000,
+                0b10000,
+                0b11110,
+                0b10000,
+                0b10000,
+                0b10000,
+            ],
+            'G' => [
+                0b01111,
+                0b10000,
+                0b10000,
+                0b10111,
+                0b10001,
+                0b10001,
+                0b01111,
+            ],
+            'H' => [
+                0b10001,
+                0b10001,
+                0b10001,
+                0b11111,
+                0b10001,
+                0b10001,
+                0b10001,
+            ],
+            'I' => [
+                0b01110,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b01110,
+            ],
+            'L' => [
+                0b10000,
+                0b10000,
+                0b10000,
+                0b10000,
+                0b10000,
+                0b10000,
+                0b11111,
+            ],
+            'M' => [
+                0b10001,
+                0b11011,
+                0b10101,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+            ],
+            'N' => [
+                0b10001,
+                0b11001,
+                0b10101,
+                0b10011,
+                0b10001,
+                0b10001,
+                0b10001,
+            ],
+            'O' => [
+                0b01110,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b01110,
+            ],
+            'P' => [
+                0b11110,
+                0b10001,
+                0b10001,
+                0b11110,
+                0b10000,
+                0b10000,
+                0b10000,
+            ],
+            'R' => [
+                0b11110,
+                0b10001,
+                0b10001,
+                0b11110,
+                0b10100,
+                0b10010,
+                0b10001,
+            ],
+            'S' => [
+                0b01111,
+                0b10000,
+                0b10000,
+                0b01110,
+                0b00001,
+                0b00001,
+                0b11110,
+            ],
+            'T' => [
+                0b11111,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+            ],
+            'U' => [
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b01110,
+            ],
+            'V' => [
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b01010,
+                0b01010,
+                0b00100,
+            ],
+            'W' => [
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10101,
+                0b11011,
+                0b10001,
+            ],
+            'X' => [
+                0b10001,
+                0b01010,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b01010,
+                0b10001,
+            ],
+            'Y' => [
+                0b10001,
+                0b10001,
+                0b01010,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+            ],
+            'Z' => [
+                0b11111,
+                0b00010,
+                0b00100,
+                0b01000,
+                0b10000,
+                0b10000,
+                0b11111,
+            ],
+            '0' => [
+                0b01110,
+                0b10001,
+                0b10011,
+                0b10101,
+                0b11001,
+                0b10001,
+                0b01110,
+            ],
+            '1' => [
+                0b00100,
+                0b01100,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b00100,
+                0b01110,
+            ],
+            '2' => [
+                0b01110,
+                0b10001,
+                0b00001,
+                0b00110,
+                0b01000,
+                0b10000,
+                0b11111,
+            ],
+            '3' => [
+                0b11110,
+                0b00001,
+                0b00001,
+                0b01110,
+                0b00001,
+                0b00001,
+                0b11110,
+            ],
+            '4' => [
+                0b10010,
+                0b10010,
+                0b10010,
+                0b11111,
+                0b00010,
+                0b00010,
+                0b00010,
+            ],
+            '5' => [
+                0b11111,
+                0b10000,
+                0b10000,
+                0b11110,
+                0b00001,
+                0b00001,
+                0b11110,
+            ],
+            '6' => [
+                0b01111,
+                0b10000,
+                0b10000,
+                0b11110,
+                0b10001,
+                0b10001,
+                0b01110,
+            ],
+            '7' => [
+                0b11111,
+                0b00001,
+                0b00010,
+                0b00100,
+                0b01000,
+                0b01000,
+                0b01000,
+            ],
+            '8' => [
+                0b01110,
+                0b10001,
+                0b10001,
+                0b01110,
+                0b10001,
+                0b10001,
+                0b01110,
+            ],
+            '9' => [
+                0b01110,
+                0b10001,
+                0b10001,
+                0b01111,
+                0b00001,
+                0b00001,
+                0b11110,
+            ],
+            ':' => [
+                0b00000,
+                0b01100,
+                0b01100,
+                0b00000,
+                0b01100,
+                0b01100,
+                0b00000,
+            ],
+            ' ' => [0; 7],
+            '\'' => [
+                0b01100,
+                0b01100,
+                0b01000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+            ],
+            '.' => [
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b01100,
+                0b01100,
+            ],
+            _ => [
+                0b01110,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b10001,
+                0b01110,
+            ],
+        };
+
+        // Draw the character pattern
+        for (row, &line) in pattern.iter().enumerate() {
+            for col in 0..5 {
+                if (line >> (4 - col)) & 1 == 1 {
+                    let pixel_rect = Rect::new(x + col, y + row as i32, 1, 1);
+                    self.screen_surface.fill_rect(pixel_rect, color).unwrap();
+                }
+            }
+        }
+    }
+
     /// Updates audio by getting samples from the audio system and queuing them
     pub fn update_audio(&mut self, cpu: &mut CPU) {
         if let Some(ref audio_queue) = self.audio_queue {

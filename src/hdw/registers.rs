@@ -1,3 +1,78 @@
+/*
+  hdw/registers.rs
+  Info: Game Boy CPU register management and flag operations
+  Description: The registers module implements the Game Boy CPU's register set including 8-bit
+              general purpose registers, 16-bit register pairs, and the specialized flags register.
+              Provides efficient register access and flag manipulation for CPU operations.
+
+  Register Architecture:
+    8-bit General Purpose Registers:
+    - A: Accumulator - Primary register for arithmetic and logic operations
+    - B, C: BC Register Pair - General purpose with special functions (C for ports)
+    - D, E: DE Register Pair - General purpose with pointer capabilities
+    - H, L: HL Register Pair - Primary pointer register for memory operations
+
+    Special Registers:
+    - F: Flags Register - Contains condition flags from arithmetic/logic operations
+
+  Registers Struct Members:
+    a: Accumulator Register - Primary 8-bit register for most operations
+    b: B Register - High byte of BC register pair
+    c: C Register - Low byte of BC register pair (also used for I/O port addressing)
+    d: D Register - High byte of DE register pair
+    e: E Register - Low byte of DE register pair
+    f: Flags Register - Special register containing condition flags
+    h: H Register - High byte of HL register pair (memory addressing)
+    l: L Register - Low byte of HL register pair (memory addressing)
+
+  FlagsRegister Struct Members:
+    zero: Zero Flag (Z) - Set when arithmetic operation results in zero
+    subtract: Subtract Flag (N) - Set when last operation was subtraction
+    half_carry: Half Carry Flag (H) - Set when carry from bit 3 to bit 4 occurs
+    carry: Carry Flag (C) - Set when carry from bit 7 or borrow occurs
+
+  Flag Bit Positions:
+    - Bit 7: Zero Flag (Z)
+    - Bit 6: Subtract Flag (N)
+    - Bit 5: Half Carry Flag (H)
+    - Bit 4: Carry Flag (C)
+    - Bits 3-0: Unused (always 0)
+
+  16-bit Register Pair Operations:
+    get_af: AF Pair Reader - Returns A and F registers as 16-bit value
+    get_bc: BC Pair Reader - Returns B and C registers as 16-bit value
+    get_de: DE Pair Reader - Returns D and E registers as 16-bit value
+    get_hl: HL Pair Reader - Returns H and L registers as 16-bit value
+    set_af: AF Pair Writer - Sets A and F registers from 16-bit value
+    set_bc: BC Pair Writer - Sets B and C registers from 16-bit value
+    set_de: DE Pair Writer - Sets D and E registers from 16-bit value
+    set_hl: HL Pair Writer - Sets H and L registers from 16-bit value
+
+  Flag Conversion Operations:
+    From<&FlagsRegister> for u8: Converts flag register to byte representation
+    From<u8> for FlagsRegister: Converts byte to flag register structure
+    as_byte: Direct flag register to byte conversion method
+
+  Register Pair Encoding:
+    - High byte stored in left register, low byte in right register
+    - AF: A (high), F (low) - Accumulator and flags
+    - BC: B (high), C (low) - General purpose pair
+    - DE: D (high), E (low) - General purpose pair  
+    - HL: H (high), L (low) - Memory pointer pair
+
+  Performance Optimization:
+    - Direct register access without indirection
+    - Efficient bit manipulation for flag operations
+    - Zero-copy register pair operations
+    - Optimized flag register conversions
+
+  Hardware Accuracy:
+    - Exact flag behavior matching original Game Boy CPU
+    - Proper bit positions for all flags
+    - Accurate unused bit handling in flags register
+    - Register pair operations match hardware timing
+*/
+
 // FLAG POSITIONS FOR FLAGS REGISTER
 const ZERO_FLAG_BYTE_POSITION: u8 = 7;
 const SUBTRACT_FLAG_BYTE_POSITION: u8 = 6;

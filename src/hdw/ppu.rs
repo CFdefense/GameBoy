@@ -80,6 +80,7 @@ pub struct PPU {
     prev_frame_time: u64,
     start_timer: u64,
     frame_count: u32,
+    pub current_fps: u32,
 }
 
 impl PPU {
@@ -109,6 +110,7 @@ impl PPU {
             prev_frame_time: 0,
             start_timer: 0,
             frame_count: 0,
+            current_fps: 0,
         };
 
         // Set initial LCD mode to OAM
@@ -320,12 +322,10 @@ impl PPU {
                 }
 
                 if end - self.start_timer >= 1000 {
-                    let fps = self.frame_count;
+                    self.current_fps = self.frame_count;
                     self.start_timer = end;
                     self.frame_count = 0;
 
-                    println!("FPS: {}", fps);
-                    
                     // Save Cart Battery if needed
                     if cart.cart_needs_save() {
                         cart.cart_save_battery();

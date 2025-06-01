@@ -1,3 +1,57 @@
+/*
+  hdw/io.rs
+  Info: I/O register interface for Game Boy hardware components
+  Description: The io module implements memory-mapped I/O register access for all Game Boy hardware.
+              Provides centralized register read/write functionality with proper component routing
+              and debug capabilities for development and testing.
+
+  I/O Register Map:
+    FF00: Joypad Register - Input controller for D-pad and button states
+    FF01-FF02: Serial Data - Serial communication transfer buffer and control
+    FF04-FF07: Timer Registers - Programmable timer with divider and control
+    FF0F: Interrupt Flags - Pending interrupt status flags
+    FF10-FF3F: Audio Registers - 4-channel audio processing unit control
+    FF40-FF4B: LCD Registers - Picture processing unit and display controller
+    FF4C-FF7F: Unused Registers - Compatibility placeholder for unused addresses
+    FFFF: Interrupt Enable - Global interrupt enable mask register
+
+  Core Functions:
+    io_read: Register Reader - Routes read requests to appropriate hardware components
+    io_write: Register Writer - Routes write requests with proper side-effect handling
+
+  Component Integration:
+    - GamePad: Joypad input state and button matrix scanning
+    - Timer: System timing, divider, and timer overflow interrupts
+    - InterruptController: Hardware interrupt coordination and priority
+    - PPU: Graphics rendering, LCD control, and video timing
+    - AudioSystem: 4-channel sound synthesis and audio output
+    - DMA: Direct memory access transfers for sprites and background
+
+  Debug Features:
+    - Conditional debug output for unimplemented registers
+    - Timer state logging with context information
+    - Serial communication monitoring
+    - Register access tracing for development
+
+  Threading Safety:
+    - Thread-safe serial data access through Mutex protection
+    - Global emulation context integration for timing coordination
+    - Safe component state access during register operations
+    - Deadlock prevention through proper lock ordering
+
+  Hardware Compatibility:
+    - Accurate register behavior matching original Game Boy
+    - Proper side-effect handling for write-sensitive registers
+    - Open bus behavior for unused register ranges
+    - DMA transfer initiation through LCD register writes
+
+  Error Handling:
+    - Graceful handling of unimplemented register addresses
+    - Safe fallback values for failed lock operations
+    - Debug logging coordination with global debug state
+    - Component failure isolation through return value checking
+*/
+
 // io.rs
 use std::sync::Mutex;
 use crate::hdw::debug_timer::log_timer_state;
@@ -69,8 +123,16 @@ pub fn io_read(cpu: Option<&CPU>, address: u16, interrupt_controller: &Interrupt
         0xFF40..=0xFF4B => {
             ppu.lcd.lcd_read(address)
         },
+        0xFF4C..=0xFF7F => {
+            // Unused I/O registers (including FF7F)
+            // Some games write to these addresses, but they don't do anything
+            // Return 0xFF for compatibility (open bus behavior)
+            0xFF
+        },
         _ => {
-            println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
+            if crate::hdw::emu::is_debug_enabled() {
+                println!("IO READ NOT IMPLEMENTED for address: {:04X}", address);
+            }
             0
         }
     };
@@ -136,8 +198,15 @@ pub fn io_write(address: u16, value: u8, dma: &mut DMA, interrupt_controller: &m
                 }
             }
         },
+        0xFF4C..=0xFF7F => {
+            // Unused I/O registers (including FF7F)
+            // Some games write to these addresses, but they don't do anything
+            // Just ignore the write silently for compatibility
+        },
         _ => {
-            println!("IO WRITE NOT IMPLEMENTED for address: {:04X}", address);
+            if crate::hdw::emu::is_debug_enabled() {
+                println!("IO WRITE NOT IMPLEMENTED for address: {:04X}", address);
+            }
         }
     }
 }

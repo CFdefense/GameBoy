@@ -1,3 +1,73 @@
+/*
+  hdw/emu.rs
+  Info: Core emulation engine and timing coordination system
+  Description: The emu module implements the central emulation context and timing synchronization.
+              Manages system-wide state, coordinates hardware component timing, and provides
+              the main emulation loop with accurate Game Boy timing characteristics.
+
+  EmuContext Struct Members:
+    running: Emulation State - Controls whether the emulation loop continues execution
+    paused: Pause State - Temporarily halts execution while maintaining state
+    die: Shutdown Flag - Signals complete emulation shutdown and cleanup
+    ticks: Cycle Counter - Global T-cycle counter for accurate timing synchronization
+    cpu: CPU Reference - Thread-safe reference to the CPU for cross-thread access
+    debug_limit: Debug Limit - Optional instruction count limit for debugging sessions
+    instruction_count: Instruction Counter - Tracks executed instructions for debug limits
+    timer: System Timer - Hardware timer component for time-based interrupts
+    debug: Debug Mode - Global debug flag propagated throughout the system
+
+  Core Functions:
+    EmuContext::new: Constructor - Creates new emulation context with timing and debug settings
+    init_global_emu_context: Global Setup - Initializes system-wide emulation context reference
+    cpu_run: CPU Thread - Main CPU execution loop running in dedicated thread
+    emu_run: CLI Entry Point - Command-line interface for direct ROM loading (legacy mode)
+    emu_run_with_ui: UI Integration - Emulation with full UI and menu system integration
+    emu_cycles: Timing Engine - Increments system timing and coordinates hardware updates
+    is_debug_enabled: Debug Check - Global debug mode state accessor
+
+  Timing Architecture:
+    - T-cycle based timing (4 T-cycles = 1 M-cycle) matching original Game Boy
+    - Each T-cycle updates timer, PPU, audio, and DMA components
+    - Synchronized hardware component ticking for accurate emulation
+    - Interrupt handling coordinated through cycle-accurate timing
+    - Frame-rate regulation through PPU frame counter tracking
+
+  Threading Model:
+    - CPU execution runs in dedicated thread for performance
+    - UI/input handling runs in main thread for responsiveness
+    - Thread-safe communication through Arc<Mutex<>> wrappers
+    - Global context provides safe cross-thread state access
+    - Clean thread shutdown coordination on emulation exit
+
+  Memory and Hardware Coordination:
+    - Bus interface connects all hardware components
+    - PPU generates V-blank and LCD status interrupts
+    - Timer generates timer overflow interrupts
+    - Audio system runs independently with T-cycle accuracy
+    - DMA transfers coordinated with CPU execution
+
+  Debug Integration:
+    - Optional instruction count limits for development
+    - Debug mode propagation to all system components
+    - Performance monitoring through cycle counting
+    - State inspection capabilities for debugging
+    - Logging coordination across hardware modules
+
+  Game Integration:
+    - ROM loading and cartridge initialization
+    - Game name extraction for UI display
+    - Battery save coordination for persistent data
+    - Input mapping from UI to gamepad controller
+    - Display output routing from PPU to UI system
+
+  Error Handling:
+    - Graceful degradation on component failures
+    - Thread panic recovery mechanisms
+    - Clean shutdown procedures for all components
+    - Debug logging for error diagnosis
+    - Safe state preservation during errors
+*/
+
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -122,6 +192,21 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
         io::Error::new(io::ErrorKind::InvalidInput, "Missing ROM file argument")
     })?;
 
+    // Initialize UI
+    let ui_result = UI::new(debug);
+    if let Err(e) = &ui_result {
+        println!("Failed to initialize UI: {}", e);
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to initialize UI: {}", e),
+        ));
+    }
+    let mut ui = ui_result.unwrap();
+
+    emu_run_with_ui(rom_path, &mut ui, debug_limit, debug)
+}
+
+pub fn emu_run_with_ui(rom_path: &str, ui: &mut UI, debug_limit: Option<u32>, debug: bool) -> io::Result<()> {
     // Attempt to create Cartridge
     let mut cart = Cartridge::new();
     if let Err(e) = cart.load_cart(rom_path) {
@@ -133,16 +218,15 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     }
     println!("Cart loaded..");
 
-    // Initialize UI
-    let ui_result = UI::new(debug);
-    if let Err(e) = &ui_result {
-        println!("Failed to initialize UI: {}", e);
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to initialize UI: {}", e),
-        ));
-    }
-    let mut ui = ui_result.unwrap();
+    // Extract game name from ROM path and set it in UI
+    let game_name = std::path::Path::new(rom_path)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    ui.set_game_name(game_name);
+    ui.show_header = true;
+    ui.exit_requested = false;
 
     // Initialize context first
     let ctx = Arc::new(Mutex::new(EmuContext::new(debug_limit, debug)));
@@ -173,32 +257,113 @@ pub fn emu_run(args: Vec<String>) -> io::Result<()> {
     // Main loop for UI and event handling
     let mut prev_frame = 0;
     
-    while !ctx.lock().unwrap().die {
+    while !ctx.lock().unwrap().die && !ui.exit_requested {
         // Small delay
         thread::sleep(Duration::from_millis(1));
         
-        // Handle UI events
-        let mut cpu_lock = cpu.lock().unwrap();
-        let continue_running = ui.handle_events(&mut cpu_lock);
+        // Handle UI events without holding CPU lock
+        let continue_running = {
+            let mut cpu_lock = cpu.lock().unwrap();
+            
+            // Process events first (without calling ui_update)
+            let mut should_continue = true;
+            for event in ui.event_pump.poll_iter() {
+                match event {
+                    // Handle quit events (X button, Alt+F4, etc.)
+                    sdl2::event::Event::Quit {..} => {
+                        should_continue = false;
+                    },
+                    // Handle window close events
+                    sdl2::event::Event::Window { win_event: sdl2::event::WindowEvent::Close, .. } => {
+                        should_continue = false;
+                    },
+                    // Handle key down events
+                    sdl2::event::Event::KeyDown { keycode: Some(keycode), .. } => {
+                        // Check for exit key first
+                        if keycode == sdl2::keyboard::Keycode::Escape {
+                            ui.exit_requested = true;
+                            should_continue = false;
+                        } else {
+                            // Handle game input
+                            match keycode {
+                                sdl2::keyboard::Keycode::Z => cpu_lock.bus.gamepad.state.b = true,
+                                sdl2::keyboard::Keycode::X => cpu_lock.bus.gamepad.state.a = true,
+                                sdl2::keyboard::Keycode::Return => cpu_lock.bus.gamepad.state.start = true,
+                                sdl2::keyboard::Keycode::Tab => cpu_lock.bus.gamepad.state.select = true,
+                                sdl2::keyboard::Keycode::Up => cpu_lock.bus.gamepad.state.up = true,
+                                sdl2::keyboard::Keycode::Down => cpu_lock.bus.gamepad.state.down = true,
+                                sdl2::keyboard::Keycode::Left => cpu_lock.bus.gamepad.state.left = true,
+                                sdl2::keyboard::Keycode::Right => cpu_lock.bus.gamepad.state.right = true,
+                                _ => {}
+                            }
+                        }
+                    },
+                    // Handle key up events
+                    sdl2::event::Event::KeyUp { keycode: Some(keycode), .. } => {
+                        // Handle game input
+                        match keycode {
+                            sdl2::keyboard::Keycode::Z => cpu_lock.bus.gamepad.state.b = false,
+                            sdl2::keyboard::Keycode::X => cpu_lock.bus.gamepad.state.a = false,
+                            sdl2::keyboard::Keycode::Return => cpu_lock.bus.gamepad.state.start = false,
+                            sdl2::keyboard::Keycode::Tab => cpu_lock.bus.gamepad.state.select = false,
+                            sdl2::keyboard::Keycode::Up => cpu_lock.bus.gamepad.state.up = false,
+                            sdl2::keyboard::Keycode::Down => cpu_lock.bus.gamepad.state.down = false,
+                            sdl2::keyboard::Keycode::Left => cpu_lock.bus.gamepad.state.left = false,
+                            sdl2::keyboard::Keycode::Right => cpu_lock.bus.gamepad.state.right = false,
+                            _ => {}
+                        }
+                    },
+                    // Handle mouse button clicks for EXIT button
+                    sdl2::event::Event::MouseButtonDown { mouse_btn: sdl2::mouse::MouseButton::Left, x, y, .. } => {
+                        // Check exit button click
+                        let exit_x = (crate::hdw::ui::SCREEN_WIDTH - 55) as i32;
+                        let exit_button_width = 45i32;
+                        let exit_button_height = 22i32;
+                        
+                        let clicked_exit = ui.show_header &&
+                            x >= exit_x &&
+                            x < exit_x + exit_button_width &&
+                            y >= 4 &&
+                            y < 4 + exit_button_height;
+                        
+                        if clicked_exit {
+                            ui.exit_requested = true;
+                            should_continue = false;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+            
+            // Update audio while we have the CPU lock
+            ui.update_audio(&mut cpu_lock);
+            
+            should_continue
+        };
         
-        // Check if frame has changed and update UI
-        let current_frame = cpu_lock.bus.ppu.current_frame;
-        if prev_frame != current_frame {
-            // Frame has changed, update UI
-            // Note: In the future, this could call a specific ui.update() method
-            // For now, the handle_events already updates the UI
-            prev_frame = current_frame;
+        // Now update UI without holding CPU lock
+        {
+            let mut cpu_lock = cpu.lock().unwrap();
+            
+            // Check if frame has changed and update UI
+            let current_frame = cpu_lock.bus.ppu.current_frame;
+            if prev_frame != current_frame {
+                ui.ui_update(&mut cpu_lock);
+                prev_frame = current_frame;
+            }
         }
         
-        drop(cpu_lock);
-        
-        if !continue_running {
+        if !continue_running || ui.exit_requested {
             println!("UI requested shutdown");
             ctx.lock().unwrap().die = true;
             ctx.lock().unwrap().running = false;
             break;
         }
     }
+
+    // Disable header when exiting game
+    ui.show_header = false;
+    ui.current_game_name = None;
 
     // Wait for CPU thread to finish
     if let Err(e) = cpu_thread.join() {

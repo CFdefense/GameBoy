@@ -1,3 +1,106 @@
+/*
+  hdw/cart.rs
+  Info: Game Boy cartridge and Memory Bank Controller (MBC) implementation
+  Description: The cart module implements complete cartridge emulation including ROM loading,
+              header parsing, memory bank switching, and battery-backed save support.
+              Supports MBC1, MBC2, and MBC3 controllers with accurate banking behavior.
+
+  CartridgeHeader Struct Members:
+    rom_title: Game Title - 16-byte ASCII title extracted from cartridge header
+    new_lic_code: New License Code - 16-bit publisher identification code
+    sgb_flag: Super Game Boy Flag - Indicates Super Game Boy enhancement support
+    cart_type: Cartridge Type - Identifies MBC type and additional hardware features
+    rom_size: ROM Size Code - Encoded ROM size for bank calculation
+    ram_size: RAM Size Code - Encoded RAM size for save data allocation
+    dest_code: Destination Code - Regional release identifier (Japan vs. overseas)
+    old_lic_code: Old License Code - 8-bit legacy publisher code
+    version: Version Number - Game revision number
+    checksum: Header Checksum - Calculated checksum for header validation
+    global_checksum: Global Checksum - Complete ROM checksum (not validated)
+
+  Cartridge Struct Members:
+    file_name: ROM File Path - Original file path for save file naming
+    rom_size: ROM Size Bytes - Actual ROM size in bytes
+    rom_data: ROM Data - Complete ROM contents loaded into memory
+    rom_header: Cartridge Header - Parsed header information structure
+    ram_enabled: RAM Enable State - Controls external RAM access (0x0000-0x1FFF writes)
+    ram_banking: RAM Banking Mode - Enables RAM bank switching (MBC1 mode selection)
+    rom_bank_x: ROM Bank Offset - Current ROM bank start address
+    banking_mode: Banking Mode - MBC1 simple/advanced banking mode selection
+    rom_bank_value: ROM Bank Number - Current ROM bank register value
+    ram_bank_value: RAM Bank Number - Current RAM bank register value
+    ram_bank: RAM Bank Index - Current active RAM bank for access
+    ram_banks: RAM Bank Array - Up to 16 banks of 8KB external RAM each
+    battery: Battery Backup Flag - Indicates save data persistence support
+    need_save: Save Pending Flag - Tracks when save data requires writing to disk
+
+  MBC3 RTC Members:
+    rtc_registers: RTC Register Array - Real-time clock registers (S, M, H, DL, DH)
+    rtc_latched: RTC Latched Values - Frozen RTC values for stable reading
+    rtc_latch_state: RTC Latch State - Latch sequence state machine
+    rtc_selected: RTC Selected Flag - RTC register access vs. RAM access mode
+    rtc_register_select: RTC Register Select - Current RTC register (0x08-0x0C)
+    rtc_last_time: RTC Time Reference - System time reference for RTC updates
+
+  Core Functions:
+    new: Constructor - Creates empty cartridge ready for ROM loading
+    load_cart: ROM Loader - Loads ROM file, parses header, validates checksum
+    cart_setup_banking: Banking Setup - Initializes memory banks based on header info
+    read_byte: Memory Read - Handles ROM/RAM reads with proper banking
+    write_byte: Memory Write - Handles register writes and RAM access with banking
+    cart_load_battery: Save Loader - Loads persistent save data from disk
+    cart_save_battery: Save Writer - Writes RAM contents to battery file
+
+  MBC Detection Functions:
+    cart_mbc1: MBC1 Check - Detects MBC1 cartridge types (0x01-0x03)
+    cart_mbc2: MBC2 Check - Detects MBC2 cartridge types (0x05-0x06)  
+    cart_mbc3: MBC3 Check - Detects MBC3 cartridge types (0x0F-0x13)
+    cart_battery: Battery Check - Detects battery backup support
+    cart_has_rtc: RTC Check - Detects real-time clock support (MBC3)
+
+  MBC1 Implementation:
+    - ROM banks 1-127 (5-bit bank register)
+    - RAM banks 0-3 (2-bit bank register)
+    - Simple mode: ROM banks 1-31, no RAM banking
+    - Advanced mode: ROM banks 1-127, RAM banking enabled
+    - Banking mode selection via 0x6000-0x7FFF writes
+
+  MBC2 Implementation:
+    - ROM banks 1-15 (4-bit bank register)
+    - Built-in 512x4-bit RAM (256 bytes addressable)
+    - Register writes require bit 8 check (address & 0x0100)
+    - RAM enable: bit 8 = 0, ROM bank select: bit 8 = 1
+    - Upper 4 bits of RAM reads return 0xF
+
+  MBC3 Implementation:
+    - ROM banks 1-127 (7-bit bank register)
+    - RAM banks 0-3 or RTC register selection
+    - Real-time clock with seconds, minutes, hours, days
+    - RTC latch mechanism for stable multi-byte reads
+    - Day counter overflow and halt flag support
+
+  Save System:
+    - Automatic save file creation in "saves/" directory
+    - Battery file naming based on ROM filename
+    - 8KB save chunks for compatibility
+    - Atomic save operations to prevent corruption
+    - Save-on-bank-switch for immediate persistence
+
+  Header Validation:
+    - Nintendo logo checksum verification (if needed)
+    - Header checksum calculation and validation
+    - ROM size verification against file size
+    - Publisher code lookup tables for debugging
+    - Cartridge type identification and validation
+
+  Banking Accuracy:
+    - Proper bank 0 mirroring for invalid bank selections
+    - Accurate RAM enable/disable behavior
+    - Correct banking register bit masking
+    - Authentic power-on state initialization
+    - Real-time clock timing based on system time
+*/
+
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::fs::File;
@@ -103,6 +206,13 @@ impl Cartridge {
             }
         }
 
+        // MBC2 has built-in 512x4-bit RAM (appears as 256 bytes)
+        if self.cart_mbc2() {
+            // MBC2 has built-in 512x4-bit RAM which appears as 256 bytes
+            // Only the lower 4 bits are used, upper 4 bits return 1s when read
+            self.ram_banks[0] = Some(vec![0xFF; 0x200]); // 512 bytes, but only 256 are used
+        }
+
         self.ram_bank = 0; // Point to first bank
         self.rom_bank_x = 0x4000; // ROM bank 1 starts at 0x4000
         
@@ -110,6 +220,12 @@ impl Cartridge {
         if self.cart_mbc1() {
             self.ram_enabled = false; // RAM starts disabled
             self.ram_banking = true;  // Enable RAM banking by default
+        }
+
+        // For MBC2, initialize with proper defaults  
+        if self.cart_mbc2() {
+            self.ram_enabled = false; // RAM starts disabled
+            self.ram_banking = true;  // RAM is always enabled when enabled
         }
         
         // For MBC3, initialize with proper defaults
@@ -335,7 +451,7 @@ impl Cartridge {
         }
 
         // For non-MBC games, just read from ROM directly
-        if !self.cart_mbc1() && !self.cart_mbc3() {
+        if !self.cart_mbc1() && !self.cart_mbc2() && !self.cart_mbc3() {
             let index = address as usize;
             if index < self.rom_data.len() {
                 return self.rom_data[index];
@@ -344,7 +460,7 @@ impl Cartridge {
             }
         }
 
-        // MBC1 and MBC3 logic below
+        // MBC1, MBC2 and MBC3 logic below
         if (address & 0xE000) == 0xA000 {
             if !self.ram_enabled {
                 return 0xFF;
@@ -359,12 +475,22 @@ impl Cartridge {
                 return 0xFF;
             }
 
-            if !self.ram_banking {
+            if !self.ram_banking && !self.cart_mbc2() {
                 return 0xFF;
             }
 
             if let Some(ref ram_bank) = self.ram_banks[self.ram_bank] {
-                return ram_bank[address as usize - 0xA000];
+                if self.cart_mbc2() {
+                    // MBC2: Only 512x4-bit RAM, mapped to 0xA000-0xA1FF
+                    let ram_address = (address - 0xA000) as usize;
+                    if ram_address < 0x200 {
+                        // Return lower 4 bits with upper 4 bits set to 1
+                        return (ram_bank[ram_address] & 0x0F) | 0xF0;
+                    }
+                    return 0xFF;
+                } else {
+                    return ram_bank[address as usize - 0xA000];
+                }
             }
             return 0xFF;
         }
@@ -380,38 +506,74 @@ impl Cartridge {
 
     // Method to write a value to an address
     pub fn write_byte(&mut self, address: u16, mut value: u8) {
-        if !self.cart_mbc1() && !self.cart_mbc3() {
+        if !self.cart_mbc1() && !self.cart_mbc2() && !self.cart_mbc3() {
             return;
         }
 
         if address < 0x2000 {
-            // RAM and Timer Enable (MBC1 & MBC3)
-            self.ram_enabled = (value & 0xF) == 0xA;
+            // RAM and Timer Enable (MBC1, MBC2 & MBC3)
+            if self.cart_mbc2() {
+                // For MBC2, only enable RAM if bit 8 of address is 0 (address & 0x0100 == 0)
+                if (address & 0x0100) == 0 {
+                    self.ram_enabled = (value & 0xF) == 0xA;
+                }
+            } else {
+                self.ram_enabled = (value & 0xF) == 0xA;
+            }
         }
 
         if (address & 0xE000) == 0x2000 {
-            // ROM bank number (MBC1 & MBC3)
-            if value == 0 {
-                value = 1;
-            }
+            // ROM bank number (MBC1, MBC2 & MBC3)
+            if self.cart_mbc2() {
+                // For MBC2, only change ROM bank if bit 8 of address is 1 (address & 0x0100 != 0)
+                if (address & 0x0100) != 0 {
+                    if value == 0 {
+                        value = 1;
+                    }
+                    value &= 0b1111; // MBC2: 4 bits (supports banks 0x01-0x0F)
+                    self.rom_bank_value = value;
+                    self.rom_bank_x = 0x4000 * self.rom_bank_value as usize;
+                }
+            } else {
+                if value == 0 {
+                    value = 1;
+                }
 
-            if self.cart_mbc1() {
-                value &= 0b11111; // MBC1: 5 bits
-            } else if self.cart_mbc3() {
-                value &= 0b1111111; // MBC3: 7 bits (supports banks 0x01-0x7F)
-            }
+                if self.cart_mbc1() {
+                    value &= 0b11111; // MBC1: 5 bits
+                } else if self.cart_mbc3() {
+                    value &= 0b1111111; // MBC3: 7 bits (supports banks 0x01-0x7F)
+                }
 
-            self.rom_bank_value = value;
-            self.rom_bank_x = 0x4000 * self.rom_bank_value as usize;
+                self.rom_bank_value = value;
+                self.rom_bank_x = 0x4000 * self.rom_bank_value as usize;
+            }
         }
 
         if (address & 0xE000) == 0x4000 {
             // RAM bank number or RTC register select (MBC1 & MBC3)
-            if self.cart_mbc3() {
-                if value <= 0x07 {
-                    // RAM bank selection
+            // MBC2 doesn't have RAM banking, so ignore these writes
+            if !self.cart_mbc2() {
+                if self.cart_mbc3() {
+                    if value <= 0x07 {
+                        // RAM bank selection
+                        self.ram_bank_value = value & 0b1111;
+                        self.rtc_selected = false;
+                        
+                        if self.ram_banking {
+                            if self.cart_needs_save() {
+                                self.cart_save_battery();
+                            }
+                            self.ram_bank = self.ram_bank_value as usize;
+                        }
+                    } else if value >= 0x08 && value <= 0x0C {
+                        // RTC register selection
+                        self.rtc_register_select = value;
+                        self.rtc_selected = true;
+                    }
+                } else if self.cart_mbc1() {
+                    // MBC1 RAM bank handling
                     self.ram_bank_value = value & 0b1111;
-                    self.rtc_selected = false;
                     
                     if self.ram_banking {
                         if self.cart_needs_save() {
@@ -419,44 +581,33 @@ impl Cartridge {
                         }
                         self.ram_bank = self.ram_bank_value as usize;
                     }
-                } else if value >= 0x08 && value <= 0x0C {
-                    // RTC register selection
-                    self.rtc_register_select = value;
-                    self.rtc_selected = true;
-                }
-            } else if self.cart_mbc1() {
-                // MBC1 RAM bank handling
-                self.ram_bank_value = value & 0b1111;
-                
-                if self.ram_banking {
-                    if self.cart_needs_save() {
-                        self.cart_save_battery();
-                    }
-                    self.ram_bank = self.ram_bank_value as usize;
                 }
             }
         }
 
         if (address & 0xE000) == 0x6000 {
-            if self.cart_mbc1() {
-                // Banking mode select (MBC1)
-                self.banking_mode = value & 1;
-                self.ram_banking = self.banking_mode != 0;
+            // MBC2 doesn't use this register range
+            if !self.cart_mbc2() {
+                if self.cart_mbc1() {
+                    // Banking mode select (MBC1)
+                    self.banking_mode = value & 1;
+                    self.ram_banking = self.banking_mode != 0;
 
-                if self.ram_banking {
-                    if self.cart_needs_save() {
-                        self.cart_save_battery();
+                    if self.ram_banking {
+                        if self.cart_needs_save() {
+                            self.cart_save_battery();
+                        }
+                        self.ram_bank = self.ram_bank_value as usize;
                     }
-                    self.ram_bank = self.ram_bank_value as usize;
-                }
-            } else if self.cart_mbc3() {
-                // Latch Clock Data (MBC3)
-                if self.cart_has_rtc() {
-                    if self.rtc_latch_state == 0x00 && value == 0x01 {
-                        // Latch current RTC values
-                        self.rtc_latched = self.rtc_registers;
+                } else if self.cart_mbc3() {
+                    // Latch Clock Data (MBC3)
+                    if self.cart_has_rtc() {
+                        if self.rtc_latch_state == 0x00 && value == 0x01 {
+                            // Latch current RTC values
+                            self.rtc_latched = self.rtc_registers;
+                        }
+                        self.rtc_latch_state = value;
                     }
-                    self.rtc_latch_state = value;
                 }
             }
         }
@@ -478,13 +629,34 @@ impl Cartridge {
             }
 
             // Regular RAM write
-            if let Some(ref mut ram_bank) = self.ram_banks[self.ram_bank] {
+            let ram_bank_index = self.ram_bank;
+            let is_mbc2 = self.cart_mbc2();
+            let has_battery = self.battery;
+            
+            if ram_bank_index >= self.ram_banks.len() {
+                return;
+            }
+            
+            if let Some(ref mut ram_bank) = self.ram_banks[ram_bank_index] {
                 let ram_address = (address - 0xA000) as usize;
-                if ram_address < ram_bank.len() {
-                    ram_bank[ram_address] = value;
+                
+                if is_mbc2 {
+                    // MBC2: Only 512x4-bit RAM, mapped to 0xA000-0xA1FF
+                    if ram_address < 0x200 {
+                        // Only use lower 4 bits, upper 4 bits are ignored
+                        ram_bank[ram_address] = (ram_bank[ram_address] & 0xF0) | (value & 0x0F);
 
-                    if self.battery {
-                        self.need_save = true;
+                        if has_battery {
+                            self.need_save = true;
+                        }
+                    }
+                } else {
+                    if ram_address < ram_bank.len() {
+                        ram_bank[ram_address] = value;
+
+                        if has_battery {
+                            self.need_save = true;
+                        }
                     }
                 }
             }
@@ -519,6 +691,10 @@ impl Cartridge {
             0x0F | 0x10 => true, // MBC3+TIMER+BATTERY, MBC3+TIMER+RAM+BATTERY
             _ => false,
         }
+    }
+
+    pub fn cart_mbc2(&self) -> bool {
+        self.rom_header.cart_type == 0x05 || self.rom_header.cart_type == 0x06
     }
 
     // Update RTC registers based on elapsed time

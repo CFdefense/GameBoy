@@ -43,9 +43,9 @@ cd gameboy-emulator
 
 2. Build the project
 ```bash
-cargo build
+cargo build --release
 ```
 3. Run the project
 ```bash
-cargo run
+cargo run --release
 ```

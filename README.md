@@ -17,6 +17,7 @@ The emulator supports the entire Game Boy library with features like battery-bac
 
 - **Complete CPU Emulation**
   - Full Sharp SM83 (Game Boy CPU) instruction set implementation
+  - Dedicated Thread For Multi-Threading Performance Enhancements
   - Cycle-accurate timing with T-cycle precision
   - Complete register set and flag handling
   - Interrupt system with priority handling

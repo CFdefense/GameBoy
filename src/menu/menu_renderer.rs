@@ -166,7 +166,7 @@ impl MenuRenderer {
         // Draw game info on the right
         Self::render_game_info(surface, menu_context, split_x, screen_width, screen_height);
         
-        // Draw controls with better spacing
+        // Draw controls
         let controls = "UP/DOWN: Navigate  |  ENTER: Launch  |  BACKSPACE: Back  |  ESC: Exit";
         Self::draw_text_centered(surface, controls, screen_width as i32 / 2, 
                                 screen_height as i32 - 15, Self::SECONDARY_COLOR, 1);
@@ -1119,7 +1119,7 @@ impl MenuRenderer {
             };
             
             let palette_name = if is_current {
-                format!("{} *", short_name) // Use * instead of (Current) to save space
+                format!("{}", short_name)
             } else {
                 short_name.to_string()
             };
@@ -1149,13 +1149,10 @@ impl MenuRenderer {
             }
         }
         
-        // Draw instructions with better spacing
+        // Draw instructions
         let instructions_y = screen_height as i32 - 45;
         Self::draw_text_centered(surface, "UP/DOWN: NAVIGATE | ENTER: SELECT | BACKSPACE: BACK", 
                                 center_x, instructions_y, Self::SECONDARY_COLOR, 1);
-                                
-        Self::draw_text_centered(surface, "* = CURRENT PALETTE", 
-                                center_x, screen_height as i32 - 25, Self::CREDITS_COLOR, 1);
     }
     
     fn draw_rect_border(surface: &mut Surface, rect: Rect, color: Color) {

@@ -120,6 +120,9 @@ cargo run --release
 
 5. Load a ROM file
 - Place Game Boy ROM files (.gb) in the `roms/game_roms/` directory
+- If you would like them to be associated with an image:
+  1. Run the Emulator in --debug mode and view console output on game hover
+  2. Add a file to the /roms/imgs directory with the name the console shows
 - Select a game from the menu or specify the ROM path directly
 
 ### Usage Examples
@@ -161,17 +164,43 @@ cargo run --release -- --debug-limit 10000 path/to/your/game.gb
 ```
 GameBoy/
 ├── src/
-│   ├── hdw/           # Hardware emulation modules
-│   │   ├── cpu.rs     # CPU implementation
-│   │   ├── ppu.rs     # Picture Processing Unit
-│   │   ├── apu.rs     # Audio Processing Unit
-│   │   ├── cart.rs    # Cartridge and MBC handling
-│   │   ├── bus.rs     # Memory bus and I/O
-│   │   └── ui.rs      # User interface
-│   └── main.rs        # Entry point
-├── roms/              # ROM file directory
-├── saves/             # Save file directory
-└── logs/              # Debug log directory
+│   ├── hdw/                  # Hardware Emulation Modules
+│   │   ├── cpu.rs            # CPU Implementation
+│   │   ├── ppu.rs            # Picture Processing Unit
+│   │   ├── apu.rs            # Audio Processing Unit
+│   │   ├── cart.rs           # Cartridge and MBC handling
+│   │   ├── cpu_ops.rs        # CPU Instructions
+│   │   ├── cpu_util.rs       # CPU Helper Functions
+│   │   ├── debug_timer.rs    # Timer Helper Functions
+│   │   ├── debug.rs          # Serial Port Function
+│   │   ├── dma.rs            # Direct Memory Access
+│   │   ├── emu.rs            # Main Emulator
+│   │   ├── gamepad.rs        # Gamepad Control
+│   │   ├── instructions.rs   # Instruction Definitions
+│   │   ├── interrupts.rs     # CPU Interrupts
+│   │   ├── io.rs             # IO Bus Memory Mappings
+│   │   ├── lcd.rs            # Liquid Crystal Display
+│   │   ├── ppu_pipeline.rs   # Pipeline For Rendering
+│   │   ├── ram.rs            # RAM Implementation
+│   │   ├── registers.rs      # CPU Register Definitions
+│   │   ├── stack.rs          # CPU Stack Implementation
+│   │   ├── timer.rs          # EMU Timer
+│   │   └── ui.rs             # User interface
+│   ├── main.rs               # Entry point
+│   ├── main.rs               # Entry point
+│   ├── menu/                 # Emulator Menu Modules
+│   │   ├── game_scanner.rs   # System Game Scanner
+│   │   ├── menu_renderer.rs  # SDL2 Menu Renderer
+│   │   └── menu_state.rs     # Menu State Machine
+├── roms/                     # ROM File directory
+│   ├── broken_roms/          # Broken Game ROMS
+│   ├── game_roms/            # Working Game ROMS
+│   ├── test_roms/            # Test and Debug ROMS
+│   └── imgs/                 # Game ROM Game Covers
+├── test/                     # Test Scripts Directory
+│   └── trace_compare.py      # Script To Compare Tracefiles
+├── saves/                    # Save File directory
+└── logs/                     # Debug Log directory
 ```
 
 ## Development Features

@@ -854,18 +854,6 @@ impl UI {
         );
         self.screen_surface.fill_rect(bg_rect, Color::RGBA(0, 0, 0, 160)).unwrap();
         
-        // Draw border around the controls box
-        let border_color = Color::RGBA(100, 100, 100, 200);
-        let border_rects = [
-            Rect::new(text_x - bg_padding, text_y - bg_padding, (text_width + 2 * bg_padding) as u32, 1),  // Top
-            Rect::new(text_x - bg_padding, text_y + text_height + bg_padding - 1, (text_width + 2 * bg_padding) as u32, 1),  // Bottom
-            Rect::new(text_x - bg_padding, text_y - bg_padding, 1, (text_height + 2 * bg_padding) as u32),  // Left
-            Rect::new(text_x + text_width + bg_padding - 1, text_y - bg_padding, 1, (text_height + 2 * bg_padding) as u32),  // Right
-        ];
-        for border_rect in &border_rects {
-            self.screen_surface.fill_rect(*border_rect, border_color).unwrap();
-        }
-        
         // Draw the controls text in white
         self.draw_header_text(&controls_text, text_x, text_y, Color::RGB(255, 255, 255));
     }

@@ -1,4 +1,4 @@
-# RustedROM - A Complete Gameboy Emulator
+# RustedROM - A Multi-Threaded Gameboy Emulator
 
 A cycle-accurate Game Boy emulator written in Rust that faithfully recreates the original 1989 Nintendo Game Boy hardware, supporting the complete library of Game Boy games with accurate timing, graphics, audio, and save functionality.
 

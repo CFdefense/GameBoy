@@ -681,6 +681,7 @@ impl PPU {
         
         // Calculate window tile coordinates  
         let win_tile_x = ((self.pixel_fifo.fetch_x + 7).saturating_sub(window_x)) / 8;
+        
         // Use the actual window line (current LY - window Y) for tile Y calculation
         let window_relative_y = (self.lcd.ly - self.lcd.wy) as u8;
         let win_tile_y = window_relative_y / 8;

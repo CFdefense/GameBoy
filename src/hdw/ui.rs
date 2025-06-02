@@ -829,7 +829,7 @@ impl UI {
 
     /// Renders the controls display at the bottom center of the screen
     fn render_controls(&mut self) {
-        let controls_text = "Z=B  X=A  ARROWS=D-PAD  ENTER=START  TAB=SELECT  ESC=EXIT";
+        let controls_text = "Z=B  X=A  ARROWS=DPAD  ENTER=START  TAB=SELECT  ESC=EXIT";
         
         // Calculate text dimensions (6 pixels per character, 7 pixels height)
         let text_width = controls_text.len() as i32 * 6;

@@ -211,8 +211,7 @@ GameBoy/
 - Memory dump capabilities
 - Performance profiling
 - Instruction count limiting
-- Step-by-step execution mode
-
+  
 ## License
 
 MIT License

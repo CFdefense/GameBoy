@@ -1,3 +1,44 @@
+#!/usr/bin/env python3
+"""
+Trace Comparison Tool for Game Boy CPU Logs
+
+This script compares two Game Boy CPU trace log files to find the first point of divergence
+in CPU state, helping debug emulator accuracy issues.
+
+Usage:
+    python3 trace_compare.py <file1> <file2>
+
+Expected Log Format:
+    Each line should contain CPU state information in the following format:
+    Ticks:00000004 - 0100: LD BC,d16 (01) A:00 F:Z-HC BC:0000 DE:0000 HL:0000 IE:00 IF:00
+
+    The line must include:
+    - Tick count (8 hex digits)
+    - PC value (4 hex digits)
+    - Instruction name
+    - Opcode in parentheses
+    - Register A value
+    - Flag register status (Z/N/H/C flags)
+    - BC register pair value
+    - DE register pair value
+    - HL register pair value
+    - Optional IE (Interrupt Enable) value
+    - Optional IF (Interrupt Flag) value
+
+Special Cases:
+    - For instructions that modify HL (like LD HL+/HL-), a difference of 1 in HL is allowed
+    - The script handles both formats with and without IE/IF values
+    - Lines that don't match the expected format are ignored
+
+Example:
+    python3 trace_compare.py my_emu.log blargg_test.log
+
+Output:
+    - First point of divergence with surrounding context
+    - Specific register/flag that differs
+    - Line numbers in both files for easy reference
+"""
+
 import re
 import argparse
 
@@ -22,6 +63,16 @@ LOG_LINE_REGEX = re.compile(
 )
 
 def extract_log_data(line_content, original_line_num):
+    """
+    Extract CPU state data from a log line using regex.
+    
+    Args:
+        line_content (str): The log line to parse
+        original_line_num (int): Line number in original file (0-based)
+        
+    Returns:
+        dict: Parsed CPU state data or None if line doesn't match format
+    """
     match = LOG_LINE_REGEX.match(line_content.strip())
     if match:
         data = match.groupdict()
@@ -33,6 +84,15 @@ def extract_log_data(line_content, original_line_num):
     return None
 
 def get_log_data_lines(original_lines):
+    """
+    Process all lines from a log file and extract valid CPU state entries.
+    
+    Args:
+        original_lines (list): List of strings containing log lines
+        
+    Returns:
+        list: List of dictionaries containing parsed CPU state data
+    """
     processed_lines = []
     for i, line_content in enumerate(original_lines):
         extracted = extract_log_data(line_content, i)

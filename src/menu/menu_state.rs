@@ -4,7 +4,7 @@ pub enum MenuState {
     Credits,
     GameSelection,
     PaletteSelection,
-    InGame(String), // Contains the path to the currently running game
+    InGame(String),
 }
 
 #[derive(Debug, Clone)]
@@ -13,6 +13,7 @@ pub struct GameInfo {
     pub path: String,
     pub file_size: u64,
     pub is_battery_backed: bool,
+    pub is_test_rom: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +109,12 @@ impl ColorPalette {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum GameTab {
+    Games,
+    TestRoms,
+}
+
 pub struct MenuContext {
     pub current_state: MenuState,
     pub selected_main_option: usize, // 0 = Start, 1 = Palette, 2 = Credits
@@ -121,6 +128,7 @@ pub struct MenuContext {
     pub credits_scroll: f32,
     pub animation_time: f32,
     pub debug: bool,
+    pub current_tab: GameTab,
 }
 
 impl MenuContext {
@@ -134,17 +142,16 @@ impl MenuContext {
             available_palettes: ColorPalette::all_palettes(),
             games: Vec::new(),
             scroll_offset: 0,
-            max_visible_games: 12, // Increased from 8 to 12 for more vertical space
+            max_visible_games: 12,
             credits_scroll: 0.0,
             animation_time: 0.0,
             debug,
+            current_tab: GameTab::Games,
         }
     }
 
     pub fn update(&mut self, delta_time: f32) {
         self.animation_time += delta_time;
-        
-        // No auto-scroll for credits anymore - they are now static
     }
 
     pub fn navigate_up(&mut self) {
@@ -157,7 +164,6 @@ impl MenuContext {
             MenuState::GameSelection => {
                 if self.selected_game_index > 0 {
                     self.selected_game_index -= 1;
-                    // Adjust scroll if needed
                     if self.selected_game_index < self.scroll_offset {
                         self.scroll_offset = self.selected_game_index;
                     }
@@ -175,14 +181,14 @@ impl MenuContext {
     pub fn navigate_down(&mut self) {
         match self.current_state {
             MenuState::MainMenu => {
-                if self.selected_main_option < 2 { // 0-2 (Start, Palette, Credits)
+                if self.selected_main_option < 2 {
                     self.selected_main_option += 1;
                 }
             }
             MenuState::GameSelection => {
-                if self.selected_game_index < self.games.len().saturating_sub(1) {
+                let max_index = self.get_filtered_games_count().saturating_sub(1);
+                if self.selected_game_index < max_index {
                     self.selected_game_index += 1;
-                    // Adjust scroll if needed
                     if self.selected_game_index >= self.scroll_offset + self.max_visible_games {
                         self.scroll_offset = self.selected_game_index + 1 - self.max_visible_games;
                     }
@@ -218,7 +224,17 @@ impl MenuContext {
                 }
             }
             MenuState::GameSelection => {
-                if let Some(game) = self.games.get(self.selected_game_index) {
+                // Get filtered games for current tab
+                let filtered_games: Vec<&GameInfo> = self.games
+                    .iter()
+                    .filter(|game| match self.current_tab {
+                        GameTab::Games => !game.is_test_rom,
+                        GameTab::TestRoms => game.is_test_rom,
+                    })
+                    .collect();
+
+                // Get the game at the filtered index
+                if let Some(game) = filtered_games.get(self.selected_game_index) {
                     let game_path = game.path.clone();
                     self.current_state = MenuState::InGame(game_path.clone());
                     Some(game_path)
@@ -261,20 +277,83 @@ impl MenuContext {
         }
     }
 
-    pub fn get_selected_game(&self) -> Option<&GameInfo> {
-        self.games.get(self.selected_game_index)
-    }
-
     pub fn get_visible_games(&self) -> Vec<(usize, &GameInfo)> {
-        self.games
+        // First get all games for the current tab with their filtered indices
+        let filtered_games: Vec<(usize, &GameInfo)> = self.games
             .iter()
             .enumerate()
+            .filter(|(_, game)| match self.current_tab {
+                GameTab::Games => !game.is_test_rom,
+                GameTab::TestRoms => game.is_test_rom,
+            })
+            .enumerate() // Re-enumerate after filtering to get correct indices
+            .map(|(filtered_idx, (_, game))| (filtered_idx, game))
+            .collect();
+
+        // Then return the visible window of games
+        filtered_games
+            .iter()
             .skip(self.scroll_offset)
             .take(self.max_visible_games)
+            .map(|&(idx, game)| (idx, game))
             .collect()
     }
     
     pub fn get_current_palette(&self) -> &ColorPalette {
         &self.current_palette
+    }
+
+    pub fn get_filtered_games_count(&self) -> usize {
+        self.games
+            .iter()
+            .filter(|game| match self.current_tab {
+                GameTab::Games => !game.is_test_rom,
+                GameTab::TestRoms => game.is_test_rom,
+            })
+            .count()
+    }
+
+    pub fn switch_tab(&mut self) {
+        // Store current selection before switching
+        let current_selection = self.get_selected_game();
+        let current_name = current_selection.map(|game| game.name.clone());
+        
+        // Switch tab
+        self.current_tab = match self.current_tab {
+            GameTab::Games => GameTab::TestRoms,
+            GameTab::TestRoms => GameTab::Games,
+        };
+
+        // Reset selection and scroll
+        self.selected_game_index = 0;
+        self.scroll_offset = 0;
+
+        // If we had a selection, try to find a game with the same name in the new tab
+        if let Some(prev_name) = current_name {
+            if let Some((idx, _)) = self.games
+                .iter()
+                .enumerate()
+                .filter(|(_, game)| match self.current_tab {
+                    GameTab::Games => !game.is_test_rom,
+                    GameTab::TestRoms => game.is_test_rom,
+                })
+                .find(|(_, game)| game.name == prev_name) {
+                self.selected_game_index = idx;
+            }
+        }
+    }
+
+    pub fn get_selected_game(&self) -> Option<&GameInfo> {
+        // Get all games for the current tab
+        let filtered_games: Vec<&GameInfo> = self.games
+            .iter()
+            .filter(|game| match self.current_tab {
+                GameTab::Games => !game.is_test_rom,
+                GameTab::TestRoms => game.is_test_rom,
+            })
+            .collect();
+
+        // Get the game at the selected index
+        filtered_games.get(self.selected_game_index).copied()
     }
 } 

@@ -1,7 +1,7 @@
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::surface::Surface;
-use crate::menu::{MenuContext, MenuState};
+use crate::menu::{MenuContext, MenuState, GameInfo};
 
 pub struct MenuRenderer;
 
@@ -160,38 +160,67 @@ impl MenuRenderer {
         // Draw title with better positioning
         Self::draw_text_centered(surface, "Select Game", screen_width as i32 / 2, 25, Self::PRIMARY_COLOR, 3);
         
+        // Draw tabs
+        let tab_y = 60;
+        let games_tab_x = 20;
+        let test_roms_tab_x = games_tab_x + 150;
+        
+        // Draw tab backgrounds
+        let tab_width = 140;
+        let tab_height = 25;
+        
+        // Games tab
+        let games_tab_color = if menu_context.current_tab == crate::menu::GameTab::Games {
+            Self::SELECTED_COLOR
+        } else {
+            Self::SECONDARY_COLOR
+        };
+        let games_tab_rect = Rect::new(games_tab_x, tab_y, tab_width, tab_height);
+        surface.fill_rect(games_tab_rect, Color::RGBA(games_tab_color.r, games_tab_color.g, games_tab_color.b, 30)).unwrap();
+        Self::draw_text_centered(surface, "GAMES", games_tab_x + (tab_width as i32 / 2), tab_y + 5, games_tab_color, 2);
+        
+        // Test ROMs tab
+        let test_roms_tab_color = if menu_context.current_tab == crate::menu::GameTab::TestRoms {
+            Self::SELECTED_COLOR
+        } else {
+            Self::SECONDARY_COLOR
+        };
+        let test_roms_tab_rect = Rect::new(test_roms_tab_x, tab_y, tab_width, tab_height);
+        surface.fill_rect(test_roms_tab_rect, Color::RGBA(test_roms_tab_color.r, test_roms_tab_color.g, test_roms_tab_color.b, 30)).unwrap();
+        Self::draw_text_centered(surface, "TEST ROMS", test_roms_tab_x + (tab_width as i32 / 2), tab_y + 5, test_roms_tab_color, 2);
+        
         // Draw game list on the left
         Self::render_game_list(surface, menu_context, split_x);
         
         // Draw game info on the right
         Self::render_game_info(surface, menu_context, split_x, screen_width, screen_height);
         
-        // Draw controls
-        let controls = "UP/DOWN: Navigate  |  ENTER: Launch  |  BACKSPACE: Back  |  ESC: Exit";
+        // Draw controls with tab switching instruction
+        let controls = "UP/DOWN: Navigate | LEFT/RIGHT: Switch List | ENTER: Launch | BACKSPACE: Back | ESC: Exit";
         Self::draw_text_centered(surface, controls, screen_width as i32 / 2, 
                                 screen_height as i32 - 15, Self::SECONDARY_COLOR, 1);
     }
     
     fn render_game_list(surface: &mut Surface, menu_context: &MenuContext, split_x: u32) {
         let list_x = 20;
-        let start_y = 70; // More space from top
-        let line_height = 25; // Reduced from 30 to 25 to fit more games
-        
-        // Draw "Games" header
-        Self::draw_text(surface, "Games:", list_x, start_y - 25, Self::SECONDARY_COLOR, 2);
+        let start_y = 100; // Increased to make room for tabs
+        let line_height = 25;
         
         let visible_games = menu_context.get_visible_games();
+        let total_games = menu_context.get_filtered_games_count();
         
         if visible_games.is_empty() {
-            Self::draw_text(surface, "No games found!", list_x, start_y + 50, Self::CREDITS_COLOR, 2);
-            Self::draw_text(surface, "Place .gb/.gbc files in 'roms/' directory", 
-                           list_x, start_y + 80, Self::CREDITS_COLOR, 1);
+            let empty_message = match menu_context.current_tab {
+                crate::menu::GameTab::Games => "No games found!\nPlace .gb/.gbc files in 'roms/game_roms/' directory",
+                crate::menu::GameTab::TestRoms => "No test ROMs found!\nPlace test ROMs in 'roms/test_roms/' directory",
+            };
+            Self::draw_text(surface, empty_message, list_x, start_y + 50, Self::CREDITS_COLOR, 2);
             return;
         }
         
-        for (i, (global_index, game)) in visible_games.iter().enumerate() {
+        for (i, (filtered_index, game)) in visible_games.iter().enumerate() {
             let y = start_y + (i as i32 * line_height);
-            let is_selected = *global_index == menu_context.selected_game_index;
+            let is_selected = *filtered_index == menu_context.selected_game_index;
             
             // Draw selection highlight
             if is_selected {
@@ -213,7 +242,7 @@ impl MenuRenderer {
         if menu_context.scroll_offset > 0 {
             Self::draw_text_centered(surface, "^ More games above", split_x as i32 / 2, start_y - 5, Self::SECONDARY_COLOR, 1);
         }
-        if menu_context.scroll_offset + menu_context.max_visible_games < menu_context.games.len() {
+        if menu_context.scroll_offset + menu_context.max_visible_games < total_games {
             let bottom_y = start_y + (menu_context.max_visible_games as i32 * line_height) + 5;
             Self::draw_text_centered(surface, "v More games below", split_x as i32 / 2, bottom_y, Self::SECONDARY_COLOR, 1);
         }
@@ -255,7 +284,7 @@ impl MenuRenderer {
                                        (screen_height - y as u32 - 100).min(200));
             
             // Try to find and display game image
-            let image_found = Self::try_render_game_image(surface, &game.name, preview_rect, menu_context.debug);
+            let image_found = Self::try_render_game_image(surface, game, preview_rect, menu_context.debug);
             
             if !image_found {
                 // Only draw gray background if no image found
@@ -288,24 +317,33 @@ impl MenuRenderer {
             .to_string()
     }
     
-    fn try_render_game_image(surface: &mut Surface, game_name: &str, rect: Rect, debug: bool) -> bool {
+    fn try_render_game_image(surface: &mut Surface, game: &GameInfo, rect: Rect, debug: bool) -> bool {
         use std::fs;
         use std::path::Path;
         use sdl2::image::LoadSurface;
         
+        // Extract filename from path without extension
+        let path = Path::new(&game.path);
+        let file_stem = path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&game.name);
+
         // Look for images with common extensions
         let extensions = ["png", "jpg", "jpeg", "bmp", "gif"];
         
         if debug {
-            println!("Image Debug: Looking for images for game '{}'", game_name);
+            println!("Image Debug: Looking for images for game '{}'", game.name);
+            println!("Image Debug: File stem: '{}'", file_stem);
         }
         
-        // Try both original name and cleaned name
-        let game_name_clean = Self::clean_name_for_image(game_name);
-        let names_to_try = vec![game_name, &game_name_clean];
+        // Try both original name, cleaned name, and file stem
+        let game_name_clean = Self::clean_name_for_image(&game.name);
+        let file_stem_clean = Self::clean_name_for_image(file_stem);
+        let names_to_try = vec![&game.name, &game_name_clean, file_stem, &file_stem_clean];
         
         if debug {
-            println!("Image Debug: Original name: '{}', Cleaned name: '{}'", game_name, game_name_clean);
+            println!("Image Debug: Original name: '{}', Cleaned name: '{}'", game.name, game_name_clean);
+            println!("Image Debug: File stem: '{}', Cleaned stem: '{}'", file_stem, file_stem_clean);
         }
         
         for name in &names_to_try {
@@ -379,12 +417,15 @@ impl MenuRenderer {
                     // Get the file name without extension
                     if let Some(stem) = Path::new(&file_name).file_stem() {
                         if let Some(stem_str) = stem.to_str() {
-                            // Check if the stem matches our game name (case-insensitive)
-                            if stem_str.to_lowercase() == game_name.to_lowercase() || 
-                               stem_str.to_lowercase() == game_name_clean.to_lowercase() {
-                                
+                            // Check if the stem matches any of our name variants (case-insensitive)
+                            let stem_lower = stem_str.to_lowercase();
+                            let matches = names_to_try.iter().any(|name| {
+                                name.to_lowercase() == stem_lower
+                            });
+                            
+                            if matches {
                                 if debug {
-                                    println!("Image Debug: Case-insensitive match found: {} matches {}", stem_str, game_name);
+                                    println!("Image Debug: Case-insensitive match found: {} matches game", stem_str);
                                 }
                                 
                                 let image_path = format!("roms/imgs/{}", file_name);
@@ -435,7 +476,7 @@ impl MenuRenderer {
         }
         
         if debug {
-            println!("Image Debug: No image found for game '{}'", game_name);
+            println!("Image Debug: No image found for game '{}'", game.name);
         }
         
         false
@@ -1034,6 +1075,15 @@ impl MenuRenderer {
                 [1,1,1,1,1],
                 [0,0,0,0,0],
                 [1,1,1,1,1],
+                [0,0,0,0,0],
+                [0,0,0,0,0],
+            ],
+            '^' => vec![
+                [0,0,1,0,0],
+                [0,1,0,1,0],
+                [1,0,0,0,1],
+                [0,0,0,0,0],
+                [0,0,0,0,0],
                 [0,0,0,0,0],
                 [0,0,0,0,0],
             ],

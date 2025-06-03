@@ -94,6 +94,11 @@ fn main() -> Result<(), String> {
                     match keycode {
                         Keycode::Up => menu_context.navigate_up(),
                         Keycode::Down => menu_context.navigate_down(),
+                        Keycode::Left | Keycode::Right => {
+                            if matches!(menu_context.current_state, MenuState::GameSelection) {
+                                menu_context.switch_tab();
+                            }
+                        },
                         Keycode::Return => {
                             if let Some(game_path) = menu_context.select() {
                                 launch_game = Some(game_path);

@@ -327,7 +327,7 @@ impl MenuRenderer {
         let file_stem = path.file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or(&game.name);
-
+        
         // Look for images with common extensions
         let extensions = ["png", "jpg", "jpeg", "bmp", "gif"];
         

@@ -13,17 +13,17 @@ impl GameScanner {
         if let Ok(entries) = fs::read_dir(&game_roms_dir) {
             for entry in entries.flatten() {
                 if let Some(game_info) = Self::process_game_file(&entry.path(), false) {
-                    games.push(game_info);
-                }
+                        games.push(game_info);
+                    }
             }
         }
         
         // Scan test ROMs directory
         let test_roms_dir = Path::new(roms_dir).join("test_roms");
         if let Ok(entries) = fs::read_dir(&test_roms_dir) {
-            for entry in entries.flatten() {
+                for entry in entries.flatten() {
                 if let Some(game_info) = Self::process_game_file(&entry.path(), true) {
-                    games.push(game_info);
+                            games.push(game_info);
                 }
             }
         }

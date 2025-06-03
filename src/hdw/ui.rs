@@ -361,13 +361,13 @@ impl UI {
                 if buffer_index < cpu.bus.ppu.video_buffer.len() {
                     let pixel_color = cpu.bus.ppu.video_buffer[buffer_index];
                     
-                    // Calculate scaled pixel rectangle with centering offset
-                    let rect = Rect::new(
+                // Calculate scaled pixel rectangle with centering offset
+                let rect = Rect::new(
                         (offset_x + x * SCALE) as i32,
                         (offset_y + line_num * SCALE) as i32,
                         SCALE,
                         SCALE
-                    );
+                );
 
                     // Draw scaled pixel with the color from video buffer
                     self.screen_surface.fill_rect(rect, Color::RGBA(

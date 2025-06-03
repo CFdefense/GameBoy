@@ -294,7 +294,7 @@ impl PPU {
             // Check if we actually rendered any window pixels on this line
             let window_x = self.lcd.wx.saturating_sub(7);
             if window_x < XRES {
-                self.window_line += 1;
+            self.window_line += 1;
             }
         }
 

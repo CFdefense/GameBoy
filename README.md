@@ -9,9 +9,9 @@ A cycle-accurate Game Boy emulator written in Rust that faithfully recreates the
 
 ## Overview
 
-This Game Boy emulator provides a complete hardware-level emulation of Nintendo's iconic handheld gaming console. Built with accuracy and performance in mind, it recreates every aspect of the original Game Boy hardware including the custom Z80-like CPU, Picture Processing Unit, Audio Processing Unit, and all supported Memory Bank Controllers.
+This Game Boy emulator provides a complete hardware-level emulation of Nintendo's iconic handheld gaming console. Built with accuracy and performance in mind, it recreates every aspect of the original Game Boy hardware including the custom Z80-like CPU, Picture Processing Unit, Audio Processing Unit, and all supported Memory Bank Controllers (MBC1, MBC2, MBC3, and MBC5).
 
-The emulator supports the entire Game Boy library with features like battery-backed saves, real-time clock functionality, and debugging capabilities, making it suitable for both gaming and Game Boy development research.
+The emulator supports the entire Game Boy library with features like battery-backed saves, real-time clock functionality, and debugging capabilities, making it suitable for both gaming and Game Boy development research. With MBC5 support, the emulator now runs popular titles like Pokemon Gold, Silver, and Crystal, as well as many other late-era Game Boy and early Game Boy Color games.
 
 ## Key Features
 
@@ -40,8 +40,8 @@ The emulator supports the entire Game Boy library with features like battery-bac
 
 - **Memory Management**
   - Complete memory map implementation
-  - Memory Bank Controller support (MBC1, MBC2, MBC3)
-  - ROM banking up to 127 banks
+  - Memory Bank Controller support (MBC1, MBC2, MBC3, MBC5)
+  - ROM banking up to 511 banks (MBC5)
   - External RAM banking with battery backup
   - Real-time clock support for MBC3 cartridges
 
@@ -158,6 +158,7 @@ cargo run --release -- --debug-limit 10000 path/to/your/game.gb
 - MBC1 (Memory Bank Controller 1)
 - MBC2 (Memory Bank Controller 2) 
 - MBC3 (Memory Bank Controller 3) with Real-Time Clock
+- MBC5 (Memory Bank Controller 5) - Used in Pokemon Gold/Silver/Crystal
 - Battery-backed SRAM for all supported MBC types
 
 ## File Structure

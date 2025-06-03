@@ -219,6 +219,7 @@ impl PPU {
         match self.pixel_fifo.state {
             FIFOState::TILE => {
                 self.fetched_entry_count = 0;
+                self.check_window_state(); // Check window state before fetching tiles
                 
                 if self.lcd.lcdc_bgw_enable() {
                     // First load background tile
@@ -288,9 +289,13 @@ impl PPU {
     fn increment_ly(&mut self) -> Vec<Interrupts> {
         let mut interrupts = Vec::new();
 
-        // Increment window line counter if window is visible and we're in window area
-        if self.window_visible() && self.lcd.ly >= self.lcd.wy {
-            self.window_line += 1;
+        // Only increment window line counter when we're actually drawing window content
+        if self.window_visible() && self.lcd.ly >= self.lcd.wy && self.lcd.wx <= 166 {
+            // Check if we actually rendered any window pixels on this line
+            let window_x = self.lcd.wx.saturating_sub(7);
+            if window_x < XRES {
+                self.window_line += 1;
+            }
         }
 
         self.ly += 1;
@@ -677,14 +682,13 @@ impl PPU {
             return;
         }
 
-        let window_x = self.lcd.wx;
+        let window_x = self.lcd.wx.saturating_sub(7);  // WX=7 means window starts at x=0
         
         // Calculate window tile coordinates  
         let win_tile_x = ((self.pixel_fifo.fetch_x + 7).saturating_sub(window_x)) / 8;
         
-        // Use the actual window line (current LY - window Y) for tile Y calculation
-        let window_relative_y = (self.lcd.ly - self.lcd.wy) as u8;
-        let win_tile_y = window_relative_y / 8;
+        // Use window_line instead of calculating from LY
+        let win_tile_y = self.window_line / 8;
 
         // Ensure we're within bounds
         if win_tile_x < 32 && win_tile_y < 32 {
@@ -702,6 +706,13 @@ impl PPU {
     }
 
     pub fn window_visible(&self) -> bool {
-        return self.lcd.lcdc_win_enable() && self.lcd.wx <= 166 && self.lcd.wy < YRES
+        self.lcd.lcdc_win_enable() && self.lcd.wy < YRES
+    }
+
+    pub fn check_window_state(&mut self) {
+        // Reset window line counter at the start of each frame
+        if self.ly == 0 {
+            self.window_line = 0;
+        }
     }
 }

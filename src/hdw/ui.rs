@@ -45,14 +45,14 @@ use chrono::Local;
 
 // Main emulator window dimensions - provides plenty of space for the scaled Game Boy display
 pub const SCREEN_WIDTH: u32 = 800;
-pub const SCREEN_HEIGHT: u32 = 600;
+pub const SCREEN_HEIGHT: u32 = 700;  // Increased from 650 to 700 to ensure full visibility
 
 // Game Boy screen resolution - the actual LCD dimensions
 pub const XRES: u32 = 160;
 pub const YRES: u32 = 144;
 
 // Scale factor for pixel upscaling - calculated to fit the window
-// With 800x600 window: 800/160 = 5, 600/144 = 4.16, so use 4 to fit height
+// With 800x600 window and minimal UI padding, use scale of 3.5 equivalent (implemented as 7/2)
 const SCALE: u32 = 4;
 
 // Debug window shows VRAM tile data in a 16x24 grid (384 tiles total)
@@ -324,36 +324,57 @@ impl UI {
         // Update FPS counter
         self.update_fps();
 
+        // Clear the screen with black background
+        self.screen_surface.fill_rect(None, Color::RGB(0, 0, 0)).unwrap();
+
+        // Define padding constants - minimal padding for maximum game size
+        let header_height = 35u32;  // Keep header height the same
+        let bottom_padding = 60u32;  // Increased from 30 to 60 for more space at bottom
+
         // Calculate centering offsets to center the game in the window
         let game_width = XRES * SCALE;
         let game_height = YRES * SCALE;
         let offset_x = (SCREEN_WIDTH - game_width) / 2;
-        let offset_y = (SCREEN_HEIGHT - game_height) / 2;
+        
+        // Calculate vertical position with safe arithmetic
+        let total_padding = header_height + bottom_padding;
+        let remaining_height = SCREEN_HEIGHT - total_padding;
+        let offset_y = if game_height <= remaining_height {
+            header_height + (remaining_height - game_height) / 2
+        } else {
+            header_height // If game is too tall, just position at header height
+        };
 
-        // Clear the screen with black background
-        self.screen_surface.fill_rect(None, Color::RGB(0, 0, 0)).unwrap();
+        // Draw dark gray background for game area
+        let game_area_rect = Rect::new(
+            offset_x as i32,
+            offset_y as i32,
+            game_width,
+            game_height
+        );
+        self.screen_surface.fill_rect(game_area_rect, Color::RGB(20, 20, 20)).unwrap();
 
         // Render each pixel from the Game Boy's video buffer to the main display
         for line_num in 0..YRES {
             for x in 0..XRES {
-                // Calculate scaled pixel rectangle with centering offset
-                let rect = Rect::new(
-                    (offset_x + x * SCALE) as i32,         // Centered X position
-                    (offset_y + line_num * SCALE) as i32,  // Centered Y position
-                    SCALE,                                 // Scaled width
-                    SCALE                                  // Scaled height
-                );
-
-                // Get pixel color from PPU video buffer
                 let buffer_index = (x + (line_num * XRES)) as usize;
                 if buffer_index < cpu.bus.ppu.video_buffer.len() {
                     let pixel_color = cpu.bus.ppu.video_buffer[buffer_index];
+                    
+                    // Calculate scaled pixel rectangle with centering offset
+                    let rect = Rect::new(
+                        (offset_x + x * SCALE) as i32,
+                        (offset_y + line_num * SCALE) as i32,
+                        SCALE,
+                        SCALE
+                    );
+
                     // Draw scaled pixel with the color from video buffer
                     self.screen_surface.fill_rect(rect, Color::RGBA(
-                        ((pixel_color >> 16) & 0xFF) as u8,  // Red component
-                        ((pixel_color >> 8) & 0xFF) as u8,   // Green component
-                        (pixel_color & 0xFF) as u8,          // Blue component
-                        ((pixel_color >> 24) & 0xFF) as u8,  // Alpha component
+                        ((pixel_color >> 16) & 0xFF) as u8,
+                        ((pixel_color >> 8) & 0xFF) as u8,
+                        (pixel_color & 0xFF) as u8,
+                        0xFF  // Force full alpha for visibility
                     )).unwrap();
                 }
             }
@@ -364,11 +385,8 @@ impl UI {
             self.render_header_bar();
         }
 
-        // Render FPS in bottom left corner using UI's FPS counter
-        self.render_fps();
-
-        // Render controls display at the bottom center
-        self.render_controls();
+        // Render footer bar with FPS and controls
+        self.render_footer_bar();
 
         // Create texture from surface and render to main window
         let main_texture = self.main_texture_creator
@@ -392,14 +410,6 @@ impl UI {
         }
     }
 
-    /// Renders FPS in the bottom left corner of the display
-    fn render_fps(&mut self) {
-        let fps_text = format!("FPS: {}", self.fps_display);
-        let fps_x = 10;
-        let fps_y = SCREEN_HEIGHT as i32 - 20;
-        self.draw_header_text(&fps_text, fps_x, fps_y, Color::RGB(255, 255, 255));
-    }
-
     /// Sets the current game name for display in the header bar
     pub fn set_game_name(&mut self, game_name: String) {
         self.current_game_name = Some(game_name);
@@ -407,49 +417,49 @@ impl UI {
 
     /// Renders the header bar overlay with game name, time, and exit button
     fn render_header_bar(&mut self) {
-        let header_height = 30;
+        let header_height = 35;  // Match the header height constant
         let header_rect = Rect::new(0, 0, SCREEN_WIDTH, header_height);
         
         // Draw semi-transparent dark background
         self.screen_surface.fill_rect(header_rect, Color::RGBA(0, 0, 0, 180)).unwrap();
         
-        // Draw game name on the left
+        // Draw game name on the left with adjusted y position
         if let Some(ref game_name) = self.current_game_name {
             let game_name_clone = game_name.clone();
-            self.draw_header_text(&game_name_clone, 10, 8, Color::RGB(255, 255, 255));
+            self.draw_header_text(&game_name_clone, 20, 12, Color::RGB(255, 255, 255));  // Adjusted y from 15 to 12
         }
         
-        // Draw current time in the center
+        // Draw current time in the center with adjusted y position
         let time_str = self.get_current_time_string();
         let time_width = time_str.len() as i32 * 6; // 6 pixels per character
         let center_x = (SCREEN_WIDTH as i32 / 2) - (time_width / 2);
-        self.draw_header_text(&time_str, center_x, 8, Color::RGB(200, 200, 200));
+        self.draw_header_text(&time_str, center_x, 12, Color::RGB(200, 200, 200));  // Adjusted y from 15 to 12
         
-        // Draw exit button on the right
+        // Draw exit button on the right with adjusted y position
         let exit_text = "EXIT";
         let exit_button_width = 45i32;
         let exit_button_height = 22i32;
-        let exit_x = (SCREEN_WIDTH - 55) as i32; // 10px margin from right
+        let exit_x = (SCREEN_WIDTH - 65) as i32;
         
-        // Draw exit button background
-        let exit_button_rect = Rect::new(exit_x, 4, exit_button_width as u32, exit_button_height as u32);
+        // Draw exit button background with adjusted y position
+        let exit_button_rect = Rect::new(exit_x, 7, exit_button_width as u32, exit_button_height as u32);  // Adjusted y from 9 to 7
         self.screen_surface.fill_rect(exit_button_rect, Color::RGBA(180, 60, 60, 200)).unwrap();
         
-        // Draw exit button border
+        // Draw exit button border with adjusted y positions
         let border_rects = [
-            Rect::new(exit_x, 4, exit_button_width as u32, 2),                    // Top
-            Rect::new(exit_x, 4 + exit_button_height - 2, exit_button_width as u32, 2), // Bottom
-            Rect::new(exit_x, 4, 2, exit_button_height as u32),                   // Left
-            Rect::new(exit_x + exit_button_width - 2, 4, 2, exit_button_height as u32), // Right
+            Rect::new(exit_x, 7, exit_button_width as u32, 2),                    // Top
+            Rect::new(exit_x, 7 + exit_button_height - 2, exit_button_width as u32, 2), // Bottom
+            Rect::new(exit_x, 7, 2, exit_button_height as u32),                   // Left
+            Rect::new(exit_x + exit_button_width - 2, 7, 2, exit_button_height as u32), // Right
         ];
         for border_rect in &border_rects {
             self.screen_surface.fill_rect(*border_rect, Color::RGB(220, 80, 80)).unwrap();
         }
         
-        // Center the EXIT text within the button
-        let exit_text_width = exit_text.len() as i32 * 6; // 6 pixels per character
+        // Center the EXIT text within the button with adjusted y position
+        let exit_text_width = exit_text.len() as i32 * 6;
         let exit_text_x = exit_x + (exit_button_width - exit_text_width) / 2;
-        let exit_text_y = 4 + (exit_button_height - 7) / 2; // 7 is character height
+        let exit_text_y = 7 + (exit_button_height - 7) / 2;  // Adjusted y calculation
         self.draw_header_text(exit_text, exit_text_x, exit_text_y, Color::RGB(255, 255, 255));
     }
 
@@ -827,35 +837,39 @@ impl UI {
         }
     }
 
-    /// Renders the controls display at the bottom center of the screen
-    fn render_controls(&mut self) {
+    /// Renders the footer bar containing FPS counter and controls
+    fn render_footer_bar(&mut self) {
+        let footer_height = 55u32;  // Increased from 50 to 55
+        let footer_y = SCREEN_HEIGHT - footer_height;
+        let footer_rect = Rect::new(0, footer_y as i32, SCREEN_WIDTH, footer_height);
+        
+        // Draw semi-transparent dark background for footer
+        self.screen_surface.fill_rect(footer_rect, Color::RGBA(0, 0, 0, 180)).unwrap();
+        
+        // Draw controls text centered in footer
         let controls_text = "Z=B  X=A  ARROWS=DPAD  ENTER=START  TAB=SELECT  ESC=EXIT";
+        let text_width = controls_text.len() as i32 * 6; // 6 pixels per character
+        let controls_x = (SCREEN_WIDTH as i32 - text_width) / 2;
+        let controls_y = footer_y as i32 + 25;  // Adjusted for new footer height
         
-        // Calculate text dimensions (6 pixels per character, 7 pixels height)
-        let text_width = controls_text.len() as i32 * 6;
-        let text_height = 7;
-        
-        // Calculate where the game area ends
-        let game_height = YRES * SCALE;
-        let game_offset_y = (SCREEN_HEIGHT - game_height) / 2;
-        let game_bottom = game_offset_y + game_height;
-        
-        // Position controls below the game area with some margin
-        let text_x = (SCREEN_WIDTH as i32 - text_width) / 2;
-        let text_y = game_bottom as i32 + 5; // 5px margin below game
-        
-        // Draw semi-transparent background box
+        // Draw controls background
         let bg_padding = 5;
         let bg_rect = Rect::new(
-            text_x - bg_padding,
-            text_y - bg_padding,
+            controls_x - bg_padding,
+            controls_y - bg_padding,
             (text_width + 2 * bg_padding) as u32,
-            (text_height + 2 * bg_padding) as u32
+            20 // Fixed height for controls background
         );
         self.screen_surface.fill_rect(bg_rect, Color::RGBA(0, 0, 0, 160)).unwrap();
         
-        // Draw the controls text in white
-        self.draw_header_text(&controls_text, text_x, text_y, Color::RGB(255, 255, 255));
+        // Draw controls text
+        self.draw_header_text(controls_text, controls_x, controls_y, Color::RGB(255, 255, 255));
+
+        // Draw FPS in bottom left corner at same level as controls
+        let fps_text = format!("FPS: {}", self.fps_display);
+        let fps_x = 20;  // Consistent with header padding
+        let fps_y = controls_y;  // Same y level as controls
+        self.draw_header_text(&fps_text, fps_x, fps_y, Color::RGB(255, 255, 255));
     }
 
     /// Updates audio by getting samples from the audio system and queuing them

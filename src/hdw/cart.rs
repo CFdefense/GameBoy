@@ -3,7 +3,7 @@
   Info: Game Boy cartridge and Memory Bank Controller (MBC) implementation
   Description: The cart module implements complete cartridge emulation including ROM loading,
               header parsing, memory bank switching, and battery-backed save support.
-              Supports MBC1, MBC2, and MBC3 controllers with accurate banking behavior.
+              Supports MBC1, MBC2, MBC3, and MBC5 controllers with accurate banking behavior.
 
   CartridgeHeader Struct Members:
     rom_title: Game Title - 16-byte ASCII title extracted from cartridge header
@@ -34,6 +34,9 @@
     battery: Battery Backup Flag - Indicates save data persistence support
     need_save: Save Pending Flag - Tracks when save data requires writing to disk
 
+  MBC5 specific:
+    mbc5_rom_bank_upper: Upper bit for MBC5's 9-bit ROM bank register
+
   MBC3 RTC Members:
     rtc_registers: RTC Register Array - Real-time clock registers (S, M, H, DL, DH)
     rtc_latched: RTC Latched Values - Frozen RTC values for stable reading
@@ -55,6 +58,7 @@
     cart_mbc1: MBC1 Check - Detects MBC1 cartridge types (0x01-0x03)
     cart_mbc2: MBC2 Check - Detects MBC2 cartridge types (0x05-0x06)  
     cart_mbc3: MBC3 Check - Detects MBC3 cartridge types (0x0F-0x13)
+    cart_mbc5: MBC5 Check - Detects MBC5 cartridge types (0x19-0x1E)
     cart_battery: Battery Check - Detects battery backup support
     cart_has_rtc: RTC Check - Detects real-time clock support (MBC3)
 
@@ -78,6 +82,15 @@
     - Real-time clock with seconds, minutes, hours, days
     - RTC latch mechanism for stable multi-byte reads
     - Day counter overflow and halt flag support
+
+  MBC5 Implementation:
+    - ROM banks 0-511 (9-bit bank register split across two registers)
+    - RAM banks 0-15 (4-bit bank register)
+    - Lower 8 bits of ROM bank: 0x2000-0x2FFF
+    - Upper bit of ROM bank: 0x3000-0x3FFF
+    - RAM bank select: 0x4000-0x5FFF
+    - No banking mode selection (always advanced mode)
+    - Used in Pokemon Gold/Silver/Crystal and later games
 
   Save System:
     - Automatic save file creation in "saves/" directory
@@ -155,6 +168,9 @@ pub struct Cartridge {
     battery: bool,
     need_save: bool,
     
+    // MBC5 specific
+    mbc5_rom_bank_upper: u8, // Upper bit for MBC5's 9-bit ROM bank register
+    
     // MBC3 RTC (Real Time Clock) support
     rtc_registers: [u8; 5], // RTC S, M, H, DL, DH (0x08-0x0C)
     rtc_latched: [u8; 5],   // Latched RTC values
@@ -183,6 +199,7 @@ impl Cartridge {
             ram_banks: std::array::from_fn(|_| None),
             battery: false,
             need_save: false,
+            mbc5_rom_bank_upper: 0,
             rtc_registers: [0; 5],
             rtc_latched: [0; 5],
             rtc_latch_state: 0,
@@ -240,6 +257,14 @@ impl Cartridge {
                 self.update_rtc_time();
             }
         }
+        
+        // For MBC5, initialize with proper defaults
+        if self.cart_mbc5() {
+            self.ram_enabled = false; // RAM starts disabled
+            self.ram_banking = true;  // Enable RAM banking by default
+            self.rom_bank_value = 1;  // Start with ROM bank 1
+            self.rom_bank_x = 0x4000; // ROM bank 1 starts at 0x4000
+        }
     }
 
     pub fn cart_load_battery(&mut self) {
@@ -296,7 +321,7 @@ impl Cartridge {
             let save_data = &ram_bank[..0x2000];
             
             if let Err(e) = std::fs::write(&save_file_path, save_data) {
-                println!("FAILED TO OPEN: {}", save_file_path);
+                println!("COULD NOT FIND SAVE FILE: {}", save_file_path);
                 println!("Error: {}", e);
             } else {
                 println!("Battery saved: {}", save_file_path);
@@ -332,9 +357,6 @@ impl Cartridge {
         file.read_exact(&mut self.rom_data)
             .map_err(|e| format!("Failed to Read Rom Data {}", e))?;
 
-        self.battery = self.cart_battery();
-        self.need_save = false;
-
         println!("Cartidge Loaded");
 
         // Load Header Information
@@ -355,6 +377,11 @@ impl Cartridge {
             checksum: self.rom_data[0x014D],
             global_checksum: u16::from_le_bytes([self.rom_data[0x014E], self.rom_data[0x014F]]),
         };
+
+        // Now that header is loaded, check for battery support
+        self.battery = self.cart_battery();
+        self.need_save = false;
+        println!("Cart Type: {:#04x}, Battery: {}", self.rom_header.cart_type, self.battery);
 
         // Calculate the actual ROM size per pandocs
         self.rom_size = 32 * 1024 * (1 << self.rom_header.rom_size);
@@ -451,7 +478,7 @@ impl Cartridge {
         }
 
         // For non-MBC games, just read from ROM directly
-        if !self.cart_mbc1() && !self.cart_mbc2() && !self.cart_mbc3() {
+        if !self.cart_mbc1() && !self.cart_mbc2() && !self.cart_mbc3() && !self.cart_mbc5() {
             let index = address as usize;
             if index < self.rom_data.len() {
                 return self.rom_data[index];
@@ -475,7 +502,7 @@ impl Cartridge {
                 return 0xFF;
             }
 
-            if !self.ram_banking && !self.cart_mbc2() {
+            if !self.ram_banking && !self.cart_mbc2() && !self.cart_mbc5() {
                 return 0xFF;
             }
 
@@ -495,7 +522,7 @@ impl Cartridge {
             return 0xFF;
         }
         
-        // ROM bank 1+ access for MBC1 and MBC3
+        // ROM bank 1+ access for MBC1, MBC3, and MBC5
         let rom_address = self.rom_bank_x + (address as usize - 0x4000);
         if rom_address < self.rom_data.len() {
             return self.rom_data[rom_address];
@@ -506,12 +533,12 @@ impl Cartridge {
 
     // Method to write a value to an address
     pub fn write_byte(&mut self, address: u16, mut value: u8) {
-        if !self.cart_mbc1() && !self.cart_mbc2() && !self.cart_mbc3() {
+        if !self.cart_mbc1() && !self.cart_mbc2() && !self.cart_mbc3() && !self.cart_mbc5() {
             return;
         }
 
         if address < 0x2000 {
-            // RAM and Timer Enable (MBC1, MBC2 & MBC3)
+            // RAM and Timer Enable (MBC1, MBC2, MBC3 & MBC5)
             if self.cart_mbc2() {
                 // For MBC2, only enable RAM if bit 8 of address is 0 (address & 0x0100 == 0)
                 if (address & 0x0100) == 0 {
@@ -523,7 +550,7 @@ impl Cartridge {
         }
 
         if (address & 0xE000) == 0x2000 {
-            // ROM bank number (MBC1, MBC2 & MBC3)
+            // ROM bank number (MBC1, MBC2, MBC3 & MBC5)
             if self.cart_mbc2() {
                 // For MBC2, only change ROM bank if bit 8 of address is 1 (address & 0x0100 != 0)
                 if (address & 0x0100) != 0 {
@@ -534,6 +561,12 @@ impl Cartridge {
                     self.rom_bank_value = value;
                     self.rom_bank_x = 0x4000 * self.rom_bank_value as usize;
                 }
+            } else if self.cart_mbc5() {
+                // MBC5: Lower 8 bits of ROM bank (0x2000-0x2FFF)
+                self.rom_bank_value = value;
+                // Calculate full 9-bit bank number (lower 8 bits + upper bit)
+                let full_bank = ((self.mbc5_rom_bank_upper & 0x01) as u16) << 8 | self.rom_bank_value as u16;
+                self.rom_bank_x = 0x4000 * full_bank as usize;
             } else {
                 if value == 0 {
                     value = 1;
@@ -550,8 +583,19 @@ impl Cartridge {
             }
         }
 
+        if (address & 0xF000) == 0x3000 {
+            // MBC5: Upper bit of ROM bank (0x3000-0x3FFF) - only for MBC5
+            if self.cart_mbc5() {
+                // Store upper bit for ROM banking
+                self.mbc5_rom_bank_upper = value & 0x01;
+                // Calculate full 9-bit bank number
+                let full_bank = ((self.mbc5_rom_bank_upper & 0x01) as u16) << 8 | self.rom_bank_value as u16;
+                self.rom_bank_x = 0x4000 * full_bank as usize;
+            }
+        }
+
         if (address & 0xE000) == 0x4000 {
-            // RAM bank number or RTC register select (MBC1 & MBC3)
+            // RAM bank number or RTC register select (MBC1, MBC3 & MBC5)
             // MBC2 doesn't have RAM banking, so ignore these writes
             if !self.cart_mbc2() {
                 if self.cart_mbc3() {
@@ -571,6 +615,16 @@ impl Cartridge {
                         self.rtc_register_select = value;
                         self.rtc_selected = true;
                     }
+                } else if self.cart_mbc5() {
+                    // MBC5 RAM bank handling (4-bit, supports 0-15)
+                    self.ram_bank_value = value & 0b1111;
+                    
+                    if self.ram_banking {
+                        if self.cart_needs_save() {
+                            self.cart_save_battery();
+                        }
+                        self.ram_bank = self.ram_bank_value as usize;
+                    }
                 } else if self.cart_mbc1() {
                     // MBC1 RAM bank handling
                     self.ram_bank_value = value & 0b1111;
@@ -586,8 +640,8 @@ impl Cartridge {
         }
 
         if (address & 0xE000) == 0x6000 {
-            // MBC2 doesn't use this register range
-            if !self.cart_mbc2() {
+            // MBC2 and MBC5 don't use this register range
+            if !self.cart_mbc2() && !self.cart_mbc5() {
                 if self.cart_mbc1() {
                     // Banking mode select (MBC1)
                     self.banking_mode = value & 1;
@@ -651,6 +705,7 @@ impl Cartridge {
                         }
                     }
                 } else {
+                    // MBC1, MBC3, MBC5: Standard 8KB RAM banks
                     if ram_address < ram_bank.len() {
                         ram_bank[ram_address] = value;
 
@@ -670,7 +725,8 @@ impl Cartridge {
     pub fn cart_battery(&self) -> bool {
         match self.rom_header.cart_type {
             0x03 | 0x06 | 0x09 | 0x0D | // MBC1+RAM+BATTERY, MBC2+BATTERY, ROM+RAM+BATTERY, MMM01+RAM+BATTERY
-            0x0F | 0x10 | 0x13 => true, // MBC3+TIMER+BATTERY, MBC3+TIMER+RAM+BATTERY, MBC3+RAM+BATTERY
+            0x0F | 0x10 | 0x13 | // MBC3+TIMER+BATTERY, MBC3+TIMER+RAM+BATTERY, MBC3+RAM+BATTERY
+            0x1B | 0x1E => true, // MBC5+RAM+BATTERY, MBC5+RUMBLE+RAM+BATTERY
             _ => false,
         }
     }
@@ -695,6 +751,13 @@ impl Cartridge {
 
     pub fn cart_mbc2(&self) -> bool {
         self.rom_header.cart_type == 0x05 || self.rom_header.cart_type == 0x06
+    }
+
+    pub fn cart_mbc5(&self) -> bool {
+        match self.rom_header.cart_type {
+            0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E => true, // MBC5, MBC5+RAM, MBC5+RAM+BATTERY, MBC5+RUMBLE, MBC5+RUMBLE+RAM, MBC5+RUMBLE+RAM+BATTERY
+            _ => false,
+        }
     }
 
     // Update RTC registers based on elapsed time

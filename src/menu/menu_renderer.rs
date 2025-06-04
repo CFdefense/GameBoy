@@ -1149,8 +1149,8 @@ impl MenuRenderer {
             
             // Use shorter names to fit better
             let short_name = match palette {
-                crate::menu::ColorPalette::ClassicGreen => "CLASSIC GAME BOY",
-                crate::menu::ColorPalette::Grayscale => "GRAYSCALE",
+                crate::menu::ColorPalette::ClassicGameBoy => "CLASSIC GAME BOY",
+                crate::menu::ColorPalette::GreenScale => "GREENSCALE",
                 crate::menu::ColorPalette::PurpleShades => "PURPLE DREAMS",
                 crate::menu::ColorPalette::BlueShades => "OCEAN BLUE",
                 crate::menu::ColorPalette::Sepia => "VINTAGE SEPIA",

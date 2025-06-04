@@ -18,8 +18,8 @@ pub struct GameInfo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColorPalette {
-    ClassicGreen,
-    Grayscale,
+    ClassicGameBoy,
+    GreenScale,
     PurpleShades,
     BlueShades,
     Sepia,
@@ -31,17 +31,17 @@ pub enum ColorPalette {
 impl ColorPalette {
     pub fn get_colors(&self) -> [u32; 4] {
         match self {
-            ColorPalette::ClassicGreen => [
-                0xFF9BBB0F,  // Light green
-                0xFF8BAC0F,  // Medium green
-                0xFF306230,  // Dark green
-                0xFF0F380F,  // Very dark green
-            ],
-            ColorPalette::Grayscale => [
+            ColorPalette::ClassicGameBoy => [
                 0xFFFFFFFF,  // White
                 0xFFAAAAAA,  // Light gray
                 0xFF555555,  // Dark gray
                 0xFF000000,  // Black
+            ],
+            ColorPalette::GreenScale => [
+                0xFF9BBB0F,  // Light green
+                0xFF8BAC0F,  // Medium green
+                0xFF306230,  // Dark green
+                0xFF0F380F,  // Very dark green
             ],
             ColorPalette::PurpleShades => [
                 0xFFE6E6FA,  // Lavender
@@ -84,8 +84,8 @@ impl ColorPalette {
     
     pub fn get_name(&self) -> &'static str {
         match self {
-            ColorPalette::ClassicGreen => "Classic Game Boy",
-            ColorPalette::Grayscale => "Grayscale",
+            ColorPalette::ClassicGameBoy => "Classic Game Boy",
+            ColorPalette::GreenScale => "Green Scale",
             ColorPalette::PurpleShades => "Purple Dreams",
             ColorPalette::BlueShades => "Ocean Blue",
             ColorPalette::Sepia => "Vintage Sepia",
@@ -97,8 +97,8 @@ impl ColorPalette {
     
     pub fn all_palettes() -> Vec<ColorPalette> {
         vec![
-            ColorPalette::ClassicGreen,
-            ColorPalette::Grayscale,
+            ColorPalette::ClassicGameBoy,
+            ColorPalette::GreenScale,
             ColorPalette::PurpleShades,
             ColorPalette::BlueShades,
             ColorPalette::Sepia,
@@ -138,7 +138,7 @@ impl MenuContext {
             selected_main_option: 0,
             selected_game_index: 0,
             selected_palette_index: 0,
-            current_palette: ColorPalette::ClassicGreen,
+            current_palette: ColorPalette::ClassicGameBoy,
             available_palettes: ColorPalette::all_palettes(),
             games: Vec::new(),
             scroll_offset: 0,

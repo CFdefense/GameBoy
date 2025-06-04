@@ -189,7 +189,6 @@ GameBoy/
 │   │   ├── timer.rs          # EMU Timer
 │   │   └── ui.rs             # User interface
 │   ├── main.rs               # Entry point
-│   ├── main.rs               # Entry point
 │   ├── menu/                 # Emulator Menu Modules
 │   │   ├── game_scanner.rs   # System Game Scanner
 │   │   ├── menu_renderer.rs  # SDL2 Menu Renderer
@@ -212,8 +211,7 @@ GameBoy/
 - Memory dump capabilities
 - Performance profiling
 - Instruction count limiting
-- Step-by-step execution mode
-
+  
 ## License
 
 MIT License
